@@ -1,2 +1,5 @@
 .DS_Store
 
+.DS_Store
+backend/data/db/WiredTiger*
+backend/data/db/journal/WiredTiger*
