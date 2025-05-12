@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login & Registration Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 400px;
+      margin: 50px auto;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    input, button {
+      width: 100%;
+      padding: 8px;
+      margin: 6px 0;
+    }
+    #authSection button {
+      width: 48%;
+      margin: 10px 1%;
+    }
+  </style>
+</head>
+<body>
+  <!-- Auth Container -->
+<div id="authSection">
+  <div id="choiceButtons">
+    <button onclick="showForm('login')">Login</button>
+    <button onclick="showForm('register')">Register</button>
+  </div>
+
+  <!-- Login Form -->
+  <form id="loginForm" style="display:none;" novalidate>
+    <h2>Login</h2>
+    <input type="email" name="email" placeholder="Email" required><br>
+    <div style="position: relative;">
+      <input type="password" name="password" placeholder="Password" required id="loginPassword" style="width: 100%; padding-right: 40px;">
+      <span onclick="togglePassword('loginPassword', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">
+        <!-- Eye icon SVG -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+          <path d="M12 6c3.33 0 6 2.67 6 6s-2.67 6-6 6-6-2.67-6-6 2.67-6 6-6zm0 10c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-1-7h2v2h-2zm0 4h2v2h-2z"/>
+        </svg>
+      </span>
+    </div><br>
+    
+    <button type="submit">Login</button>
+  </form>
+
+  <!-- Register Form -->
+  <form id="registerForm" style="display:none;" novalidate>
+    <h2>Register</h2>
+    <input type="text" name="username" placeholder="Username" required><br>
+    <input type="email" name="email" placeholder="Email" required><br>
+    <div style="position: relative;">
+      <input type="password" name="password" placeholder="Password" required id="registerPassword" style="width: 100%; padding-right: 40px;">
+      <span onclick="togglePassword('registerPassword', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">
+        <!-- Eye icon SVG -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+          <path d="M12 6c3.33 0 6 2.67 6 6s-2.67 6-6 6-6-2.67-6-6 2.67-6 6-6zm0 10c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-1-7h2v2h-2zm0 4h2v2h-2z"/>
+        </svg>
+      </span>
+    </div><br>
+    
+    <button type="submit">Register</button>
+  </form>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboardSection" style="display:none;">
+  <button id="getDashboardBtn">Get Dashboard Info</button>
+  <div id="dashboardInfo"></div>
+  <button id="logoutBtn">Logout</button>
+</div>
+
+
+  <script>
+    window.onload = function () {
+      const token = localStorage.getItem('token');
+      if (token) {
+        document.getElementById('authSection').style.display = 'none';
+        document.getElementById('dashboardSection').style.display = 'block';
+      } else {
+        document.getElementById('authSection').style.display = 'block';
+        document.getElementById('dashboardSection').style.display = 'none';
+        showForm('login');
+      }
+    };
+
+    function showForm(type) {
+  document.getElementById('loginForm').style.display = (type === 'login') ? 'block' : 'none';
+  document.getElementById('registerForm').style.display = (type === 'register') ? 'block' : 'none';
+}
+
+
+    
+    // REGISTER
+document.getElementById('registerForm').addEventListener('submit', async function (e) {
+  if (!this.checkValidity()) {
+    e.preventDefault();
+    alert('Please fill in all fields correctly.');
+    return;
+  }
+
+  e.preventDefault();
+  const formData = new FormData(this);
+  const data = Object.fromEntries(formData.entries());
+
+  try {
+    const res = await fetch('http://localhost:3000/api/users/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    const result = await res.json();
+    alert(JSON.stringify(result));
+  } catch (err) {
+    alert('Registration failed: ' + err.message);
+  }
+});
+
+// LOGIN
+document.getElementById('loginForm').addEventListener('submit', async function (e) {
+  if (!this.checkValidity()) {
+    e.preventDefault();
+    alert('Please fill in your email and password.');
+    return;
+  }
+
+  e.preventDefault();
+  const formData = new FormData(this);
+  const data = Object.fromEntries(formData.entries());
+
+  try {
+    const res = await fetch('http://localhost:3000/api/users/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.message || 'Login failed');
+    }
+
+    const result = await res.json();
+    localStorage.setItem('token', result.token);
+    location.reload();
+  } catch (err) {
+    alert('Login error: ' + err.message);
+    console.error(err);
+  }
+});
+
+
+    document.getElementById('getDashboardBtn').addEventListener('click', async function () {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('No token found. Please log in first.');
+        return;
+      }
+
+      try {
+        const res = await fetch('http://localhost:3000/api/users/dashboard', {
+          method: 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.message || 'Failed to fetch dashboard data.');
+        }
+
+        const userData = await res.json();
+        const infoDiv = document.getElementById('dashboardInfo');
+        infoDiv.innerHTML = `
+          <p><strong>ID:</strong> ${userData.id}</p>
+          <p><strong>Username:</strong> ${userData.username}</p>
+          <p><strong>Email:</strong> ${userData.email}</p>
+        `;
+      } catch (err) {
+        alert('Error: ' + err.message);
+        console.error(err);
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', function () {
+      localStorage.removeItem('token');
+      alert('Logged out!');
+      location.reload();
+    });
+
+    function togglePassword(id, icon) {
+  const field = document.getElementById(id);
+  const isPassword = field.type === 'password';
+  field.type = isPassword ? 'text' : 'password';
+
+  // Change the icon to either the eye or the crossed eye
+  if (isPassword) {
+    icon.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+        <path d="M12 6c3.33 0 6 2.67 6 6s-2.67 6-6 6-6-2.67-6-6 2.67-6 6-6zm0 10c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-1-7h2v2h-2zm0 4h2v2h-2z"/>
+      </svg>`;
+  } else {
+    icon.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+        <path d="M12 6c3.33 0 6 2.67 6 6s-2.67 6-6 6-6-2.67-6-6 2.67-6 6-6zm0 10c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-1-7h2v2h-2zm0 4h2v2h-2z"/>
+      </svg>`;
+  }
+}
+
+
+
+  // Validate Forms Before Submitting (optional enhancement)
+  document.getElementById('registerForm').addEventListener('submit', function (e) {
+    if (!this.checkValidity()) {
+      e.preventDefault();
+      alert('Please fill in all fields correctly.');
+    }
+  });
+
+  document.getElementById('loginForm').addEventListener('submit', function (e) {
+    if (!this.checkValidity()) {
+      e.preventDefault();
+      alert('Please fill in your email and password.');
+    }
+  });
+  </script>
+</body>
+</html>
