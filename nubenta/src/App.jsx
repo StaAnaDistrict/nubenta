@@ -2,7 +2,7 @@ import React from "react";
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center px-4">
+<div className="min-h-screen bg-white text-black dark:bg-gray-900 dark:text-white">
       <header className="text-center">
         <h1 className="text-5xl font-extrabold mb-4 tracking-tight text-purple-400">
           Nubenta
