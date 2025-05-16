@@ -1,5 +1,3 @@
-
-
 document.addEventListener('DOMContentLoaded', () => {
   // Login Form
   const loginForm = document.getElementById('loginForm');
@@ -61,8 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('Submitting form...');
       console.log('Sending to process_update_profile.php');
       
-      
-
       const response = await fetch('process_update_profile.php', {
         method: 'POST',
         body: formData
@@ -70,25 +66,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const msg = document.getElementById('update-message');
 
+      let text; // Declare text variable here
       try {
-        const text = await response.text();
-        const result = JSON.parse(text);
-      
-        msg.textContent = result.message;
-        msg.style.color = result.success ? 'green' : 'red';
-      
-        if (result.success) {
-          setTimeout(() => location.reload(), 1000);
+        const contentType = response.headers.get('content-type');
+        text = await response.text(); // Assign text inside try block
+
+        if (contentType && contentType.includes('application/json')) {
+          const result = JSON.parse(text);
+        
+          msg.textContent = result.message;
+          msg.style.color = result.success ? 'green' : 'red';
+        
+          if (result.success) {
+            setTimeout(() => location.reload(), 1000);
+          }
+        } else {
+          console.error('Expected JSON, got:', text);
+          msg.textContent = 'Unexpected server response. Please check console.';
+          msg.style.color = 'red';
         }
       } catch (error) {
         console.error('Invalid JSON from process_update_profile.php:', error);
         msg.textContent = 'Unexpected server error. Please check console.';
         msg.style.color = 'red';
         console.log('Raw response:', text); // Use 'text' instead of 'xhr.responseText'
-    }
-      
-      
+      }
     });
-    
   }
 });
