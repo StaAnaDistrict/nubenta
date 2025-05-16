@@ -84,8 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Invalid JSON from process_update_profile.php:', error);
         msg.textContent = 'Unexpected server error. Please check console.';
         msg.style.color = 'red';
-        console.log('Raw response:', text);  // <- correct way
-      }
+        console.log('Raw response:', text); // Use 'text' instead of 'xhr.responseText'
+    }
       
       
     });

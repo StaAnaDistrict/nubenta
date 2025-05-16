@@ -14,9 +14,9 @@ $conn = new mysqli("localhost", "root", "", "nubenta_db");
 $conn->set_charset("utf8mb4");
 
 $id = $_SESSION['user']['id'];
-$name = htmlspecialchars(trim($_POST['name'] ?? ''), ENT_QUOTES, 'UTF-8');
-$email = trim($_POST['email'] ?? '');
-$password = trim($_POST['password'] ?? '');
+$name = isset($_POST['name']) ? trim($_POST['name']) : '';
+$email = isset($_POST['email']) ? trim($_POST['email']) : '';
+$password = isset($_POST['password']) ? trim($_POST['password']) : '';
 
 // Validation
 if (empty($name) || empty($email)) {
