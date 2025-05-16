@@ -1,37 +1,27 @@
 <?php
-session_start();
-error_reporting(E_ALL);
 ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// Connect to MySQL
-$conn = new mysqli("localhost", "root", "", "nubenta_db");
-if ($conn->connect_error) {
-  die("Connection failed: " . $conn->connect_error);
-}
+session_start();
+require_once 'db.php';
 
-// Handle login submission
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  $email = $conn->real_escape_string($_POST["email"]);
-  $password = $_POST["password"];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $email = $_POST['email'] ?? '';
+  $password = $_POST['password'] ?? '';
 
-  $sql = "SELECT * FROM users WHERE email = '$email'";
-  $result = $conn->query($sql);
+  $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+  $stmt->execute([$email]);
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-  if ($result->num_rows === 1) {
-    $user = $result->fetch_assoc();
-
-    if (password_verify($password, $user["password"])) {
-      $_SESSION["user_id"] = $user["id"];
-      $_SESSION["user_name"] = $user["name"];
-
-      // Redirect to profile page
-      header("Location: profile.php");
-      exit;
-    } else {
-      $error = "❌ Incorrect password.";
-    }
+  if ($user && password_verify($password, $user['password'])) {
+    $_SESSION['user'] = $user;
+    header("Location: dashboard.php");
+    exit();
+  
+  
   } else {
-    $error = "❌ Email not found.";
+    $error = "Invalid email or password.";
   }
 }
 ?>
@@ -44,9 +34,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <body>
   <h1>Login</h1>
 
-  <?php if (!empty($error)) echo "<p style='color:red;'>$error</p>"; ?>
+  <?php if (!empty($error)): ?>
+    <div style="color:red;"><?php echo $error; ?></div>
+  <?php endif; ?>
 
-  <form method="POST" action="">
+  <form method="POST" action="login.php">
     <label>Email:</label><br>
     <input type="email" name="email" required><br><br>
 

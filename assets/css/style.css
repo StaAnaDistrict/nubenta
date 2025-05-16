@@ -30,3 +30,72 @@ footer {
   width: 100%;
   bottom: 0;
 }
+
+.navbar {
+  background-color: #333;
+  padding: 1em 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.navbar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 20px;
+}
+
+.navbar ul li {
+  display: inline;
+}
+
+.navbar ul li a {
+  color: white;
+  text-decoration: none;
+  padding: 8px 12px;
+  transition: background-color 0.3s;
+}
+
+.navbar ul li a:hover {
+  background-color: #555;
+  border-radius: 4px;
+}
+.post-box {
+  background: white;
+  padding: 1em;
+  margin: 1em auto;
+  width: 80%;
+  box-shadow: 0 0 5px rgba(0,0,0,0.1);
+  border-radius: 8px;
+}
+
+.post-box textarea {
+  width: 100%;
+  height: 80px;
+  resize: vertical;
+  padding: 0.5em;
+  font-size: 1em;
+}
+
+.post-box input[type="file"],
+.post-box select,
+.post-box button {
+  margin-top: 0.5em;
+  display: block;
+}
+
+.newsfeed {
+  width: 80%;
+  margin: 1em auto;
+}
+
+.post {
+  background: #fff;
+  padding: 1em;
+  margin-bottom: 1em;
+  box-shadow: 0 0 3px rgba(0,0,0,0.1);
+  border-radius: 6px;
+  text-align: left;
+}
