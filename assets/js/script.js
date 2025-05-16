@@ -50,47 +50,44 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Update Profile Form
-  const updateForm = document.getElementById('updateForm');
-  if (updateForm) {
-    updateForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
+const updateForm = document.getElementById('updateForm');
+if (updateForm) {
+  updateForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-      const formData = new FormData(updateForm);
-      console.log('Submitting form...');
-      console.log('Sending to process_update_profile.php');
-      
+    const formData = new FormData(updateForm);
+    console.log('Submitting form...');
+    console.log('Sending to process_update_profile.php');
+
+    const msg = document.getElementById('update-message');
+
+    try {
       const response = await fetch('process_update_profile.php', {
         method: 'POST',
         body: formData
       });
 
-      const msg = document.getElementById('update-message');
+      const text = await response.text();
+      console.log('Raw response:', text);
 
-      let text; // Declare text variable here
-      try {
-        const contentType = response.headers.get('content-type');
-        text = await response.text(); // Assign text inside try block
-
-        if (contentType && contentType.includes('application/json')) {
-          const result = JSON.parse(text);
-        
-          msg.textContent = result.message;
-          msg.style.color = result.success ? 'green' : 'red';
-        
-          if (result.success) {
-            setTimeout(() => location.reload(), 1000);
-          }
-        } else {
-          console.error('Expected JSON, got:', text);
-          msg.textContent = 'Unexpected server response. Please check console.';
-          msg.style.color = 'red';
-        }
-      } catch (error) {
-        console.error('Invalid JSON from process_update_profile.php:', error);
-        msg.textContent = 'Unexpected server error. Please check console.';
-        msg.style.color = 'red';
-        console.log('Raw response:', text); // Use 'text' instead of 'xhr.responseText'
+      if (!text) {
+        throw new Error('Empty response from server');
       }
-    });
-  }
+
+      const result = JSON.parse(text);
+
+      msg.textContent = result.message;
+      msg.style.color = result.success ? 'green' : 'red';
+
+      if (result.success) {
+        setTimeout(() => location.reload(), 1000);
+      }
+    } catch (error) {
+      console.error('Error processing response:', error);
+      msg.textContent = 'Unexpected server error. Please check console.';
+      msg.style.color = 'red';
+    }
+  });
+}
+
 });
