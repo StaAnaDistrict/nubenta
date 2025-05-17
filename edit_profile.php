@@ -11,6 +11,8 @@ $user = $_SESSION['user'];
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <title>Edit Profile</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
@@ -46,15 +48,15 @@ $user = $_SESSION['user'];
 <div class="row mb-3">
   <div class="col-md-4">
     <label class="form-label">First Name</label>
-    <input type="text" name="first_name" class="form-control" value="">
+    <input type="text" name="first_name" class="form-control" value="<?= htmlspecialchars($user['first_name'] ?? '') ?>">
   </div>
   <div class="col-md-4">
     <label class="form-label">Middle Name</label>
-    <input type="text" name="middle_name" class="form-control" value="">
+    <input type="text" name="middle_name" class="form-control" value="<?= htmlspecialchars($user['middle_name'] ?? '') ?>">
   </div>
   <div class="col-md-4">
     <label class="form-label">Last Name</label>
-    <input type="text" name="last_name" class="form-control" value="">
+    <input type="text" name="last_name" class="form-control" value="<?= htmlspecialchars($user['last_name'] ?? '') ?>">
   </div>
 </div>
 
@@ -84,9 +86,8 @@ $user = $_SESSION['user'];
     <label class="form-label">Gender</label>
     <select name="gender" class="form-select">
       <option value="">Select</option>
-      <option <?= ($user['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
-      <option <?= ($user['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
-      <option <?= ($user['gender'] ?? '') === 'Other' ? 'selected' : '' ?>>Other</option>
+      <option value="Male" <?= ($user['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
+      <option value="Female" <?= ($user['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
     </select>
   </div>
   <div class="col-md-4">
@@ -176,14 +177,18 @@ $user = $_SESSION['user'];
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-  $('#updateForm').on('submit', function (e) {
-  e.preventDefault(); // ✅ Still prevents full-page reload
+$('#updateForm').on('submit', function (e) {
+  e.preventDefault();
   const formData = $(this).serialize();
+  const msg = document.getElementById('update-message');
 
-  $.post('process_update_profile.php', formData, function (response) {
-    try {
-      const data = JSON.parse(response);
-      if (data.success) {
+  $.ajax({
+    url: 'process_update_profile.php',
+    type: 'POST',
+    data: formData,
+    dataType: 'json',
+    success: function(response) {
+      if (response.success) {
         Swal.fire({
           icon: 'success',
           title: 'Profile successfully saved!',
@@ -193,27 +198,31 @@ $user = $_SESSION['user'];
         }).then((result) => {
           if (result.isConfirmed) {
             window.location.href = 'dashboard.php';
+          } else {
+            // Reload the page to show updated values
+            location.reload();
           }
         });
       } else {
         Swal.fire({
           icon: 'error',
           title: 'Oops...',
-          text: data.message || 'Something went wrong.',
+          text: response.message || 'Something went wrong.',
           confirmButtonText: 'OK'
         });
       }
-    } catch (err) {
+    },
+    error: function(xhr, status, error) {
+      console.error('Error:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'Invalid server response.',
+        text: 'An error occurred while saving your profile. Please try again.',
         confirmButtonText: 'OK'
       });
     }
   });
 });
-
 </script>
 
 </body>
