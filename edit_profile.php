@@ -182,24 +182,39 @@ $('#updateForm').on('submit', function (e) {
   const formData = $(this).serialize();
   const msg = document.getElementById('update-message');
 
+  // Show loading spinner while processing
+  Swal.fire({
+    title: 'Saving...',
+    text: 'Please wait while we update your profile.',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: () => {
+      Swal.showLoading();
+    }
+  });
+
   $.ajax({
     url: 'process_update_profile.php',
     type: 'POST',
     data: formData,
     dataType: 'json',
     success: function(response) {
+      Swal.close(); // Close the loading spinner before showing next popup
+
       if (response.success) {
         Swal.fire({
           icon: 'success',
           title: 'Profile successfully saved!',
           showDenyButton: true,
           confirmButtonText: 'Return Home',
-          denyButtonText: 'Continue Editing'
+          denyButtonText: 'Continue Editing',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
         }).then((result) => {
           if (result.isConfirmed) {
             window.location.href = 'dashboard.php';
-          } else {
-            // Reload the page to show updated values
+          } else if (result.isDenied) {
             location.reload();
           }
         });
@@ -208,21 +223,73 @@ $('#updateForm').on('submit', function (e) {
           icon: 'error',
           title: 'Oops...',
           text: response.message || 'Something went wrong.',
-          confirmButtonText: 'OK'
+          confirmButtonText: 'OK',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          allowEnterKey: false
         });
       }
     },
     error: function(xhr, status, error) {
-      console.error('Error:', error);
+      Swal.close(); // Close loading spinner if there's a failure
+
       Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'An error occurred while saving your profile. Please try again.',
-        confirmButtonText: 'OK'
+        confirmButtonText: 'OK',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        allowEnterKey: false
       });
     }
   });
 });
+
+
+document.addEventListener("DOMContentLoaded", function () {
+  const locationInput = document.querySelector("input[name='location']");
+
+  if ("geolocation" in navigator && locationInput) {
+    navigator.geolocation.getCurrentPosition(position => {
+      const { latitude, longitude } = position.coords;
+
+      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.address) {
+            const address = data.address;
+
+            const city =
+              address.city ||
+              address.town ||
+              address.village ||
+              address.hamlet;
+
+            const region =
+              address.county ||    // e.g., "Quezon"
+              address.province ||  // rarely used
+              address.state_district || 
+              address.state ||     // fallback
+              address.region;
+
+            const country = address.country;
+
+            // Filter out falsy values and join with commas
+            const formattedLocation = [city, region, country]
+              .filter(part => part && part.trim() !== "")
+              .join(", ");
+
+            locationInput.value = formattedLocation;
+          }
+        })
+        .catch(err => console.error("Location fetch error:", err));
+    }, error => {
+      console.warn("Geolocation permission denied or unavailable.", error);
+    });
+  }
+});
+
 </script>
 
 </body>
