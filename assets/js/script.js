@@ -56,38 +56,48 @@ if (updateForm) {
     e.preventDefault();
 
     const formData = new FormData(updateForm);
-    console.log('Submitting form...');
-    console.log('Sending to process_update_profile.php');
-
     const msg = document.getElementById('update-message');
 
+    // show spinner
+    Swal.fire({title:'Saving…',allowOutsideClick:false,didOpen:Swal.showLoading});
+
     try {
-      const response = await fetch('process_update_profile.php', {
-        method: 'POST',
-        body: formData
-      });
+      const res  = await fetch('process_update_profile.php', { method:'POST', body:formData });
+      const raw  = await res.text();                   // might be JSON *or* PHP warning HTML
+      console.log('Raw response:', raw);
 
-      const text = await response.text();
-      console.log('Raw response:', text);
-
-      if (!text) {
-        throw new Error('Empty response from server');
+      let data;
+      try {                                            // attempt JSON parse
+        data = JSON.parse(raw);
+      } catch (parseErr) {
+        throw new Error('Server returned non-JSON. Check PHP error log.');
       }
 
-      const result = JSON.parse(text);
+      Swal.close();
 
-      msg.textContent = result.message;
-      msg.style.color = result.success ? 'green' : 'red';
-
-      if (result.success) {
-        setTimeout(() => location.reload(), 1000);
+      if (data.success) {
+        Swal.fire({
+          icon:'success',
+          title:'Profile saved!',
+          showDenyButton:true,
+          confirmButtonText:'Return Home',
+          denyButtonText:'Continue Editing'
+        }).then(r=>{
+          if (r.isConfirmed) window.location.href='dashboard.php';
+          else               location.reload();
+        });
+      } else {
+        Swal.fire('Oops…', data.message || 'Upload failed' ,'error');
       }
-    } catch (error) {
-      console.error('Error processing response:', error);
-      msg.textContent = 'Unexpected server error. Please check console.';
-      msg.style.color = 'red';
+
+    } catch (err) {
+      console.error(err);
+      Swal.close();
+      Swal.fire('Error','Unexpected server error. See console.','error');
     }
   });
+
 }
 
 });
+

@@ -1,0 +1,13 @@
+/* ====== Top Navigation ====== */
+.topnav       {background:#222;color:#fff;display:flex;align-items:center;padding:0 1em;}
+.topnav a     {color:#fff;text-decoration:none;margin-right:1.2em;font-size:.95em;}
+.topnav a:hover{text-decoration:underline}
+.topnav .logo {font-weight:bold;margin-right:2em;}
+.hamburger    {display:none;font-size:1.4em;background:none;border:0;color:#fff;cursor:pointer}
+
+/* mobile */
+@media (max-width:800px){
+  .topnav-links{display:none;flex-direction:column;background:#222;position:absolute;top:48px;left:0;width:100%;padding:1em 0}
+  .topnav-links.show{display:flex}
+  .hamburger{display:block}
+}

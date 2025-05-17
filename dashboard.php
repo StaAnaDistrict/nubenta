@@ -5,48 +5,43 @@ if (!isset($_SESSION['user'])) {
   exit();
 }
 $user = $_SESSION['user'];
+
 ?>
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>Dashboard – Nubenta</title>
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/dashboard_style.css">
 </head>
 <body>
+<div class="hamburger">☰</div>
 
-  <h2>Welcome, <?php echo htmlspecialchars($user['name']); ?>!</h2>
-  <p>This is your user dashboard.</p>
+<div class="dashboard-grid">
+<?php                         // ---------- ONLY ONE INCLUDE ----------
+$currentUser = $user;         // pass user to navigation.php
+include 'assets/navigation.php';
+?>
+  
 
-  <nav class="navbar">
-    <ul>
-      <li><a href="edit_profile.php">Edit Profile</a></li>
-      <li><a href="post.php">Create Post</a></li>
-      <li><a href="newsfeed.php">Newsfeed</a></li>
-      <?php if ($user['role'] === 'admin'): ?>
-        <li><a href="admin_users.php">Manage Users</a></li>
-      <?php endif; ?>
-      <li><a href="logout.php">Logout</a></li>
-    </ul>
-  </nav>
-<main>
-
-    <!-- 📝 Post Box -->
+  <!-- Main Content -->
+  <main class="main-content">
     <form action="create_post.php" method="POST" enctype="multipart/form-data" class="post-box">
       <textarea name="content" placeholder="What's on your mind?" required></textarea>
-      <input type="file" name="media">
-      <select name="visibility">
-        <option value="public">Public</option>
-        <option value="friends">Friends Only</option>
-      </select>
-      <button type="submit">Post</button>
+      <div class="post-actions">
+  <input type="file" name="media">
+  <select name="visibility">
+    <option value="public">Public</option>
+    <option value="friends">Friends Only</option>
+  </select>
+  <button type="submit">Post</button>
+</div>
+
     </form>
 
-    <!-- 📰 Newsfeed -->
     <section class="newsfeed">
       <?php
-      // Example structure. Replace with real DB content.
-      $posts = []; // ← Load this from the database
+      $posts = []; // ← Replace with real DB content.
       foreach ($posts as $post):
       ?>
         <article class="post">
@@ -60,5 +55,26 @@ $user = $_SESSION['user'];
       <?php endforeach; ?>
     </section>
   </main>
+
+  <!-- Right Sidebar -->
+  <aside class="right-sidebar">
+    <div class="sidebar-section">
+      <h4>📢 Ads</h4>
+      <p>(Coming Soon)</p>
+    </div>
+    <div class="sidebar-section">
+      <h4>🕑 Activity Feed</h4>
+      <p>(Coming Soon)</p>
+    </div>
+    <div class="sidebar-section">
+      <h4>🟢 Online Friends</h4>
+      <p>(Coming Soon)</p>
+    </div>
+  </aside>
+
+</div>
+
+
+
 </body>
 </html>

@@ -40,10 +40,22 @@ $user = $_SESSION['user'];
     <a href="logout.php" class="btn btn-outline-danger">🚪 Logout</a>
   </div>
 
-  <form id="updateForm">
+  <form id="updateForm" enctype="multipart/form-data">
 
 <!-- Personal Information -->
 <div class="form-section-title">Personal Information</div>
+
+<div class="form-section-title">Profile Picture</div>
+
+<div class="mb-3">
+  <?php if (!empty($user['profile_pic'])): ?>
+      <img src="uploads/profile_pics/<?= htmlspecialchars($user['profile_pic']) ?>" 
+           alt="Current profile picture" class="img-thumbnail mb-2" style="max-width:150px;">
+  <?php endif; ?>
+  <input type="file" name="profile_pic" accept="image/*" class="form-control">
+  <small class="text-muted">JPEG/PNG • Max 2 MB</small>
+</div>
+
 
 <div class="row mb-3">
   <div class="col-md-4">
@@ -161,6 +173,15 @@ $user = $_SESSION['user'];
   <textarea name="favorite_music" class="form-control" rows="2"><?= htmlspecialchars($user['favorite_music'] ?? '') ?></textarea>
 </div>
 
+<div class="form-section-title">Custom CSS / HTML</div>
+
+<div class="mb-3">
+  <label class="form-label">Paste your custom theme snippet</label>
+  <textarea name="custom_theme" class="form-control" rows="6"
+            placeholder="/* Write CSS or small HTML blocks here */"><?= 
+            htmlspecialchars($user['custom_theme'] ?? '') ?></textarea>
+</div>
+
  <!-- Buttons -->
  <div class="d-flex justify-content-between mt-4">
   <button type="submit" class="btn btn-primary">✅ Save Changes</button>
@@ -179,15 +200,17 @@ $user = $_SESSION['user'];
 <script>
 $('#updateForm').on('submit', function (e) {
   e.preventDefault();
-  const formData = $(this).serialize();
+
+  const formData = new FormData(this);
   const msg = document.getElementById('update-message');
 
-  // Show loading spinner while processing
+  // Show loading state
   Swal.fire({
-    title: 'Saving...',
+    title: 'Saving…',
     text: 'Please wait while we update your profile.',
     allowOutsideClick: false,
     allowEscapeKey: false,
+    showConfirmButton: false,
     didOpen: () => {
       Swal.showLoading();
     }
@@ -197,50 +220,43 @@ $('#updateForm').on('submit', function (e) {
     url: 'process_update_profile.php',
     type: 'POST',
     data: formData,
+    processData: false,
+    contentType: false,
     dataType: 'json',
     success: function(response) {
-      Swal.close(); // Close the loading spinner before showing next popup
-
+      Swal.close();
+      
       if (response.success) {
         Swal.fire({
           icon: 'success',
           title: 'Profile successfully saved!',
           showDenyButton: true,
           confirmButtonText: 'Return Home',
-          denyButtonText: 'Continue Editing',
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          allowEnterKey: false
+          denyButtonText: 'Continue Editing'
         }).then((result) => {
           if (result.isConfirmed) {
             window.location.href = 'dashboard.php';
-          } else if (result.isDenied) {
+          } else {
             location.reload();
           }
         });
       } else {
         Swal.fire({
           icon: 'error',
-          title: 'Oops...',
+          title: 'Oops…',
           text: response.message || 'Something went wrong.',
-          confirmButtonText: 'OK',
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          allowEnterKey: false
+          confirmButtonText: 'OK'
         });
       }
     },
     error: function(xhr, status, error) {
-      Swal.close(); // Close loading spinner if there's a failure
-
+      console.error('Error:', error);
+      Swal.close();
       Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'An error occurred while saving your profile. Please try again.',
-        confirmButtonText: 'OK',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        allowEnterKey: false
+        confirmButtonText: 'OK'
       });
     }
   });

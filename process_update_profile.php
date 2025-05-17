@@ -134,6 +134,69 @@ try {
         $stmt->bind_param($types, ...$values);
     }
 
+    // ───── profile-pic upload ─────────────────────────
+    if (!empty($_FILES['profile_pic']['name'])) {
+        $allowed = ['jpg','jpeg','png','gif'];
+        $maxSize = 2 * 1024 * 1024; // 2 MB
+
+        $ext = strtolower(pathinfo($_FILES['profile_pic']['name'], PATHINFO_EXTENSION));
+
+        if (!in_array($ext, $allowed)) {
+            echo json_encode(['success'=>false,'message'=>'Only JPG, PNG, GIF allowed']);
+            exit;
+        }
+        if ($_FILES['profile_pic']['size'] > $maxSize) {
+            echo json_encode(['success'=>false,'message'=>'File larger than 2 MB']);
+            exit;
+        }
+
+        $newName = "u{$id}_" . time() . ".$ext";
+        $destDir = __DIR__ . '/uploads/profile_pics/';
+        $destPath = $destDir . $newName;
+
+        // Create directory if it doesn't exist
+        if (!is_dir($destDir)) {
+            if (!mkdir($destDir, 0777, true)) {
+                error_log("Failed to create directory: " . $destDir);
+                echo json_encode(['success'=>false,'message'=>'Failed to create upload directory']);
+                exit;
+            }
+        }
+
+        // Check if directory is writable
+        if (!is_writable($destDir)) {
+            error_log("Directory not writable: " . $destDir);
+            echo json_encode(['success'=>false,'message'=>'Upload directory not writable']);
+            exit;
+        }
+
+        // Try to move the uploaded file
+        if (!move_uploaded_file($_FILES['profile_pic']['tmp_name'], $destPath)) {
+            error_log("Failed to move uploaded file to: " . $destPath);
+            echo json_encode(['success'=>false,'message'=>'Failed to save uploaded file']);
+            exit;
+        }
+
+        // Update profile_pic in database
+        $picStmt = $conn->prepare("UPDATE users SET profile_pic = ? WHERE id = ?");
+        if (!$picStmt) {
+            error_log("Failed to prepare profile_pic update statement: " . $conn->error);
+            echo json_encode(['success'=>false,'message'=>'Database error while updating profile picture']);
+            exit;
+        }
+        
+        $picStmt->bind_param('si', $newName, $id);
+        if (!$picStmt->execute()) {
+            error_log("Failed to update profile_pic in database: " . $picStmt->error);
+            echo json_encode(['success'=>false,'message'=>'Failed to update profile picture in database']);
+            exit;
+        }
+        $picStmt->close();
+    }
+
+    /* ---------- custom theme ---------- */
+    $params['custom_theme'] = $_POST['custom_theme'] ?? null;
+
     if (!$stmt->execute()) {
         throw new Exception('Failed to update profile: ' . $stmt->error);
     }

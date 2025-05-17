@@ -1,0 +1,197 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f7f7f7;
+  color: #333;
+  text-align: center;
+}
+
+header {
+  background: #333;
+  color: white;
+  padding: 1em 0;
+}
+
+/* 🧱 Grid Layout Base */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 250px 1fr 250px;
+  grid-template-rows: auto;
+  height: 100vh;
+}
+
+/* 🎯 Left Sidebar */
+.left-sidebar {
+  background-color: #222;
+  color: white;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.user-greeting h3 {
+  margin-top: 0;
+  font-size: 1.1em;
+  padding-bottom: 1em;
+  border-bottom: 1px solid #444;
+  width: 100%;
+}
+
+/* 🔽 Vertical Nav */
+.navbar-vertical ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.navbar-vertical ul li {
+  margin: 10px 0;
+}
+
+.navbar-vertical ul li a {
+  color: white;
+  text-decoration: none;
+  padding: 10px 12px;
+  display: block;
+  border-radius: 4px;
+}
+
+.navbar-vertical ul li a:hover {
+  background-color: #444;
+}
+
+/* ✏️ Main Content Styling */
+.main-content {
+  background-color: #f5f5f5;
+  padding: 2em;
+  overflow-y: auto;
+}
+
+/* 📌 Right Sidebar */
+.right-sidebar {
+  background-color: #1e1e1e;
+  color: white;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.sidebar-section {
+  background-color: #2a2a2a;
+  padding: 1em;
+  border-radius: 6px;
+}
+
+/* 💬 Adjusted Post Box */
+.post-box {
+  background: white;
+  padding: 1em;
+  margin: 1em auto;
+  width: 80%;
+  box-shadow: 0 0 5px rgba(0,0,0,0.1);
+  border-radius: 8px;
+}
+
+.post-box textarea {
+  width: 100%;
+  height: 80px;
+  resize: vertical;
+  padding: 0.5em;
+  font-size: 1em;
+}
+
+.post-box input[type="file"],
+.post-box select,
+.post-box button {
+  margin-top: 0.5em;
+  display: block;
+}
+
+.newsfeed {
+  width: 80%;
+  margin: 1em auto;
+}
+
+.post {
+  background: #fff;
+  padding: 1em;
+  margin-bottom: 1em;
+  box-shadow: 0 0 3px rgba(0,0,0,0.1);
+  border-radius: 6px;
+  text-align: left;
+}
+/* 📄 Post Styling remains unchanged (uses your existing style) */
+
+/* Optional: Make the dashboard responsive */
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .left-sidebar, .right-sidebar {
+    display: none;
+  }
+}
+
+.post-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin-top: 0.5em;
+  align-items: center;
+}
+
+.post-actions input[type="file"],
+.post-actions select,
+.post-actions button {
+  margin-top: 0;
+}
+.hamburger {
+  display: none;
+  position: absolute;
+  top: 1em;
+  left: 1em;
+  background: #222;
+  color: white;
+  border: none;
+  padding: 0.5em 1em;
+  font-size: 1.2em;
+  z-index: 999;
+  cursor: pointer;
+}
+
+/* Hide sidebar on mobile and use hamburger */
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .left-sidebar {
+    position: fixed;
+    top: 0;
+    left: -250px; /* hide off screen */
+    width: 250px;
+    height: 100vh;
+    background-color: #222;
+    padding-top: 3em;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    transition: left 0.3s ease;
+  }
+
+  .left-sidebar.show {
+    left: 0; /* slide in */
+  }
+
+  .right-sidebar {
+    display: none;
+  }
+
+  .hamburger {
+    display: block;
+  }
+}
