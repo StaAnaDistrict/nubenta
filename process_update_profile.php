@@ -1,12 +1,8 @@
 <?php
-// Disable error display and enable error logging
-ini_set('display_errors', 0);
+ob_start();
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
-// Optionally, configure error logging to a file
-ini_set('log_errors', 1);
-ini_set('error_log', '/path/to/your/error_log.txt');
-
 header('Content-Type: application/json');
 
 session_start();
@@ -16,18 +12,18 @@ if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
     exit();
 }
 
+// Database connection
 $conn = new mysqli("localhost", "root", "", "nubenta_db");
-$conn->set_charset("utf8mb4");
-
 if ($conn->connect_error) {
-    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+    echo json_encode(['success' => false, 'message' => 'Database connection failed: ' . $conn->connect_error]);
     exit();
 }
+$conn->set_charset("utf8mb4");
 
-$id = $_SESSION['user']['id'];
-$name = trim($_POST['name'] ?? '');
-$email = trim($_POST['email'] ?? '');
-$password = trim($_POST['password'] ?? '');
+// Retrieve and sanitize POST data
+$name = isset($_POST['name']) ? htmlspecialchars(trim($_POST['name']), ENT_QUOTES, 'UTF-8') : '';
+$email = isset($_POST['email']) ? trim($_POST['email']) : '';
+$password = isset($_POST['password']) ? trim($_POST['password']) : '';
 
 // Validation
 if (empty($name) || empty($email)) {
