@@ -95,108 +95,133 @@ if (!empty($password)) {
     $params['password'] = password_hash($password, PASSWORD_BCRYPT);
 }
 
-$stmt = null;
-$selectStmt = null;
+// Handle custom theme first
+$custom_theme = isset($_POST['custom_theme']) ? trim($_POST['custom_theme']) : null;
+error_log("Raw custom theme input: " . $custom_theme);
+
+if ($custom_theme !== null && $custom_theme !== '') {
+    // Basic security checks
+    $custom_theme = preg_replace('/<\?php.*?\?>/s', '', $custom_theme); // Remove PHP tags
+    $custom_theme = preg_replace('/<\?.*?\?>/s', '', $custom_theme);    // Remove short PHP tags
+    
+    // Allow style, script, and common HTML tags
+    $allowed_tags = '<style><script><div><span><p><br><strong><em><i><b><u><h1><h2><h3><h4><h5><h6>';
+    
+    // Preserve script content
+    $custom_theme = preg_replace_callback('/<script\b[^>]*>(.*?)<\/script>/is', function($matches) {
+        return '<script type="text/javascript">' . $matches[1] . '</script>';
+    }, $custom_theme);
+    
+    // Strip tags but preserve script content
+    $custom_theme = strip_tags($custom_theme, $allowed_tags);
+    
+    // Add to params array
+    $params['custom_theme'] = $custom_theme;
+    error_log("Processed custom theme: " . $custom_theme);
+} else {
+    $params['custom_theme'] = null;
+    error_log("No custom theme provided or empty");
+}
+
+// Build SQL
+$setClause = '';
+$types = '';
+$values = [];
+
+// Add updated_at to the update
+$setClause .= "updated_at = CURRENT_TIMESTAMP, ";
+
+foreach ($params as $key => $value) {
+    if ($value === null) {
+        $setClause .= "$key = NULL, ";
+    } else {
+        $setClause .= "$key = ?, ";
+        $types .= 's';
+        $values[] = $value;
+    }
+}
+
+$setClause = rtrim($setClause, ', ');
+$types .= 'i';
+$values[] = $id;
+
+$sql = "UPDATE users SET $setClause WHERE id = ?";
+
+// Debug information
+error_log("SQL Query: " . $sql);
+error_log("Parameters: " . print_r($values, true));
+
+$stmt = $conn->prepare($sql);
+
+if (!$stmt) {
+    throw new Exception('SQL prepare failed: ' . $conn->error);
+}
+
+if (!empty($values)) {
+    $stmt->bind_param($types, ...$values);
+}
+
+// ───── profile-pic upload ─────────────────────────
+if (!empty($_FILES['profile_pic']['name'])) {
+    $allowed = ['jpg','jpeg','png','gif'];
+    $maxSize = 2 * 1024 * 1024; // 2 MB
+
+    $ext = strtolower(pathinfo($_FILES['profile_pic']['name'], PATHINFO_EXTENSION));
+
+    if (!in_array($ext, $allowed)) {
+        echo json_encode(['success'=>false,'message'=>'Only JPG, PNG, GIF allowed']);
+        exit;
+    }
+    if ($_FILES['profile_pic']['size'] > $maxSize) {
+        echo json_encode(['success'=>false,'message'=>'File larger than 2 MB']);
+        exit;
+    }
+
+    $newName = "u{$id}_" . time() . ".$ext";
+    $destDir = __DIR__ . '/uploads/profile_pics/';
+    $destPath = $destDir . $newName;
+
+    // Create directory if it doesn't exist
+    if (!is_dir($destDir)) {
+        if (!mkdir($destDir, 0777, true)) {
+            error_log("Failed to create directory: " . $destDir);
+            echo json_encode(['success'=>false,'message'=>'Failed to create upload directory']);
+            exit;
+        }
+    }
+
+    // Check if directory is writable
+    if (!is_writable($destDir)) {
+        error_log("Directory not writable: " . $destDir);
+        echo json_encode(['success'=>false,'message'=>'Upload directory not writable']);
+        exit;
+    }
+
+    // Try to move the uploaded file
+    if (!move_uploaded_file($_FILES['profile_pic']['tmp_name'], $destPath)) {
+        error_log("Failed to move uploaded file to: " . $destPath);
+        echo json_encode(['success'=>false,'message'=>'Failed to save uploaded file']);
+        exit;
+    }
+
+    // Update profile_pic in database
+    $picStmt = $conn->prepare("UPDATE users SET profile_pic = ? WHERE id = ?");
+    if (!$picStmt) {
+        error_log("Failed to prepare profile_pic update statement: " . $conn->error);
+        echo json_encode(['success'=>false,'message'=>'Database error while updating profile picture']);
+        exit;
+    }
+    
+    $picStmt->bind_param('si', $newName, $id);
+    if (!$picStmt->execute()) {
+        error_log("Failed to update profile_pic in database: " . $picStmt->error);
+        echo json_encode(['success'=>false,'message'=>'Failed to update profile picture in database']);
+        exit;
+    }
+    $picStmt->close();
+}
 
 try {
-    // Build SQL
-    $setClause = '';
-    $types = '';
-    $values = [];
-
-    foreach ($params as $key => $value) {
-        if ($value === null) {
-            $setClause .= "$key = NULL, ";
-        } else {
-            $setClause .= "$key = ?, ";
-            $types .= 's';
-            $values[] = $value;
-        }
-    }
-
-    $setClause = rtrim($setClause, ', ');
-    $types .= 'i';
-    $values[] = $id;
-
-    $sql = "UPDATE users SET $setClause WHERE id = ?";
-    
-    // Debug information
-    error_log("SQL Query: " . $sql);
-    error_log("Parameters: " . print_r($values, true));
-    
-    $stmt = $conn->prepare($sql);
-
-    if (!$stmt) {
-        throw new Exception('SQL prepare failed: ' . $conn->error);
-    }
-
-    if (!empty($values)) {
-        $stmt->bind_param($types, ...$values);
-    }
-
-    // ───── profile-pic upload ─────────────────────────
-    if (!empty($_FILES['profile_pic']['name'])) {
-        $allowed = ['jpg','jpeg','png','gif'];
-        $maxSize = 2 * 1024 * 1024; // 2 MB
-
-        $ext = strtolower(pathinfo($_FILES['profile_pic']['name'], PATHINFO_EXTENSION));
-
-        if (!in_array($ext, $allowed)) {
-            echo json_encode(['success'=>false,'message'=>'Only JPG, PNG, GIF allowed']);
-            exit;
-        }
-        if ($_FILES['profile_pic']['size'] > $maxSize) {
-            echo json_encode(['success'=>false,'message'=>'File larger than 2 MB']);
-            exit;
-        }
-
-        $newName = "u{$id}_" . time() . ".$ext";
-        $destDir = __DIR__ . '/uploads/profile_pics/';
-        $destPath = $destDir . $newName;
-
-        // Create directory if it doesn't exist
-        if (!is_dir($destDir)) {
-            if (!mkdir($destDir, 0777, true)) {
-                error_log("Failed to create directory: " . $destDir);
-                echo json_encode(['success'=>false,'message'=>'Failed to create upload directory']);
-                exit;
-            }
-        }
-
-        // Check if directory is writable
-        if (!is_writable($destDir)) {
-            error_log("Directory not writable: " . $destDir);
-            echo json_encode(['success'=>false,'message'=>'Upload directory not writable']);
-            exit;
-        }
-
-        // Try to move the uploaded file
-        if (!move_uploaded_file($_FILES['profile_pic']['tmp_name'], $destPath)) {
-            error_log("Failed to move uploaded file to: " . $destPath);
-            echo json_encode(['success'=>false,'message'=>'Failed to save uploaded file']);
-            exit;
-        }
-
-        // Update profile_pic in database
-        $picStmt = $conn->prepare("UPDATE users SET profile_pic = ? WHERE id = ?");
-        if (!$picStmt) {
-            error_log("Failed to prepare profile_pic update statement: " . $conn->error);
-            echo json_encode(['success'=>false,'message'=>'Database error while updating profile picture']);
-            exit;
-        }
-        
-        $picStmt->bind_param('si', $newName, $id);
-        if (!$picStmt->execute()) {
-            error_log("Failed to update profile_pic in database: " . $picStmt->error);
-            echo json_encode(['success'=>false,'message'=>'Failed to update profile picture in database']);
-            exit;
-        }
-        $picStmt->close();
-    }
-
-    /* ---------- custom theme ---------- */
-    $params['custom_theme'] = $_POST['custom_theme'] ?? null;
-
     if (!$stmt->execute()) {
         throw new Exception('Failed to update profile: ' . $stmt->error);
     }

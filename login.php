@@ -15,11 +15,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
   if ($user && password_verify($password, $user['password'])) {
+    // Update only last_login timestamp, not updated_at
+    $updateStmt = $pdo->prepare("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?");
+    $updateStmt->execute([$user['id']]);
+    
+    // Refresh user data to include updated last_login
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$user['id']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
     $_SESSION['user'] = $user;
     header("Location: dashboard.php");
     exit();
-  
-  
   } else {
     $error = "Invalid email or password.";
   }

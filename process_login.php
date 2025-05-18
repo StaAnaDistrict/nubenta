@@ -41,18 +41,12 @@ if ($result->num_rows === 1) {
       ]);
       exit();
     }
-    
-    
 
-// Update last_login timestamp
-$conn->query("UPDATE users SET last_login = NOW() WHERE id = {$user['id']}");
-
-
-echo json_encode([
-  'success' => true,
-  'message' => 'Login successful',
-  'redirect' => 'dashboard.html'
-]);
+    echo json_encode([
+      'success' => true,
+      'message' => 'Login successful',
+      'redirect' => 'dashboard.html'
+    ]);
   } else {
     echo json_encode(["success" => false, "message" => "Incorrect password."]);
   }

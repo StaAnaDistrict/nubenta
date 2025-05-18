@@ -20,8 +20,8 @@ $currentUser = $_SESSION['user'] ?? null;
       <li><a href="edit_profile.php">Edit Profile</a></li>
       <li><a href="messages.php">Messages</a></li>
       <li><a href="testimonials.php">Testimonials</a></li>
-      <li><a href="friend_requests.php">Friend Requests</a></li>
-      <li><a href="newsfeed.php">Newsfeed</a></li>
+      <li><a href="friends.php">Friend Requests</a></li>
+      <li><a href="dashboard.php">Newsfeed</a></li>
       <?php if ($currentUser && $currentUser['role'] === 'admin'): ?>
         <li><a href="admin_users.php">Manage Users</a></li>
       <?php endif; ?>

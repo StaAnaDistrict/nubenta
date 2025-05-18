@@ -173,13 +173,45 @@ $user = $_SESSION['user'];
   <textarea name="favorite_music" class="form-control" rows="2"><?= htmlspecialchars($user['favorite_music'] ?? '') ?></textarea>
 </div>
 
-<div class="form-section-title">Custom CSS / HTML</div>
+<div class="form-section-title">Custom Theme</div>
 
 <div class="mb-3">
-  <label class="form-label">Paste your custom theme snippet</label>
-  <textarea name="custom_theme" class="form-control" rows="6"
-            placeholder="/* Write CSS or small HTML blocks here */"><?= 
-            htmlspecialchars($user['custom_theme'] ?? '') ?></textarea>
+  <label class="form-label">Custom CSS / HTML / JavaScript</label>
+  <div class="alert alert-info">
+    <strong>How to customize your profile:</strong>
+    <ul class="mb-0">
+      <li>Add CSS to style your profile elements</li>
+      <li>Add HTML to create custom sections</li>
+      <li>Add JavaScript for interactive elements</li>
+      <li>Available elements: <code>.profile-header</code>, <code>.profile-section</code>, <code>.profile-pic</code>, <code>.section-title</code>, <code>.info-label</code>, <code>.info-value</code></li>
+      <li>Leave blank to use default theme</li>
+    </ul>
+  </div>
+  <textarea name="custom_theme" class="form-control" rows="10"
+            placeholder="<!-- Example:
+<style>
+.profile-header {
+  background: linear-gradient(to right, #4a90e2, #67b26f);
+  color: white;
+}
+.profile-pic {
+  border: 3px solid white;
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+</style>
+
+<div class='custom-section'>
+  <h3>My Custom Section</h3>
+  <p>This is a custom section added to my profile.</p>
+</div>
+
+<script>
+document.querySelector('.profile-pic').addEventListener('click', function() {
+  alert('Profile picture clicked!');
+});
+</script>
+-->"><?= htmlspecialchars($user['custom_theme'] ?? '') ?></textarea>
+  <small class="text-muted">Your custom code will be applied to your profile. Make sure to use proper HTML, CSS, and JavaScript syntax.</small>
 </div>
 
  <!-- Buttons -->

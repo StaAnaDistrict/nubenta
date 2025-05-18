@@ -18,27 +18,33 @@ $user = $_SESSION['user'];
 <div class="hamburger">☰</div>
 
 <div class="dashboard-grid">
-<?php                         // ---------- ONLY ONE INCLUDE ----------
-$currentUser = $user;         // pass user to navigation.php
-include 'assets/navigation.php';
-?>
-  
+  <!-- Left Sidebar - Navigation -->
+  <aside class="left-sidebar">
+    <h1>Nubenta</h1>
+    <?php
+    $currentUser = $user;
+    include 'assets/navigation.php';
+    ?>
+  </aside>
 
   <!-- Main Content -->
   <main class="main-content">
+    
+
     <form action="create_post.php" method="POST" enctype="multipart/form-data" class="post-box">
       <textarea name="content" placeholder="What's on your mind?" required></textarea>
       <div class="post-actions">
-  <input type="file" name="media">
-  <select name="visibility">
-    <option value="public">Public</option>
-    <option value="friends">Friends Only</option>
-  </select>
-  <button type="submit">Post</button>
-</div>
-
+        <input type="file" name="media">
+        <select name="visibility">
+          <option value="public">Public</option>
+          <option value="friends">Friends Only</option>
+        </select>
+        <button type="submit">Post</button>
+      </div>
     </form>
-
+    <div class="welcome-section">
+      <h3>Latest Newsfeed</h3>
+    </div>
     <section class="newsfeed">
       <?php
       $posts = []; // ← Replace with real DB content.
@@ -71,10 +77,7 @@ include 'assets/navigation.php';
       <p>(Coming Soon)</p>
     </div>
   </aside>
-
 </div>
-
-
 
 </body>
 </html>
