@@ -183,7 +183,7 @@ try {
     </style>
 </head>
 <body>
-    <div class="hamburger">☰</div>
+    <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button>
 
     <div class="dashboard-grid">
         <!-- Left Sidebar - Navigation -->
@@ -390,6 +390,20 @@ try {
             const j = await hit('assets/unfriend.php', { id });
             if (j.ok) location.reload();
         });
+    });
+
+    function toggleSidebar() {
+        const sidebar = document.querySelector('.left-sidebar');
+        sidebar.classList.toggle('show');
+    }
+
+    // Click outside to close
+    document.addEventListener('click', function(e) {
+        const sidebar = document.querySelector('.left-sidebar');
+        const hamburger = document.getElementById('hamburgerBtn');
+        if (!sidebar.contains(e.target) && !hamburger.contains(e.target)) {
+            sidebar.classList.remove('show');
+        }
     });
     </script>
 </body>

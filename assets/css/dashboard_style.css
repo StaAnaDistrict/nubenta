@@ -4,7 +4,7 @@ body {
   padding: 0;
   background: #f7f7f7;
   color: #333;
-  text-align: center;
+  text-align: left;
 }
 
 header {
@@ -35,7 +35,25 @@ header {
 .left-sidebar h1 {
   margin: 0 0 20px 0;
   color: white;
-  font-size: 24px;
+  font-size: 22px;
+}
+
+.left-sidebar h2 {
+  margin: 0 0 20px 0;
+  color: white;
+  font-size: 18px;
+}
+
+.left-sidebar.show {
+  display: flex;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 200px;
+    height: 100%;
+    background-color: #222;
+    z-index: 1000;
+    padding-top: 3em;
 }
 
 /* 🔽 Vertical Nav */
@@ -83,6 +101,7 @@ header {
   margin-bottom: 20px;
   padding-bottom: 20px;
   border-bottom: 1px solid #333;
+  text-align: center;
 }
 
 .sidebar-section:last-child {
@@ -94,19 +113,19 @@ header {
 .sidebar-section h3 {
   margin: 0 0 10px 0;
   color: white;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .sidebar-section h4 {
   margin: 0 0 10px 0;
   color: white;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .sidebar-section p {
   margin: 0;
   color: #ddd;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 /* 💬 Adjusted Post Box */
@@ -221,13 +240,70 @@ header {
 @media (max-width: 992px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
+    padding: 10px;
   }
   
-  .left-sidebar, .right-sidebar {
+  .left-sidebar {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 999;
+    border-radius: 0;
+    padding-top: 60px;
+    overflow-y: auto;
+  }
+  
+  .left-sidebar.show {
+    display: block;
+  }
+  
+  .right-sidebar {
     display: none;
   }
   
   .hamburger {
     display: block;
+  }
+
+  .main-content {
+    margin-top: 60px;
+    width: 100%;
+    padding: 15px;
+  }
+
+  .post-box {
+    margin-bottom: 15px;
+  }
+
+  .post-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .post-actions input[type="file"],
+  .post-actions select,
+  .post-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 576px) {
+  .dashboard-grid {
+    padding: 5px;
+  }
+
+  .main-content {
+    padding: 10px;
+  }
+
+  .post {
+    padding: 10px;
+  }
+
+  .welcome-section h3 {
+    font-size: 18px;
   }
 }
