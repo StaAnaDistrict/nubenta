@@ -151,7 +151,7 @@
 .message-ticks {
     margin-left: 4px;
     font-size: 0.8em;
-    color: #FFFFFF; /* White color for sent messages */
+    color: #383838; /* Dark gray color for sent messages */
 }
 
 .message-ticks.delivered {
@@ -159,12 +159,12 @@
 }
 
 .message-ticks.read {
-    color: #FFFFFF; /* White color for read messages */
+    color: #484848; /* Dark gray color for read messages */
 }
 
 /* Ensure default tick color is visible in sent bubble */
 .message.sent .message-ticks {
-    color: #FFFFFF; /* White tick color in sent bubble */
+    color: #383838; /* Dark gray tick color in sent bubble (matching default sent color) */
 }
 
 /* Specific rule for delivered ticks in sent messages */

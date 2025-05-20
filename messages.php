@@ -20,6 +20,7 @@ $user = $_SESSION['user'];
 <meta charset="utf-8">
 <title>Nubenta – Messages</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <link rel="stylesheet" href="assets/css/dashboard_style.css">
 <link rel="stylesheet" href="assets/css/messages.css">
 <style>
@@ -100,6 +101,253 @@ $user = $_SESSION['user'];
     .thread-menu-item:hover {
         background: #f5f5f5;
     }
+
+    /* Chat title styling */
+    #chat-title {
+        font-size: 0.9rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        margin-bottom: 15px;
+    }
+
+    .chat-title-text {
+        max-width: 70%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .chat-actions {
+        display: flex;
+        gap: 15px;
+    }
+
+    .chat-action-icon {
+        cursor: pointer;
+        color: #666;
+        transition: color 0.2s;
+    }
+
+    .chat-action-icon:hover {
+        color: #333;
+    }
+
+    /* Chat form styling */
+    .chat-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+        position: sticky;
+        bottom: 0;
+        z-index: 100;
+    }
+
+    .chat-input-container {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+    }
+
+    .chat-input {
+        flex: 1;
+        min-height: 40px;
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        resize: none;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .chat-input:focus {
+        outline: none;
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .chat-buttons {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .chat-button {
+        background: none;
+        border: none;
+        padding: 8px;
+        cursor: pointer;
+        color: #666;
+        transition: color 0.2s;
+    }
+
+    .chat-button:hover {
+        color: #333;
+    }
+
+    .send-button {
+        background-color: #2c2c2c;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .send-button:hover {
+        background-color: #404040;
+    }
+
+    /* Chat messages container */
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    /* Chat box container */
+    #chat-box {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* Message file styles */
+    .message-file {
+        margin-top: 8px;
+        max-width: 300px;
+    }
+
+    .message-image {
+        max-width: 100%;
+        max-height: 200px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .message-image:hover {
+        transform: scale(1.02);
+    }
+
+    .message-file-link {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        color: #495057;
+        text-decoration: none;
+        transition: background-color 0.2s;
+    }
+
+    .message-file-link:hover {
+        background: #e9ecef;
+        color: #212529;
+    }
+
+    .message-file-link i {
+        font-size: 20px;
+    }
+
+    /* Sticker picker styles */
+    #picker {
+        position: fixed;
+        display: none;
+        width: 300px;
+        max-height: 150px;
+        overflow-y: auto;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        z-index: 1000;
+        padding: 2px;
+    }
+
+    #picker.show {
+        display: block;
+    }
+
+    .sticker {
+        width: 25px;
+        height: 25px;
+        cursor: pointer;
+        transition: transform 0.2s;
+        object-fit: contain;
+    }
+
+    .sticker:hover {
+        transform: scale(1.2);
+    }
+
+    /* File preview styles */
+    .file-preview-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+    }
+
+    .file-preview {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        max-width: 200px;
+    }
+
+    .file-preview img {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .file-preview i {
+        font-size: 24px;
+        color: #666;
+    }
+
+    .file-info {
+        flex: 1;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .remove-file {
+        color: #666;
+        cursor: pointer;
+        padding: 4px;
+        font-size: 16px;
+        line-height: 1;
+    }
+
+    .remove-file:hover {
+        color: #333;
+    }
 </style>
 </head>
 <body>
@@ -127,8 +375,30 @@ $user = $_SESSION['user'];
 
                 <!-- Chat Panel -->
                 <div class="col-9">
-                    <h4 id="chat-title" class="border-bottom pb-2">Select a chat</h4>
+                    <div id="chat-title" class="border-bottom">
+                        <span class="chat-title-text">Select a chat</span>
+                        <div class="chat-actions">
+                            <i class="fas fa-archive chat-action-icon" title="View Archived Messages" onclick="viewArchivedMessages()"></i>
+                            <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
+                        </div>
+                    </div>
                     <div id="chat-box"></div>
+                    <div class="chat-form">
+                        <div class="chat-input-container">
+                            <textarea class="chat-input" placeholder="Type your message..." rows="1"></textarea>
+                            <div class="chat-buttons">
+                                <button class="chat-button" id="btnEmoji" title="Add Emoji">
+                                    <i class="far fa-smile"></i>
+                                </button>
+                                <button class="chat-button" id="btnAttach" title="Attach File">
+                                    <i class="fas fa-paperclip"></i>
+                                </button>
+                                <button class="send-button" id="btnSend">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="picker"
@@ -246,20 +516,40 @@ $user = $_SESSION['user'];
       console.log('openThread called with thread:', t);
       currentThread=t.id;
       const chatTitleElement = document.getElementById('chat-title');
-      // Use participant_name for chat title, fallback to title, then Chat #
-      const chatTitleText = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
-      chatTitleElement.textContent = chatTitleText;
+      
+      // Create the chat title content
+      const titleContent = document.createElement('div');
+      titleContent.className = 'd-flex justify-content-between align-items-center w-100';
+      
+      // Create the title text span
+      const titleText = document.createElement('span');
+      titleText.className = 'chat-title-text';
+      titleText.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
+      
+      // Create the actions div
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'chat-actions';
+      actionsDiv.innerHTML = `
+          <i class="fas fa-archive chat-action-icon" title="View Archived Messages" onclick="viewArchivedMessages()"></i>
+          <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
+      `;
+      
+      // Clear and rebuild the chat title
+      chatTitleElement.innerHTML = '';
+      titleContent.appendChild(titleText);
+      titleContent.appendChild(actionsDiv);
+      chatTitleElement.appendChild(titleContent);
 
-      // Make chat title clickable if it's a direct message (participant_name exists)
+      // Make chat title clickable if it's a direct message
       if (t.participant_id) {
-          chatTitleElement.style.cursor = 'pointer';
-          chatTitleElement.onclick = () => {
+          titleText.style.cursor = 'pointer';
+          titleText.onclick = () => {
               console.log('Navigating to profile with user ID:', t.participant_id);
               window.location.href = `view_profile.php?id=${t.participant_id}`;
           };
       } else {
-          chatTitleElement.style.cursor = 'default';
-          chatTitleElement.onclick = null;
+          titleText.style.cursor = 'default';
+          titleText.onclick = null;
       }
 
       document.getElementById('chat-box').innerHTML='';
@@ -267,6 +557,7 @@ $user = $_SESSION['user'];
       new ChatWidget(t.id, document.getElementById('chat-box'), stickers);
       
       // Mark messages in this thread as read when opening
+      console.log('Attempting to mark thread as read via api/chat_mark_read.php for thread ID:', t.id);
       fetch(`api/chat_mark_read.php?thread_id=${t.id}`);
 
       loadThreads(); // Reload threads to update active state
@@ -455,6 +746,22 @@ $user = $_SESSION['user'];
             });
         }
     });
+
+    // Auto-resize textarea
+    document.querySelector('.chat-input').addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+
+    // View archived messages
+    function viewArchivedMessages() {
+        window.location.href = 'messages_archive.php';
+    }
+
+    // View spam messages
+    function viewSpamMessages() {
+        window.location.href = 'messages_spam.php';
+    }
     </script>
     <script src="assets/chat_widget.js"></script>
 

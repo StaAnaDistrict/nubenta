@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         // Then get messages
         $stmt = $pdo->prepare("
-            SELECT m.id, m.thread_id, m.sender_id, m.body as content, m.sent_at as created_at, m.delivered_at, m.read_at, u.full_name as sender_name 
+            SELECT m.id, m.thread_id, m.sender_id, m.body as content, m.file_path, m.sent_at as created_at, m.delivered_at, m.read_at, u.full_name as sender_name 
             FROM messages m 
             JOIN users u ON m.sender_id = u.id 
             WHERE m.thread_id = ? 
@@ -47,7 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         ");
         $stmt->execute([$thread_id]);
         $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode(['success' => true, 'messages' => $messages]);
+        
+        // Log the messages for debugging
+        error_log("Messages for thread $thread_id: " . print_r($messages, true));
+        
+        echo json_encode([
+            'success' => true,
+            'messages' => $messages
+        ]);
     } catch (PDOException $e) {
         error_log("Error in chat_messages.php: " . $e->getMessage());
         echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);

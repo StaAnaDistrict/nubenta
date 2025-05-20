@@ -8,24 +8,23 @@ class ChatWidget {
         this.loadMessages();
         this.setupPolling();
         console.log('ChatWidget constructor finished.');
+        
+        // Start heartbeat polling for status updates
+        this.heartbeat();
     }
 
     setupUI() {
         this.container.innerHTML = `
             <div class="chat-messages"></div>
-            <div class="chat-input">
-                <textarea placeholder="Type a message..."></textarea>
-                <button class="btn btn-secondary" id="btnAttach">📎</button>
-                <button class="btn btn-secondary" id="btnEmoji">😊</button>
-                <button class="btn btn-primary">Send</button>
-            </div>
         `;
 
         this.messagesDiv = this.container.querySelector('.chat-messages');
-        this.textarea = this.container.querySelector('textarea');
-        this.sendButton = this.container.querySelector('button.btn-primary');
-        this.emojiButton = this.container.querySelector('#btnEmoji');
-        this.attachButton = this.container.querySelector('#btnAttach');
+        
+        // Use the existing form elements
+        this.textarea = document.querySelector('.chat-input');
+        this.sendButton = document.querySelector('.send-button');
+        this.emojiButton = document.querySelector('#btnEmoji');
+        this.attachButton = document.querySelector('#btnAttach');
 
         this.sendButton.onclick = () => this.sendMessage();
         this.textarea.onkeydown = (e) => {
@@ -35,19 +34,76 @@ class ChatWidget {
             }
         };
         this.emojiButton.onclick = () => this.toggleStickerPicker();
-        this.attachButton.onclick = () => alert('File attachment coming soon!');
+        this.attachButton.onclick = () => this.handleFileAttachment();
 
         // Intersection Observer for read receipts
         this.setupReadObserver();
     }
 
+    handleFileAttachment() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.accept = 'image/*,video/*,application/pdf';
+        
+        input.onchange = (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            // Create preview container
+            const previewContainer = document.createElement('div');
+            previewContainer.className = 'file-preview-container';
+            
+            files.forEach(file => {
+                const preview = document.createElement('div');
+                preview.className = 'file-preview';
+                preview.dataset.fileName = file.name;
+                preview.dataset.fileType = file.type;
+                
+                // Store the actual File object directly
+                preview.dataset.file = file;
+                
+                if (file.type.startsWith('image/')) {
+                    const img = document.createElement('img');
+                    img.src = URL.createObjectURL(file);
+                    preview.appendChild(img);
+                } else {
+                    const icon = document.createElement('i');
+                    icon.className = 'fas fa-file';
+                    preview.appendChild(icon);
+                }
+                
+                const info = document.createElement('div');
+                info.className = 'file-info';
+                info.textContent = file.name;
+                preview.appendChild(info);
+                
+                const remove = document.createElement('span');
+                remove.className = 'remove-file';
+                remove.innerHTML = '×';
+                remove.onclick = () => preview.remove();
+                preview.appendChild(remove);
+                
+                previewContainer.appendChild(preview);
+            });
+            
+            // Insert preview before the input container
+            const inputContainer = document.querySelector('.chat-input-container');
+            inputContainer.parentNode.insertBefore(previewContainer, inputContainer);
+        };
+        
+        input.click();
+    }
+
     renderMessage(msg) {
+        console.log('Rendering message:', msg); // Debug log
         const isSent = msg.sender_id === window.me;
         const messageClass = isSent ? 'sent msg-me' : 'received msg-you';
 
         const div = document.createElement('div');
         div.className = `message ${messageClass}`;
         div.dataset.messageId = msg.id;
+        div.dataset.me = (msg.sender_id === window.me ? '1' : '0');
         
         // Create message bubble content
         const bubbleDiv = document.createElement('div');
@@ -58,21 +114,57 @@ class ChatWidget {
         textDiv.className = 'message-text';
         
         // Handle text content, replacing sticker codes with images inline
-        let processedContent = msg.content;
-        this.stickers.forEach(sticker => {
-            const stickerCode = `:${sticker}:`;
-            const stickerImgTag = `<img src="assets/stickers/${sticker}.gif" alt="${stickerCode}" class="chat-sticker">`;
-            const escapedStickerCode = stickerCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(escapedStickerCode, 'g');
-            processedContent = processedContent.replace(regex, stickerImgTag);
-        });
+        let processedContent = msg.body || msg.content || '';
+        if (processedContent) {
+            this.stickers.forEach(sticker => {
+                const stickerCode = `:${sticker}:`;
+                const stickerImgTag = `<img src="assets/stickers/${sticker}.gif" alt="${stickerCode}" class="chat-sticker">`;
+                const escapedStickerCode = stickerCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(escapedStickerCode, 'g');
+                processedContent = processedContent.replace(regex, stickerImgTag);
+            });
 
-        // Handle line breaks from Shift+Enter
-        processedContent = processedContent.replace(/\n/g, '<br>');
+            // Handle line breaks from Shift+Enter
+            processedContent = processedContent.replace(/\n/g, '<br>');
+            textDiv.innerHTML = processedContent;
+            bubbleDiv.appendChild(textDiv);
+        }
 
-        textDiv.innerHTML = processedContent;
-        
-        bubbleDiv.appendChild(textDiv);
+        // Add file attachments if present
+        if (msg.file_path) {
+            console.log('Processing file path:', msg.file_path); // Debug log
+            const filePaths = msg.file_path.split(',');
+            filePaths.forEach(filePath => {
+                console.log('Processing individual file:', filePath); // Debug log
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'message-file';
+                
+                // Ensure filePath starts with a forward slash
+                const fullPath = filePath.startsWith('/') ? filePath : '/' + filePath;
+                console.log('Full file path:', fullPath); // Debug log
+                
+                if (filePath.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+                    const img = document.createElement('img');
+                    img.src = fullPath;
+                    img.className = 'message-image';
+                    img.onclick = () => window.open(fullPath, '_blank');
+                    img.onerror = (e) => {
+                        console.error('Error loading image:', fullPath, e);
+                        img.src = 'assets/images/error.png'; // Fallback image
+                    };
+                    fileDiv.appendChild(img);
+                } else {
+                    const link = document.createElement('a');
+                    link.href = fullPath;
+                    link.className = 'message-file-link';
+                    link.target = '_blank';
+                    link.innerHTML = `<i class="fas fa-file"></i> ${filePath.split('/').pop()}`;
+                    fileDiv.appendChild(link);
+                }
+                
+                bubbleDiv.appendChild(fileDiv);
+            });
+        }
         
         // Add timestamp and tick marks
         const metaDiv = document.createElement('div');
@@ -80,21 +172,19 @@ class ChatWidget {
         
         const timeSpan = document.createElement('span');
         timeSpan.className = 'message-time';
-        timeSpan.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        timeSpan.textContent = new Date(msg.created_at || msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         metaDiv.appendChild(timeSpan);
         
         // Add tick marks for sent messages
         if (isSent) {
             const tickSpan = document.createElement('span');
             tickSpan.className = 'message-ticks';
-            // Initially show one tick; polling will update to two ticks and color
             tickSpan.innerHTML = '✓';
-            // Add classes based on initial status, polling will refine
             if (msg.delivered_at) {
                 tickSpan.classList.add('delivered');
             }
             if (msg.read_at) {
-                tickSpan.classList.add('read'); // Both delivered and read might be set initially
+                tickSpan.classList.add('read');
             }
             metaDiv.appendChild(tickSpan);
         }
@@ -159,13 +249,17 @@ class ChatWidget {
         try {
             const response = await fetch(`api/chat_messages.php?thread_id=${this.threadId}`);
             const data = await response.json();
+            console.log('Loaded messages:', data); // Debug log
+            
             if (!data.success) {
                 console.error('Error loading messages:', data.error);
                 return;
             }
+            
             this.messagesDiv.innerHTML = '';
             if (Array.isArray(data.messages)) {
                 data.messages.forEach(msg => {
+                    console.log('Processing message:', msg); // Debug log
                     const messageElement = this.renderMessage(msg);
                     this.messagesDiv.appendChild(messageElement);
                     // Observe newly added messages
@@ -193,23 +287,39 @@ class ChatWidget {
 
     async sendMessage() {
         const content = this.textarea.value.trim();
-        if (!content) {
-            console.log('sendMessage: Content is empty.');
+        const filePreviews = document.querySelectorAll('.file-preview');
+        
+        // Get the actual File objects from the input
+        const files = Array.from(filePreviews).map(preview => {
+            const file = preview.dataset.file;
+            console.log('File from preview:', file);
+            return file;
+        });
+
+        // Allow sending if either content or files exist
+        if (!content && files.length === 0) {
+            console.log('sendMessage: Both content and files are empty.');
             return;
         }
 
-        console.log('sendMessage: Sending message with content:', content, 'to thread ID:', this.threadId);
+        console.log('sendMessage: Sending message with content:', content, 'and files:', files, 'to thread ID:', this.threadId);
 
         try {
-            const response = await fetch('api/chat_messages.php', {
+            const formData = new FormData();
+            formData.append('thread_id', this.threadId);
+            formData.append('body', content || ''); // Always send body, even if empty
+            
+            // Add files to formData
+            files.forEach((file, index) => {
+                if (file) {
+                    console.log('Adding file to FormData:', file.name, file.type, file.size);
+                    formData.append('files[]', file);
+                }
+            });
+
+            const response = await fetch('api/chat_send.php', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    thread_id: this.threadId,
-                    content: content
-                })
+                body: formData
             });
 
             if (!response.ok) {
@@ -220,19 +330,17 @@ class ChatWidget {
             }
 
             const data = await response.json();
-            
             console.log('sendMessage: API response:', data);
 
-            if (data.success) {
+            if (data.ok) {
                 this.textarea.value = '';
+                // Reset textarea height
+                this.textarea.style.height = '40px';
                 
-                // If a new thread was created, update the current thread ID
-                if (data.thread_id && data.thread_id !== this.threadId) {
-                    this.threadId = data.thread_id;
-                    // Notify the parent page to update the thread list
-                    window.dispatchEvent(new CustomEvent('threadCreated', {
-                        detail: { threadId: data.thread_id }
-                    }));
+                // Remove any file previews
+                const previewContainer = document.querySelector('.file-preview-container');
+                if (previewContainer) {
+                    previewContainer.remove();
                 }
                 
                 this.loadMessages();
@@ -248,98 +356,36 @@ class ChatWidget {
     }
 
     setupPolling() {
+        // This polling is primarily for new messages
         // Poll for new messages every 5 seconds
         setInterval(() => this.loadMessages(), 5000);
-        
-        // Poll for message status updates every 2 seconds
-        setInterval(() => this.checkMessageStatus(), 2000);
-    }
-
-    async checkMessageStatus() {
-        if (!this.threadId) return;
-        
-        try {
-            console.log('checkMessageStatus: Checking status for thread:', this.threadId);
-            
-            // Get all sent message IDs that haven't been read
-            const sentMessages = Array.from(this.messagesDiv.querySelectorAll('.msg-me'))
-                .map(el => el.dataset.messageId)
-                .filter(id => id);
-            
-            if (sentMessages.length === 0) {
-                console.log('checkMessageStatus: No sent messages to check.');
-                return;
-            }
-            console.log('checkMessageStatus: Sent message IDs:', sentMessages);
-
-            const response = await fetch('api/chat_status.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    ids: sentMessages
-                })
-            });
-
-            const data = await response.json();
-            
-            console.log('checkMessageStatus: API response data:', data);
-
-            if (!data.success) {
-                console.error('Error in message status response:', data.error);
-                return;
-            }
-
-            const statuses = data.statuses || [];
-            console.log('checkMessageStatus: Received statuses:', statuses);
-            
-            // Update tick marks based on status
-            statuses.forEach(status => {
-                console.log('checkMessageStatus: Processing status for message ID:', status.id, 'Status:', status);
-                const messageEl = this.messagesDiv.querySelector(`[data-message-id="${status.id}"]`);
-                if (messageEl) {
-                    const tickSpan = messageEl.querySelector('.message-ticks');
-                    if (tickSpan) {
-                        console.log('checkMessageStatus: Found tick span for message ID:', status.id);
-                        console.log('checkMessageStatus:', status.id, 'Delivered At:', status.delivered_at, '(' + typeof status.delivered_at + ')', 'Read At:', status.read_at, '(' + typeof status.read_at + ')');
-                        console.log('checkMessageStatus:', status.id, 'status.delivered_at is truthy:', !!status.delivered_at, 'status.read_at is truthy:', !!status.read_at);
-                        console.log('checkMessageStatus:', status.id, 'status.delivered_at explicitly check:', status.delivered_at !== null && status.delivered_at !== '', 'status.read_at explicitly check:', status.read_at !== null && status.read_at !== '');
-
-                        if (status.read_at !== null && status.read_at !== '') {
-                            tickSpan.innerHTML = '✓✓'; // Read is two ticks
-                            tickSpan.classList.add('read');
-                            tickSpan.classList.remove('delivered');
-                            console.log('checkMessageStatus: Marked message', status.id, 'as read (✓✓ white).');
-                        } else if (status.delivered_at !== null && status.delivered_at !== '') {
-                            tickSpan.innerHTML = '✓'; // Delivered is one tick
-                            tickSpan.classList.add('delivered');
-                            tickSpan.classList.remove('read');
-                            console.log('checkMessageStatus: Marked message', status.id, 'as delivered (✓ yellow).');
-                        } else {
-                            tickSpan.innerHTML = '✓'; // Sent is one tick
-                            tickSpan.classList.remove('read', 'delivered');
-                            console.log('checkMessageStatus: Marked message', status.id, 'as sent (✓ dark gray).');
-                        }
-                    }
-                    // Add a class or update ticks if not relying solely on polling for visual update
-                    // messageElement.classList.add('read'); 
-                    // You might manually update the tick HTML here for instant feedback
-                }
-                else {
-                    console.log('checkMessageStatus: Message element not found for ID:', status.id);
-                }
-            });
-        } catch (error) {
-            console.error('Error checking message status:', error);
-        }
     }
 
     toggleStickerPicker() {
         const picker = document.getElementById('picker');
+        const emojiButton = document.querySelector('#btnEmoji');
+        
+        if (!picker) {
+            console.error('Sticker picker element not found');
+            return;
+        }
+
         if (picker.style.display === 'none') {
+            // Position the picker relative to the emoji button
+            const buttonRect = emojiButton.getBoundingClientRect();
+            picker.style.position = 'fixed';
+            picker.style.bottom = `${window.innerHeight - buttonRect.top}px`;
+            picker.style.right = `${window.innerWidth - buttonRect.right}px`;
             picker.style.display = 'block';
             picker.innerHTML = '';
+            
+            // Create a 10-column grid of stickers
+            const grid = document.createElement('div');
+            grid.style.display = 'grid';
+            grid.style.gridTemplateColumns = 'repeat(10, 1fr)';
+            grid.style.gap = '2px';
+            grid.style.padding = '2px';
+            
             this.stickers.forEach(sticker => {
                 const img = document.createElement('img');
                 img.src = `assets/stickers/${sticker}.gif`;
@@ -348,8 +394,19 @@ class ChatWidget {
                     this.textarea.value += `:${sticker}:`;
                     picker.style.display = 'none';
                 };
-                picker.appendChild(img);
+                grid.appendChild(img);
             });
+            
+            picker.appendChild(grid);
+
+            // Close picker when clicking outside
+            const closePicker = (e) => {
+                if (!picker.contains(e.target) && !emojiButton.contains(e.target)) {
+                    picker.style.display = 'none';
+                    document.removeEventListener('click', closePicker);
+                }
+            };
+            document.addEventListener('click', closePicker);
         } else {
             picker.style.display = 'none';
         }
@@ -431,5 +488,69 @@ class ChatWidget {
         } catch (error) {
             console.error('Error marking messages as delivered:', error);
         }
+    }
+
+    /* -----------------------------------------------------------
+     *  heartbeat – every 2 s ask for updated status
+     * ----------------------------------------------------------- */
+    heartbeat() {
+        // gather the ids of my own messages currently rendered
+        const ids = Array.from(this.messagesDiv.querySelectorAll('[data-message-id]'))
+                         .filter(el => el.dataset.me === '1')
+                         .map(el => el.dataset.messageId);
+
+        if (!ids.length) {
+            setTimeout(() => this.heartbeat(), 2000); // Use arrow function to preserve 'this'
+            return;
+        }
+
+        fetch('api/chat_status.php', {
+            method:'POST',
+            headers: {
+                'Content-Type': 'application/json', // Use JSON for consistency
+            },
+            body: JSON.stringify({ ids: ids })
+        })
+        .then(r => r.json())
+        .then(response => {
+            if (!response.success) {
+                console.error('Heartbeat error:', response.error);
+                setTimeout(() => this.heartbeat(), 4000); // Retry after a longer delay on error
+                return;
+            }
+            
+            const statuses = response.statuses || [];
+            statuses.forEach(s => {
+                const el = this.messagesDiv.querySelector(`[data-message-id="${s.id}"] .message-ticks`);
+                if (!el) return;
+
+                // Apply tick count and color based on status
+                console.log('checkMessageStatus:', s.id, 'status.delivered_at explicitly check:', s.delivered_at !== null && s.delivered_at !== '', 'status.read_at explicitly check:', s.read_at !== null && s.read_at !== '');
+
+                if (s.read_at !== null && s.read_at !== '') {
+                    el.textContent = '✓✓'; // Read is two ticks
+                    el.classList.add('read');
+                    el.classList.remove('delivered');
+                    console.log('checkMessageStatus: Marked message', s.id, 'as read (✓✓ white).');
+                    console.log('checkMessageStatus:', s.id, 'Entered READ condition.');
+                } else if (s.delivered_at !== null && s.delivered_at !== '') {
+                    el.textContent = '✓'; // Delivered is one tick
+                    el.classList.add('delivered');
+                    el.classList.remove('read');
+                    console.log('checkMessageStatus: Marked message', s.id, 'as delivered (✓ yellow).');
+                    console.log('checkMessageStatus:', s.id, 'Entered DELIVERED condition.');
+                } else {
+                    el.textContent = '✓'; // Sent is one tick
+                    el.classList.remove('read', 'delivered');
+                    console.log('checkMessageStatus: Marked message', s.id, 'as sent (✓ dark gray).');
+                    console.log('checkMessageStatus:', s.id, 'Entered SENT condition.');
+                }
+          });
+            setTimeout(() => this.heartbeat(), 2000); // Use arrow function to preserve 'this'
+        })
+        .catch(error => {
+            console.error('Heartbeat error:', error);
+            setTimeout(() => this.heartbeat(), 4000); // Retry after a longer delay on error
+       });
   }
 }

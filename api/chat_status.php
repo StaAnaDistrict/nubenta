@@ -16,6 +16,48 @@ if (!$userId || empty($ids)) {
 try {
     error_log("chat_status.php: User ID: " . $userId . ", Input IDs: " . print_r($ids, true));
 
+    // Update user's last_activity if provided
+    if (isset($data['last_activity'])) {
+        $stmt = $pdo->prepare("
+            UPDATE users 
+            SET last_activity = FROM_UNIXTIME(?)
+            WHERE id = ?
+        ");
+        $stmt->execute([$data['last_activity'] / 1000, $userId]);
+    }
+
+    // If checking for unread messages (from navigation)
+    if (isset($data['check_unread']) && $data['check_unread']) {
+        // Get unread message count
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as unread_count
+            FROM messages m
+            JOIN thread_participants tp ON m.thread_id = tp.thread_id
+            WHERE tp.user_id = ?
+            AND m.sender_id != ?
+            AND m.read_at IS NULL
+        ");
+        $stmt->execute([$userId, $userId]);
+        $unreadCount = $stmt->fetch(PDO::FETCH_ASSOC)['unread_count'];
+
+        // Mark messages as delivered for this user
+        $stmt = $pdo->prepare("
+            UPDATE messages m
+            JOIN thread_participants tp ON m.thread_id = tp.thread_id
+            SET m.delivered_at = IFNULL(m.delivered_at, NOW())
+            WHERE tp.user_id = ?
+            AND m.sender_id != ?
+            AND m.delivered_at IS NULL
+        ");
+        $stmt->execute([$userId, $userId]);
+
+        echo json_encode([
+            'success' => true,
+            'unread_count' => $unreadCount
+        ]);
+        exit;
+    }
+
     // First, mark messages as delivered if they're not already
     if (!empty($ids)) {
         $ids_placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -74,7 +116,15 @@ try {
         ");
         $stmt->execute([$messageIdToMarkRead, $userId, $userId]);
         error_log("chat_status.php: Read update - Rows affected: " . $stmt->rowCount());
-        echo json_encode(['success' => true]);
+        // Return updated statuses after marking as read
+        $stmt = $pdo->prepare("
+            SELECT id, delivered_at, read_at
+            FROM messages
+            WHERE id = ?
+        ");
+        $stmt->execute([$messageIdToMarkRead]);
+        $statuses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['success' => true, 'statuses' => $statuses]);
     }
     // Check for 'delivered' action
     else if (isset($data['action']) && $data['action'] === 'delivered' && isset($data['ids']) && is_array($data['ids']) && !empty($data['ids'])) {
@@ -96,7 +146,16 @@ try {
         $params = array_merge($messageIdsToMarkDelivered, [$userId, $userId]);
         $stmt->execute($params);
         error_log("chat_status.php: Delivered update (from recipient) - Rows affected: " . $stmt->rowCount());
-        echo json_encode(['success' => true]);
+        
+        // Return updated statuses after marking as delivered
+        $stmt = $pdo->prepare("
+            SELECT id, delivered_at, read_at
+            FROM messages
+            WHERE id IN (" . $ids_placeholders . ")
+        ");
+        $stmt->execute($messageIdsToMarkDelivered);
+        $statuses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['success' => true, 'statuses' => $statuses]);
     }
     else {
         // Default behavior: return statuses (this is for the sender to check status)

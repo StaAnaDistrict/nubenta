@@ -99,6 +99,69 @@ try {
             ?>
         </aside>
 
+        <script>
+            console.log('Dashboard: Attempting to call api/track_activity.php on page load');
+            fetch('api/track_activity.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                console.log('Dashboard: api/track_activity.php response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Dashboard: api/track_activity.php response data:', data);
+                // You can optionally call updateUnreadCount here if needed
+                if (data.success && data.unread_count !== undefined) {
+                    if (window.updateUnreadCount) {
+                        window.updateUnreadCount(data.unread_count);
+                    } else {
+                        console.warn('Dashboard: updateUnreadCount function not found');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Dashboard: Error calling api/track_activity.php:', error);
+            });
+        </script>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            function toggleSidebar() {
+                const sidebar = document.querySelector('.left-sidebar');
+                sidebar.classList.toggle('show');
+            }
+
+            // Click outside to close
+            document.addEventListener('click', function(e) {
+                const sidebar = document.querySelector('.left-sidebar');
+                const hamburger = document.getElementById('hamburgerBtn');
+                if (!sidebar.contains(e.target) && !hamburger.contains(e.target)) {
+                    sidebar.classList.remove('show');
+                }
+            });
+
+            // Initialize navigation after DOM is loaded
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('Dashboard: DOMContentLoaded fired');
+                // Force a call to trackActivity
+                if (window.trackActivity) {
+                    console.log('Dashboard: Calling trackActivity');
+                    window.trackActivity().catch(error => {
+                        console.error('Initial trackActivity call error:', error);
+                    });
+                } else {
+                    console.error('Dashboard: trackActivity not found after navigation include');
+                    // You could potentially add a small delay and retry here if needed
+                }
+            });
+        </script>
+
         <!-- Main Content -->
         <main class="main-content">
             <form action="create_post.php" method="POST" enctype="multipart/form-data" class="post-box">
@@ -149,7 +212,6 @@ try {
         </aside>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function toggleSidebar() {
             const sidebar = document.querySelector('.left-sidebar');
