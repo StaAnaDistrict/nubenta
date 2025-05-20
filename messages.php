@@ -22,6 +22,85 @@ $user = $_SESSION['user'];
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/dashboard_style.css">
 <link rel="stylesheet" href="assets/css/messages.css">
+<style>
+    .message-actions {
+        display: none;
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    
+    .message:hover .message-actions {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .message-action {
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    
+    .message-action:hover {
+        opacity: 1;
+    }
+    
+    .thread-item {
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px !important;
+    }
+    
+    .thread-menu {
+        display: none;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: #f0f0f0;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+    
+    .thread-item:hover .thread-menu {
+        display: flex;
+    }
+    
+    .thread-menu:hover {
+        opacity: 1;
+    }
+    
+    .thread-menu-dropdown {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        z-index: 1000;
+    }
+    
+    .thread-menu-dropdown.show {
+        display: block;
+    }
+    
+    .thread-menu-item {
+        padding: 8px 15px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    
+    .thread-menu-item:hover {
+        background: #f5f5f5;
+    }
+</style>
 </head>
 <body>
     <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button>
@@ -80,36 +159,99 @@ $user = $_SESSION['user'];
         .then(r=>r.json()).then(rows=>{
           const list=document.getElementById('thread-list');
           list.innerHTML='';
-          rows.forEach(t=>{
-            const div=document.createElement('div');
-            div.className='p-2 thread-item'+(t.id==currentThread?' active':'');
-            div.textContent = t.title ? t.title : ('Chat #' + t.id);
-            div.onclick=()=>openThread(t);
-            list.appendChild(div);
-          });
+          if (Array.isArray(rows)) {
+            rows.forEach(t=>{
+              const div=document.createElement('div');
+              // Use participant_name from the API response, fallback to title, then Chat #
+              const threadTitle = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
+              div.className='p-2 thread-item'+(t.id==currentThread?' active':'');
+              div.dataset.threadId = t.id;
+              
+              // Create title span
+              const titleSpan = document.createElement('span');
+              titleSpan.textContent = threadTitle;
+              div.appendChild(titleSpan);
+              
+              // Create menu button
+              const menuBtn = document.createElement('div');
+              menuBtn.className = 'thread-menu';
+              menuBtn.innerHTML = '⋮';
+              menuBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  const dropdown = menuBtn.querySelector('.thread-menu-dropdown');
+                  // Close any other open dropdowns
+                  document.querySelectorAll('.thread-menu-dropdown.show').forEach(openDropdown => {
+                      if (openDropdown !== dropdown) {
+                          openDropdown.classList.remove('show');
+                      }
+                  });
+
+                  if (dropdown) {
+                      dropdown.classList.toggle('show');
+                  } else {
+                      const dropdown = document.createElement('div');
+                      dropdown.className = 'thread-menu-dropdown';
+                      dropdown.innerHTML = `
+                          <div class="thread-menu-item" onclick="viewProfile(${t.participant_id})">View Profile</div>
+                          <div class="thread-menu-item" onclick="archiveThread(${t.id})">Archive</div>
+                          <div class="thread-menu-item" onclick="spamThread(${t.id})">Spam</div>
+                          <div class="thread-menu-item" onclick="deleteThread(${t.id})">Delete</div>
+                          <div class="thread-menu-item" onclick="reportUser(${t.participant_id})">Report</div>
+                      `;
+                      menuBtn.appendChild(dropdown);
+                      // Add event listeners to keep dropdown open on hover
+                      dropdown.addEventListener('mouseenter', () => {
+                          dropdown.classList.add('show');
+                      });
+                      dropdown.addEventListener('mouseleave', () => {
+                          dropdown.classList.remove('show');
+                      });
+                      dropdown.classList.add('show');
+                  }
+              };
+              div.appendChild(menuBtn);
+              
+              div.onclick = (e) => {
+                  if (!e.target.closest('.thread-menu')) {
+                      openThread(t);
+                  }
+              };
+              list.appendChild(div);
+            });
+          } else {
+            console.error('Invalid threads format:', rows);
+          }
         })
         .catch(error => console.error('Error loading threads:', error));
     }
 
     /* 2. open thread                                    */
     function openThread(t){
+      console.log('openThread called with thread:', t);
       currentThread=t.id;
-      document.getElementById('chat-title').textContent = t.title? t.title : ('Chat #' + t.id);
+      const chatTitleElement = document.getElementById('chat-title');
+      // Use participant_name for chat title, fallback to title, then Chat #
+      const chatTitleText = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
+      chatTitleElement.textContent = chatTitleText;
+
+      // Make chat title clickable if it's a direct message (participant_name exists)
+      if (t.participant_id) {
+          chatTitleElement.style.cursor = 'pointer';
+          chatTitleElement.onclick = () => {
+              console.log('Navigating to profile with user ID:', t.participant_id);
+              window.location.href = `view_profile.php?id=${t.participant_id}`;
+          };
+      } else {
+          chatTitleElement.style.cursor = 'default';
+          chatTitleElement.onclick = null;
+      }
+
       document.getElementById('chat-box').innerHTML='';
+      console.log('Initializing ChatWidget for thread ID:', t.id);
       new ChatWidget(t.id, document.getElementById('chat-box'), stickers);
-      loadThreads();
+      loadThreads(); // Reload threads to update active state
+      console.log('openThread finished.');
     }
-
-    fetch('api/chat_threads.php')
-      .then(r => r.text())
-      .then(t => {
-          if (!t) throw 'Empty response';
-          let data;
-          try { data = JSON.parse(t); }
-          catch(e) { console.error('Not JSON:', t); throw e; }
-          // continue…
-      });
-
 
     /* 3. create new thread (simple prompt)              */
     document.getElementById('btnNew').onclick = async () => {
@@ -175,6 +317,93 @@ $user = $_SESSION['user'];
                 picker.style.display = 'none';
             }
         });
+    });
+
+    // Thread management functions
+    function viewProfile(userId) {
+        window.location.href = `view_profile.php?id=${userId}`;
+    }
+
+    function archiveThread(threadId) {
+        fetch('api/chat_flag.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                thread_id: threadId,
+                action: 'archive'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadThreads();
+            } else {
+                alert('Failed to archive thread');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    function spamThread(threadId) {
+        fetch('api/chat_flag.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                thread_id: threadId,
+                action: 'spam'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadThreads();
+            } else {
+                alert('Failed to mark thread as spam');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    function deleteThread(threadId) {
+        if (confirm('Are you sure you want to delete this conversation?')) {
+            fetch('api/chat_flag.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    thread_id: threadId,
+                    action: 'delete'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadThreads();
+                } else {
+                    alert('Failed to delete conversation');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    }
+
+    function reportUser(userId) {
+        // TODO: Implement report functionality
+        alert('Report functionality coming soon');
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.thread-menu')) {
+            document.querySelectorAll('.thread-menu-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('show');
+            });
+        }
     });
     </script>
     <script src="assets/chat_widget.js"></script>
