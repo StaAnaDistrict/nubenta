@@ -120,57 +120,56 @@
 }
 
 .message.sent .message-bubble {
-    background-color: #1a1a1a; /* Dark background for sent */
-    color: white;
+    background-color: #6d6d6d; /* Darker gray background for sent */
+    color: #ebf3ff; /* Light blue-gray text for sent */
     border-bottom-right-radius: 2px; /* Pointy corner */
 }
 
 .message.received .message-bubble {
-    background-color: #e9e9eb; /* Light grey background for received */
-    color: #333;
+    background-color: #afafaf; /* Medium gray background for received */
+    color: #2b2b2b; /* Dark text for received */
     border-bottom-left-radius: 2px; /* Pointy corner */
 }
 
 .message-text {
     word-wrap: break-word;
+    color: inherit;
 }
 
 .message-meta {
     display: flex;
     align-items: center;
-    font-size: 0.7em;
-    /* margin-top: 4px; /* Removed margin-top as padding handles space */
-    /* Positioning relative to bubble */
-    position: absolute;
-    bottom: 2px;
-    right: 8px; /* Default for sent */
-    color: rgba(255, 255, 255, 0.8); /* Default color for meta in sent bubble */
-}
-
-.message.received .message-meta {
-    right: auto;
-    left: 8px; /* Position for received */
-    color: rgba(0, 0, 0, 0.5); /* Color for meta in received bubble */
+    font-size: 0.8em;
+    color: #999;
+    margin-top: 2px;
 }
 
 .message-time {
-    margin-right: 4px; /* Space between time and ticks */
-    font-size: 0.8em;
-    opacity: 0.7;
-    /* color is set by parent .message-meta */
+    margin-right: 4px;
 }
 
 .message-ticks {
-    /* Styles already exist - keep as is */
+    margin-left: 4px;
+    font-size: 0.8em;
+    color: #FFFFFF; /* White color for sent messages */
+}
+
+.message-ticks.delivered {
+    color: #ffc200; /* Yellow/Orange color for delivered messages */
 }
 
 .message-ticks.read {
-     color: #ffe700; /* Gold color for read ticks in sent bubble */
+    color: #FFFFFF; /* White color for read messages */
 }
 
 /* Ensure default tick color is visible in sent bubble */
 .message.sent .message-ticks {
-    color: rgba(255, 255, 255, 0.8); /* Default tick color in sent bubble */
+    color: #FFFFFF; /* White tick color in sent bubble */
+}
+
+/* Specific rule for delivered ticks in sent messages */
+.message.sent .message-ticks.delivered {
+    color: #ffc200; /* Yellow/Orange color for delivered messages in sent bubbles */
 }
 
 /* Remove message actions from message hover */

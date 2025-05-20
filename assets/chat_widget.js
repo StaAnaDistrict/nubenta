@@ -36,6 +36,9 @@ class ChatWidget {
         };
         this.emojiButton.onclick = () => this.toggleStickerPicker();
         this.attachButton.onclick = () => alert('File attachment coming soon!');
+
+        // Intersection Observer for read receipts
+        this.setupReadObserver();
     }
 
     renderMessage(msg) {
@@ -44,10 +47,11 @@ class ChatWidget {
 
         const div = document.createElement('div');
         div.className = `message ${messageClass}`;
+        div.dataset.messageId = msg.id;
         
         // Create message bubble content
         const bubbleDiv = document.createElement('div');
-        bubbleDiv.className = 'message-bubble'; // Add a bubble class for styling
+        bubbleDiv.className = 'message-bubble';
 
         // Add message text or sticker
         const textDiv = document.createElement('div');
@@ -83,22 +87,20 @@ class ChatWidget {
         if (isSent) {
             const tickSpan = document.createElement('span');
             tickSpan.className = 'message-ticks';
+            // Initially show one tick; polling will update to two ticks and color
+            tickSpan.innerHTML = '✓';
+            // Add classes based on initial status, polling will refine
+            if (msg.delivered_at) {
+                tickSpan.classList.add('delivered');
+            }
             if (msg.read_at) {
-                tickSpan.innerHTML = '✓✓'; // Double tick for read
-                tickSpan.classList.add('read');
-            } else if (msg.delivered_at) {
-                tickSpan.innerHTML = '✓✓'; // Double tick for delivered (unread)
-            } else {
-                tickSpan.innerHTML = '✓'; // Single tick for sent
+                tickSpan.classList.add('read'); // Both delivered and read might be set initially
             }
             metaDiv.appendChild(tickSpan);
         }
         
         bubbleDiv.appendChild(metaDiv);
-        
-        // Removed message hover actions - they belong with thread actions
-
-        div.appendChild(bubbleDiv); // Append the bubble div to the main message div
+        div.appendChild(bubbleDiv);
 
         return div;
     }
@@ -164,9 +166,23 @@ class ChatWidget {
             this.messagesDiv.innerHTML = '';
             if (Array.isArray(data.messages)) {
                 data.messages.forEach(msg => {
-                    this.messagesDiv.appendChild(this.renderMessage(msg));
+                    const messageElement = this.renderMessage(msg);
+                    this.messagesDiv.appendChild(messageElement);
+                    // Observe newly added messages
+                    if (msg.sender_id !== window.me) { // Only observe received messages
+                        this.observer.observe(messageElement);
+                    }
                 });
                 this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
+                
+                // After loading messages, mark received messages as delivered
+                const receivedMessageIds = data.messages
+                    .filter(msg => msg.sender_id !== window.me)
+                    .map(msg => msg.id);
+                
+                if (receivedMessageIds.length > 0) {
+                    this.markMessagesAsDelivered(receivedMessageIds);
+                }
             } else {
                 console.error('Invalid messages format:', data);
             }
@@ -209,6 +225,16 @@ class ChatWidget {
 
             if (data.success) {
                 this.textarea.value = '';
+                
+                // If a new thread was created, update the current thread ID
+                if (data.thread_id && data.thread_id !== this.threadId) {
+                    this.threadId = data.thread_id;
+                    // Notify the parent page to update the thread list
+                    window.dispatchEvent(new CustomEvent('threadCreated', {
+                        detail: { threadId: data.thread_id }
+                    }));
+                }
+                
                 this.loadMessages();
                 console.log('sendMessage: Message sent successfully.');
             } else {
@@ -222,7 +248,91 @@ class ChatWidget {
     }
 
     setupPolling() {
+        // Poll for new messages every 5 seconds
         setInterval(() => this.loadMessages(), 5000);
+        
+        // Poll for message status updates every 2 seconds
+        setInterval(() => this.checkMessageStatus(), 2000);
+    }
+
+    async checkMessageStatus() {
+        if (!this.threadId) return;
+        
+        try {
+            console.log('checkMessageStatus: Checking status for thread:', this.threadId);
+            
+            // Get all sent message IDs that haven't been read
+            const sentMessages = Array.from(this.messagesDiv.querySelectorAll('.msg-me'))
+                .map(el => el.dataset.messageId)
+                .filter(id => id);
+            
+            if (sentMessages.length === 0) {
+                console.log('checkMessageStatus: No sent messages to check.');
+                return;
+            }
+            console.log('checkMessageStatus: Sent message IDs:', sentMessages);
+
+            const response = await fetch('api/chat_status.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ids: sentMessages
+                })
+            });
+
+            const data = await response.json();
+            
+            console.log('checkMessageStatus: API response data:', data);
+
+            if (!data.success) {
+                console.error('Error in message status response:', data.error);
+                return;
+            }
+
+            const statuses = data.statuses || [];
+            console.log('checkMessageStatus: Received statuses:', statuses);
+            
+            // Update tick marks based on status
+            statuses.forEach(status => {
+                console.log('checkMessageStatus: Processing status for message ID:', status.id, 'Status:', status);
+                const messageEl = this.messagesDiv.querySelector(`[data-message-id="${status.id}"]`);
+                if (messageEl) {
+                    const tickSpan = messageEl.querySelector('.message-ticks');
+                    if (tickSpan) {
+                        console.log('checkMessageStatus: Found tick span for message ID:', status.id);
+                        console.log('checkMessageStatus:', status.id, 'Delivered At:', status.delivered_at, '(' + typeof status.delivered_at + ')', 'Read At:', status.read_at, '(' + typeof status.read_at + ')');
+                        console.log('checkMessageStatus:', status.id, 'status.delivered_at is truthy:', !!status.delivered_at, 'status.read_at is truthy:', !!status.read_at);
+                        console.log('checkMessageStatus:', status.id, 'status.delivered_at explicitly check:', status.delivered_at !== null && status.delivered_at !== '', 'status.read_at explicitly check:', status.read_at !== null && status.read_at !== '');
+
+                        if (status.read_at !== null && status.read_at !== '') {
+                            tickSpan.innerHTML = '✓✓'; // Read is two ticks
+                            tickSpan.classList.add('read');
+                            tickSpan.classList.remove('delivered');
+                            console.log('checkMessageStatus: Marked message', status.id, 'as read (✓✓ white).');
+                        } else if (status.delivered_at !== null && status.delivered_at !== '') {
+                            tickSpan.innerHTML = '✓'; // Delivered is one tick
+                            tickSpan.classList.add('delivered');
+                            tickSpan.classList.remove('read');
+                            console.log('checkMessageStatus: Marked message', status.id, 'as delivered (✓ yellow).');
+                        } else {
+                            tickSpan.innerHTML = '✓'; // Sent is one tick
+                            tickSpan.classList.remove('read', 'delivered');
+                            console.log('checkMessageStatus: Marked message', status.id, 'as sent (✓ dark gray).');
+                        }
+                    }
+                    // Add a class or update ticks if not relying solely on polling for visual update
+                    // messageElement.classList.add('read'); 
+                    // You might manually update the tick HTML here for instant feedback
+                }
+                else {
+                    console.log('checkMessageStatus: Message element not found for ID:', status.id);
+                }
+            });
+        } catch (error) {
+            console.error('Error checking message status:', error);
+        }
     }
 
     toggleStickerPicker() {
@@ -244,4 +354,82 @@ class ChatWidget {
             picker.style.display = 'none';
         }
     }
+
+    setupReadObserver() {
+        const options = {
+            root: this.messagesDiv, // Observe within the messages container
+            rootMargin: '0px',
+            threshold: 1.0 // Message is considered visible when 100% in view
+        };
+
+        this.observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const messageElement = entry.target;
+                    const messageId = messageElement.dataset.messageId;
+                    
+                    if (messageId && !messageElement.classList.contains('read')) { // Prevent marking as read multiple times
+                        this.markMessageAsRead(messageId);
+                        observer.unobserve(messageElement); // Stop observing once marked as read
+                    }
+                }
+            });
+        }, options);
+    }
+
+    async markMessageAsRead(messageId) {
+        console.log('Attempting to mark message as read:', messageId);
+        try {
+            const response = await fetch('api/chat_status.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'read',
+                    message_id: messageId
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                console.log('Message marked as read:', messageId);
+                // Update the message element visually if needed (though polling should handle this)
+                const messageElement = this.messagesDiv.querySelector(`[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    // Add a class or update ticks if not relying solely on polling for visual update
+                    // messageElement.classList.add('read'); 
+                    // You might manually update the tick HTML here for instant feedback
+                }
+            } else {
+                console.error('Failed to mark message as read:', data.error);
+            }
+        } catch (error) {
+            console.error('Error marking message as read:', error);
+        }
+    }
+
+    async markMessagesAsDelivered(messageIds) {
+        console.log('Attempting to mark messages as delivered:', messageIds);
+        try {
+            const response = await fetch('api/chat_status.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'delivered',
+                    ids: messageIds
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                console.log('Messages marked as delivered:', messageIds);
+                // No need to manually update ticks here, polling will handle it
+            } else {
+                console.error('Failed to mark messages as delivered:', data.error);
+            }
+        } catch (error) {
+            console.error('Error marking messages as delivered:', error);
+        }
+  }
 }

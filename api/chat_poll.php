@@ -31,7 +31,7 @@ if (!empty($rows)) {
         $in = implode(',', array_fill(0, count($ids), '?'));
         $q  = $pdo->prepare("UPDATE messages
                                 SET delivered_at = NOW()
-                              WHERE id IN ($in)");
+                              WHERE id IN (" . $in . ")");
         $q->execute($ids);
     }
 }
@@ -39,3 +39,20 @@ if (!empty($rows)) {
 
 header('Content-Type: application/json');
 echo json_encode($rows);
+
+/* -------- mark delivered for messages I am receiving -------- */
+if (!empty($rows)) {
+    /* collect only messages NOT sent by me */
+    $ids = array_column(
+        array_filter($rows, fn($m) => $m['sender_id'] != $userId),
+        'id'
+    );
+
+    if ($ids) {
+        $in  = implode(',', array_fill(0, count($ids), '?'));
+        $sql = "UPDATE messages
+                   SET delivered_at = IFNULL(delivered_at, NOW())
+                 WHERE id IN ($in) AND delivered_at IS NULL";
+        $pdo->prepare($sql)->execute($ids);
+    }
+}

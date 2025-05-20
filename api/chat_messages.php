@@ -1,6 +1,8 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 0); // Revert to turn off display errors
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../php_error.log');
 
 session_start();
 require_once '../db.php';
@@ -46,13 +48,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $stmt->execute([$thread_id]);
         $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode(['success' => true, 'messages' => $messages]);
-        exit; // Ensure script exits after outputting JSON
     } catch (PDOException $e) {
         error_log("Error in chat_messages.php: " . $e->getMessage());
         echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
-        exit; // Ensure script exits after outputting JSON
     }
+    exit;
 }
+
 // Handle POST request to send a message
 else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
@@ -66,7 +68,9 @@ else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $content = $input['content'];
 
     try {
-        // First check if user is part of this thread and get receiver_id for direct messages
+        $pdo->beginTransaction();
+
+        // Check if thread exists and get participant info
         $stmt = $pdo->prepare("
             SELECT tp.user_id, t.is_group
             FROM thread_participants tp
@@ -77,24 +81,48 @@ else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $participant_info = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$participant_info) {
-             echo json_encode(['success' => false, 'error' => 'Not authorized to send messages in this thread or thread not found']);
-             exit;
+            // Thread doesn't exist or user is not authorized
+            echo json_encode(['success' => false, 'error' => 'Thread not found or not authorized']);
+            exit;
         }
 
-        $receiver_id = !$participant_info['is_group'] ? $participant_info['user_id'] : NULL; // Get receiver_id only for direct messages
+        // Check if thread is deleted for the recipient
+        $stmt = $pdo->prepare("
+            SELECT 1 FROM mailbox_flags 
+            WHERE thread_id = ? AND user_id = ?
+        ");
+        $stmt->execute([$thread_id, $participant_info['user_id']]);
+        $is_deleted = $stmt->fetch();
 
+        error_log("chat_messages.php: Checking if thread " . $thread_id . " is deleted for recipient " . $participant_info['user_id'] . ": " . ($is_deleted ? 'Yes' : 'No'));
+
+        if ($is_deleted) {
+            // If thread is deleted for recipient, 'undelete' it by removing flags
+            // This allows the message to be inserted into the original thread for both users.
+            $stmt = $pdo->prepare("DELETE FROM mailbox_flags WHERE thread_id = ? AND user_id = ?");
+            $stmt->execute([$thread_id, $participant_info['user_id']]);
+            error_log("chat_messages.php: Deleted mailbox_flags for thread " . $thread_id . " and user " . $participant_info['user_id']);
+        }
+
+        // Insert the message into the original thread (if not deleted by recipient)
         $stmt = $pdo->prepare("
             INSERT INTO messages (thread_id, sender_id, receiver_id, body, sent_at) 
             VALUES (?, ?, ?, ?, NOW())
         ");
+        $receiver_id = !$participant_info['is_group'] ? $participant_info['user_id'] : NULL;
+        // Note: We use the OLD thread ID here for message insertion
         $stmt->execute([$thread_id, $user_id, $receiver_id, $content]);
-        echo json_encode(['success' => true, 'message_id' => $pdo->lastInsertId()]);
-        exit; // Ensure script exits after outputting JSON
+        $message_id = $pdo->lastInsertId();
+
+        $pdo->commit();
+        // For messages in the original thread, also just return success and message_id
+        echo json_encode(['success' => true, 'message_id' => $message_id]);
     } catch (PDOException $e) {
+        $pdo->rollBack();
         error_log("Error in chat_messages.php: " . $e->getMessage());
         echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
-        exit; // Ensure script exits after outputting JSON
     }
+    exit;
 }
 
 /* anything else = 405 */
