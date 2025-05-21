@@ -27,7 +27,7 @@ try {
     // Check if a request already exists
     $checkStmt = $pdo->prepare(
         "SELECT id, status 
-         FROM friend_requests 
+        FROM friend_requests
          WHERE (sender_id = ? AND receiver_id = ?)
             OR (sender_id = ? AND receiver_id = ?)
          LIMIT 1"

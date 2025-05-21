@@ -230,7 +230,7 @@ document.querySelector('.profile-pic').addEventListener('click', function() {
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-$('#updateForm').on('submit', function (e) {
+  $('#updateForm').on('submit', function (e) {
   e.preventDefault();
 
   const formData = new FormData(this);

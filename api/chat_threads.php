@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     )
                     ELSE NULL
                 END as participant_id
-            FROM threads t
+      FROM threads t
             JOIN thread_participants tp ON t.id = tp.thread_id
             LEFT JOIN mailbox_flags mf ON t.id = mf.thread_id AND mf.user_id = ?
             WHERE tp.user_id = ?
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         error_log("Error in chat_threads.php: " . $e->getMessage());
         echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
     }
-    exit;
+  exit;
 }
 
 /* ----------------------------------------------------------------------
@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        $pdo->beginTransaction();
+$pdo->beginTransaction();
 
         // For direct messages, check if a thread already exists
         if (!$is_group) {
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$thread_id, $member_id]);
         }
 
-        $pdo->commit();
+$pdo->commit();
         echo json_encode(['success' => true, 'thread_id' => $thread_id]);
     } catch (PDOException $e) {
         $pdo->rollBack();

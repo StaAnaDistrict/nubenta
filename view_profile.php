@@ -66,7 +66,7 @@ $isFollowing   = false;  // placeholder
     
     <?php if (!empty($u['custom_theme'])): ?>
         <?= $u['custom_theme'] ?>
-    <?php endif; ?>
+<?php endif; ?>
 </head>
 <body>
     <!-- Navigation -->
@@ -120,13 +120,13 @@ $isFollowing   = false;  // placeholder
 
     <div class="container">
         <!-- Profile Header -->
-        <div class="profile-header">
+  <div class="profile-header">
             <div class="row">
                 <!-- Left Column: Profile Picture and Action Buttons -->
                 <div class="col-md-4">
                     <div class="profile-pic-container">
-                        <?php if (!empty($u['profile_pic'])): ?>
-                            <img src="uploads/profile_pics/<?= htmlspecialchars($u['profile_pic']) ?>" 
+  <?php if (!empty($u['profile_pic'])): ?>
+   <img src="uploads/profile_pics/<?= htmlspecialchars($u['profile_pic']) ?>"
                                  alt="Profile Picture" class="profile-pic">
                         <?php else: ?>
                             <?php
@@ -183,8 +183,8 @@ $isFollowing   = false;  // placeholder
                         <h1 class="profile-name"><?= htmlspecialchars($u['full_name']) ?></h1>
                         <?php if (!empty($u['bio'])): ?>
                             <div class="profile-bio"><?= nl2br(htmlspecialchars($u['bio'])) ?></div>
-                        <?php endif; ?>
-                        
+<?php endif; ?>
+
                         <div class="basic-info">
                             <?php
                             // Calculate age
@@ -260,21 +260,21 @@ $isFollowing   = false;  // placeholder
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+      </div>
+  </div>
 
         <!-- Featured Photos Section -->
-        <div class="profile-section">
+  <div class="profile-section">
             <h3 class="section-title">Featured Photos</h3>
             <div class="row">
                 <div class="col-12">
                     <p class="text-muted">No featured photos yet.</p>
                 </div>
             </div>
-        </div>
+  </div>
 
         <!-- More About Me Section -->
-        <div class="profile-section">
+  <div class="profile-section">
             <h3 class="section-title">More About Me</h3>
             <div class="row">
                 <?php if (!empty($u['company'])): ?>
@@ -308,10 +308,10 @@ $isFollowing   = false;  // placeholder
                     </div>
                 <?php endif; ?>
             </div>
-        </div>
+  </div>
 
         <!-- Favorites Section -->
-        <div class="profile-section">
+  <div class="profile-section">
             <h3 class="section-title">Favorites</h3>
             <div class="row">
                 <?php if (!empty($u['favorite_books'])): ?>
@@ -340,7 +340,7 @@ $isFollowing   = false;  // placeholder
                 <?php endif; ?>
             </div>
         </div>
-    </div>
+  </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     

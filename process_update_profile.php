@@ -135,9 +135,9 @@ foreach ($params as $key => $value) {
     if ($value === null) {
         $setClause .= "$key = NULL, ";
     } else {
-        $setClause .= "$key = ?, ";
-        $types .= 's';
-        $values[] = $value;
+    $setClause .= "$key = ?, ";
+    $types .= 's';
+    $values[] = $value;
     }
 }
 
@@ -158,7 +158,7 @@ if (!$stmt) {
 }
 
 if (!empty($values)) {
-    $stmt->bind_param($types, ...$values);
+$stmt->bind_param($types, ...$values);
 }
 
 // ───── profile-pic upload ─────────────────────────
@@ -243,12 +243,12 @@ try {
     $response = ['success' => false, 'message' => $e->getMessage()];
 } finally {
     if ($stmt) {
-        $stmt->close();
+$stmt->close();
     }
     if ($selectStmt) {
         $selectStmt->close();
     }
-    $conn->close();
+$conn->close();
 }
 
 // Send response after all cleanup is done

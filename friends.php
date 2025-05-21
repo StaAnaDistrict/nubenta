@@ -6,8 +6,8 @@ session_start();
 require_once 'db.php';
 
 if (!isset($_SESSION['user'])) {
-    header("Location: login.php");
-    exit();
+  header("Location: login.php");
+  exit();
 }
 
 $user = $_SESSION['user'];
@@ -19,33 +19,33 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
 try {
     // Fetch incoming friend requests with more user details
-    $requests_stmt = $pdo->prepare("
+$requests_stmt = $pdo->prepare("
         SELECT fr.*, 
                CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as sender_name,
                u.profile_pic,
                u.gender,
                u.id as user_id
-        FROM friend_requests fr 
-        JOIN users u ON fr.sender_id = u.id 
-        WHERE fr.receiver_id = ? AND fr.status = 'pending'
+  FROM friend_requests fr 
+  JOIN users u ON fr.sender_id = u.id 
+  WHERE fr.receiver_id = ? AND fr.status = 'pending'
         ORDER BY fr.created_at DESC
-    ");
-    $requests_stmt->execute([$my_id]);
-    $incoming_requests = $requests_stmt->fetchAll();
+");
+$requests_stmt->execute([$my_id]);
+$incoming_requests = $requests_stmt->fetchAll();
 
     // Fetch accepted friends with more details
-    $friends_stmt = $pdo->prepare("
+$friends_stmt = $pdo->prepare("
         SELECT u.*, 
                CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as full_name
         FROM users u
-        JOIN friend_requests fr ON 
+  JOIN friend_requests fr ON 
             ((fr.sender_id = u.id AND fr.receiver_id = ?) OR 
              (fr.receiver_id = u.id AND fr.sender_id = ?))
-        WHERE fr.status = 'accepted'
+  WHERE fr.status = 'accepted'
         ORDER BY u.first_name, u.last_name
-    ");
-    $friends_stmt->execute([$my_id, $my_id]);
-    $friends = $friends_stmt->fetchAll();
+");
+$friends_stmt->execute([$my_id, $my_id]);
+$friends = $friends_stmt->fetchAll();
 
     // Fetch suggested friends
     $suggested_stmt = $pdo->prepare("
@@ -199,9 +199,9 @@ try {
         <main class="main-content">
             <!-- Friend Requests Section -->
             <h2 class="section-title">Friend Requests</h2>
-            <?php if (count($incoming_requests) > 0): ?>
+  <?php if (count($incoming_requests) > 0): ?>
                 <div class="row">
-                    <?php foreach ($incoming_requests as $req): ?>
+      <?php foreach ($incoming_requests as $req): ?>
                         <div class="col-md-6 col-lg-4">
                             <div class="friend-card">
                                 <div class="d-flex">
@@ -213,7 +213,7 @@ try {
                                     <div class="flex-grow-1">
                                         <h5 class="mb-1">
                                             <a href="view_profile.php?id=<?= $req['user_id'] ?>" class="user-name">
-                                                <?= htmlspecialchars($req['sender_name']) ?>
+          <?= htmlspecialchars($req['sender_name']) ?>
                                             </a>
                                         </h5>
                                         <div class="friend-actions">
@@ -226,17 +226,17 @@ try {
                                 </div>
                             </div>
                         </div>
-                    <?php endforeach; ?>
+      <?php endforeach; ?>
                 </div>
-            <?php else: ?>
+  <?php else: ?>
                 <p class="text-muted">No pending friend requests.</p>
-            <?php endif; ?>
+  <?php endif; ?>
 
             <!-- My Friends Section -->
             <h2 class="section-title">My Friends</h2>
-            <?php if (count($friends) > 0): ?>
+  <?php if (count($friends) > 0): ?>
                 <div class="row">
-                    <?php foreach ($friends as $friend): ?>
+      <?php foreach ($friends as $friend): ?>
                         <div class="col-md-6 col-lg-4">
                             <div class="friend-card">
                                 <div class="d-flex">
@@ -260,11 +260,11 @@ try {
                                 </div>
                             </div>
                         </div>
-                    <?php endforeach; ?>
+      <?php endforeach; ?>
                 </div>
-            <?php else: ?>
+  <?php else: ?>
                 <p class="text-muted">No friends yet.</p>
-            <?php endif; ?>
+  <?php endif; ?>
 
             <!-- Suggested Friends Section -->
             <h2 class="section-title">Suggested Friends</h2>

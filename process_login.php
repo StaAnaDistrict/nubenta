@@ -41,12 +41,12 @@ if ($result->num_rows === 1) {
       ]);
       exit();
     }
-
-    echo json_encode([
-      'success' => true,
-      'message' => 'Login successful',
-      'redirect' => 'dashboard.html'
-    ]);
+    
+echo json_encode([
+  'success' => true,
+  'message' => 'Login successful',
+  'redirect' => 'dashboard.html'
+]);
   } else {
     echo json_encode(["success" => false, "message" => "Incorrect password."]);
   }

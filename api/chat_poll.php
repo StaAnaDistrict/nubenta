@@ -8,13 +8,13 @@ $thread = intval($_GET['thread_id'] ?? 0);
 $after  = intval($_GET['after_id']  ?? 0);
 
 $q = $pdo->prepare("
-   SELECT m.*, u.name
-     FROM messages m
-     JOIN users u ON u.id = m.sender_id
-    WHERE m.thread_id = ?
-      AND m.id > ?
+ SELECT m.*, u.name
+   FROM messages m
+   JOIN users u ON u.id = m.sender_id
+  WHERE m.thread_id = ?
+    AND m.id > ?
       AND (m.suspect = 0 OR m.sender_id = ?)      /* sender sees own msg */
-    ORDER BY m.id ASC
+  ORDER BY m.id ASC
 ");
 $q->execute([$thread, $after, $userId]);
 $rows = $q->fetchAll(PDO::FETCH_ASSOC);
@@ -33,7 +33,7 @@ if (!empty($rows)) {
                                 SET delivered_at = NOW()
                               WHERE id IN (" . $in . ")");
         $q->execute($ids);
-    }
+}
 }
 /* ----------------------------------------------------------------------- */
 

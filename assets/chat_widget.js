@@ -60,8 +60,8 @@ class ChatWidget {
                 preview.dataset.fileName = file.name;
                 preview.dataset.fileType = file.type;
                 
-                // Store the actual File object directly
-                preview.dataset.file = file;
+                // Store the actual File object
+                preview.file = file; // Store directly as a property instead of in dataset
                 
                 if (file.type.startsWith('image/')) {
                     const img = document.createElement('img');
@@ -139,23 +139,23 @@ class ChatWidget {
                 const fileDiv = document.createElement('div');
                 fileDiv.className = 'message-file';
                 
-                // Ensure filePath starts with a forward slash
-                const fullPath = filePath.startsWith('/') ? filePath : '/' + filePath;
-                console.log('Full file path:', fullPath); // Debug log
+                // Remove leading slash if present
+                const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+                console.log('Clean file path:', cleanPath); // Debug log
                 
                 if (filePath.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
                     const img = document.createElement('img');
-                    img.src = fullPath;
+                    img.src = cleanPath;
                     img.className = 'message-image';
-                    img.onclick = () => window.open(fullPath, '_blank');
+                    img.onclick = () => window.open(cleanPath, '_blank');
                     img.onerror = (e) => {
-                        console.error('Error loading image:', fullPath, e);
+                        console.error('Error loading image:', cleanPath, e);
                         img.src = 'assets/images/error.png'; // Fallback image
                     };
                     fileDiv.appendChild(img);
                 } else {
                     const link = document.createElement('a');
-                    link.href = fullPath;
+                    link.href = cleanPath;
                     link.className = 'message-file-link';
                     link.target = '_blank';
                     link.innerHTML = `<i class="fas fa-file"></i> ${filePath.split('/').pop()}`;
@@ -289,12 +289,8 @@ class ChatWidget {
         const content = this.textarea.value.trim();
         const filePreviews = document.querySelectorAll('.file-preview');
         
-        // Get the actual File objects from the input
-        const files = Array.from(filePreviews).map(preview => {
-            const file = preview.dataset.file;
-            console.log('File from preview:', file);
-            return file;
-        });
+        // Get the actual File objects from the preview elements
+        const files = Array.from(filePreviews).map(preview => preview.file);
 
         // Allow sending if either content or files exist
         if (!content && files.length === 0) {
@@ -311,9 +307,11 @@ class ChatWidget {
             
             // Add files to formData
             files.forEach((file, index) => {
-                if (file) {
+                if (file instanceof File) {
                     console.log('Adding file to FormData:', file.name, file.type, file.size);
                     formData.append('files[]', file);
+                } else {
+                    console.error('Invalid file object:', file);
                 }
             });
 

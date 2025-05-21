@@ -48,6 +48,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $stmt->execute([$thread_id]);
         $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
+        // Process messages to ensure file paths are correct
+        foreach ($messages as &$message) {
+            if (!empty($message['file_path'])) {
+                // Ensure file paths start with a forward slash
+                $filePaths = explode(',', $message['file_path']);
+                $filePaths = array_map(function($path) {
+                    return $path[0] === '/' ? $path : '/' . $path;
+                }, $filePaths);
+                $message['file_path'] = implode(',', $filePaths);
+            }
+        }
+        
         // Log the messages for debugging
         error_log("Messages for thread $thread_id: " . print_r($messages, true));
         

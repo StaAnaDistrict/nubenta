@@ -94,10 +94,10 @@ try {
     // Then get the current status of all messages
     $stmt = $pdo->prepare("
         SELECT id, delivered_at, read_at
-        FROM messages
+          FROM messages
         WHERE id IN (" . implode(',', array_fill(0, count($ids), '?')) . ")
     ");
-    $stmt->execute($ids);
+$stmt->execute($ids);
     $statuses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     error_log("chat_status.php: Fetched statuses: " . print_r($statuses, true));
