@@ -94,7 +94,7 @@ $isFollowing   = false;  // placeholder
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="connections.php">
+                        <a class="nav-link" href="friends.php">
                             <i class="fas fa-users"></i> Connections
                         </a>
                     </li>
@@ -140,7 +140,9 @@ $isFollowing   = false;  // placeholder
                     </div>
                     <div class="profile-actions">
                         <div class="action-column">
-                            <button class="btn btn-primary mb-2">Send Message</button>
+                            <?php if ($current['id'] !== $profileId): ?>
+                                <button class="btn btn-primary mb-2" onclick="startMessage(<?= $profileId ?>)">Send Message</button>
+                            <?php endif; ?>
                             <?php if ($current['id'] !== $profileId): ?>
                                 <?php if ($friendBtnState === 'add'): ?>
                                     <button id="addFriend"
@@ -399,6 +401,26 @@ $isFollowing   = false;  // placeholder
                             const j  = await hit('assets/unfriend.php', { id });
                             if (j.ok) location.reload();
                         });
+    </script>
+
+    <script>
+    async function startMessage(userId) {
+        try {
+            const response = await fetch(`api/get_or_create_thread.php?user_id=${userId}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            // Redirect to messages.php with the thread ID
+            window.location.href = `messages.php?thread=${data.thread.id}`;
+        } catch (error) {
+            console.error('Error starting message:', error);
+            alert('Error starting message. Please try again.');
+        }
+    }
     </script>
 </body>
 </html>

@@ -714,6 +714,22 @@ $user = $_SESSION['user'];
 
     loadThreads();          // initial load
 
+    // Check for thread parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const threadId = urlParams.get('thread');
+    if (threadId) {
+        // Fetch thread details and open it
+        fetch('api/chat_threads.php')
+            .then(r => r.json())
+            .then(threads => {
+                const thread = threads.find(t => t.id === parseInt(threadId));
+                if (thread) {
+                    openThread(thread);
+                }
+            })
+            .catch(error => console.error('Error loading thread:', error));
+    }
+
     // Initialize sticker picker
     document.addEventListener('DOMContentLoaded', function() {
         const picker = document.getElementById('picker');
