@@ -348,6 +348,117 @@ $user = $_SESSION['user'];
     .remove-file:hover {
         color: #333;
     }
+
+    /* User search styles */
+    .user-search-container {
+        position: relative;
+        width: 100%;
+    }
+
+    .user-search-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    .user-search-input:focus {
+        outline: none;
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .user-search-results {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        z-index: 1000;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .user-search-results.show {
+        display: block;
+    }
+
+    .user-search-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .user-search-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .user-search-item img {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        margin-right: 10px;
+    }
+
+    .user-search-item-info {
+        flex: 1;
+    }
+
+    .user-search-item-name {
+        font-weight: 500;
+        color: #333;
+    }
+
+    .user-search-item-email {
+        font-size: 12px;
+        color: #666;
+    }
+
+    /* Modal styles */
+    .modal-content {
+        border-radius: 8px;
+    }
+
+    .modal-header {
+        border-bottom: 1px solid #dee2e6;
+        padding: 15px 20px;
+    }
+
+    .modal-body {
+        padding: 20px;
+    }
+
+    .modal-footer {
+        border-top: 1px solid #dee2e6;
+        padding: 15px 20px;
+    }
+
+    /* Modal backdrop handling */
+    .modal-backdrop {
+        z-index: 1040;
+    }
+
+    .modal {
+        z-index: 1050;
+    }
+
+    /* Ensure modal is properly hidden */
+    .modal.fade:not(.show) {
+        display: none;
+    }
+
+    /* Prevent body scroll when modal is open */
+    body.modal-open {
+        overflow: hidden;
+        padding-right: 0 !important;
+    }
 </style>
 </head>
 <body>
@@ -359,6 +470,7 @@ $user = $_SESSION['user'];
             <h1>Nubenta</h1>
             <?php
             $currentUser = $user;
+            $currentPage = 'messages';
             include 'assets/navigation.php';
             ?>
         </aside>
@@ -415,6 +527,24 @@ $user = $_SESSION['user'];
         </aside>
     </div>
 
+    <!-- Add this modal HTML before the closing body tag -->
+    <div class="modal fade" id="newChatModal" tabindex="-1" aria-labelledby="newChatModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="newChatModalLabel">Start New Chat</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="user-search-container">
+                        <input type="text" class="user-search-input" placeholder="Search by name or email..." autocomplete="off">
+                        <div class="user-search-results"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
     const stickers = <?= json_encode($sticker_names) ?>;   // now contains all 94 names
 
@@ -424,91 +554,89 @@ $user = $_SESSION['user'];
 
     /* ------------------------------------------------- */
     /* 1. list threads                                   */
-    function loadThreads(){
-      fetch('api/chat_threads.php')
-        .then(r=>r.json()).then(rows=>{
-          const list=document.getElementById('thread-list');
-          const currentThreadId = currentThread;
-          
-          // Store existing thread elements to preserve their state
-          const existingThreads = {};
-          list.querySelectorAll('.thread-item').forEach(el => {
-            existingThreads[el.dataset.threadId] = el;
-          });
-          
-          list.innerHTML='';
-          if (Array.isArray(rows)) {
-            rows.forEach(t=>{
-              // Check if this thread already exists
-              let div = existingThreads[t.id];
-              if (!div) {
-                div = document.createElement('div');
-                div.className='p-2 thread-item'+(t.id==currentThreadId?' active':'');
-                div.dataset.threadId = t.id;
-                
-                // Create title span
-                const titleSpan = document.createElement('span');
-                titleSpan.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
-                div.appendChild(titleSpan);
-                
-                // Create menu button
-                const menuBtn = document.createElement('div');
-                menuBtn.className = 'thread-menu';
-                menuBtn.innerHTML = '⋮';
-                menuBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    const dropdown = menuBtn.querySelector('.thread-menu-dropdown');
-                    // Close any other open dropdowns
-                    document.querySelectorAll('.thread-menu-dropdown.show').forEach(openDropdown => {
-                        if (openDropdown !== dropdown) {
-                            openDropdown.classList.remove('show');
-                        }
-                    });
+    async function loadThreads(){
+      const response = await fetch('api/chat_threads.php');
+      const rows = await response.json();
+      const list=document.getElementById('thread-list');
+      const currentThreadId = currentThread;
+      
+      // Store existing thread elements to preserve their state
+      const existingThreads = {};
+      list.querySelectorAll('.thread-item').forEach(el => {
+        existingThreads[el.dataset.threadId] = el;
+      });
+      
+      list.innerHTML='';
+      if (Array.isArray(rows)) {
+        rows.forEach(t=>{
+          // Check if this thread already exists
+          let div = existingThreads[t.id];
+          if (!div) {
+            div = document.createElement('div');
+            div.className='p-2 thread-item'+(t.id==currentThreadId?' active':'');
+            div.dataset.threadId = t.id;
+            
+            // Create title span
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
+            div.appendChild(titleSpan);
+            
+            // Create menu button
+            const menuBtn = document.createElement('div');
+            menuBtn.className = 'thread-menu';
+            menuBtn.innerHTML = '⋮';
+            menuBtn.onclick = (e) => {
+                e.stopPropagation();
+                const dropdown = menuBtn.querySelector('.thread-menu-dropdown');
+                // Close any other open dropdowns
+                document.querySelectorAll('.thread-menu-dropdown.show').forEach(openDropdown => {
+                    if (openDropdown !== dropdown) {
+                        openDropdown.classList.remove('show');
+                    }
+                });
 
-                    if (dropdown) {
-                        dropdown.classList.toggle('show');
-                    } else {
-                        const dropdown = document.createElement('div');
-                        dropdown.className = 'thread-menu-dropdown';
-                        dropdown.innerHTML = `
-                            <div class="thread-menu-item" onclick="viewProfile(${t.participant_id})">View Profile</div>
-                            <div class="thread-menu-item" onclick="archiveThread(${t.id})">Archive</div>
-                            <div class="thread-menu-item" onclick="spamThread(${t.id})">Spam</div>
-                            <div class="thread-menu-item" onclick="deleteThread(${t.id})">Delete</div>
-                            <div class="thread-menu-item" onclick="reportUser(${t.participant_id})">Report</div>
-                        `;
-                        menuBtn.appendChild(dropdown);
-                        dropdown.addEventListener('mouseenter', () => {
-                            dropdown.classList.add('show');
-                        });
-                        dropdown.addEventListener('mouseleave', () => {
-                            dropdown.classList.remove('show');
-                        });
+                if (dropdown) {
+                    dropdown.classList.toggle('show');
+                } else {
+                    const dropdown = document.createElement('div');
+                    dropdown.className = 'thread-menu-dropdown';
+                    dropdown.innerHTML = `
+                        <div class="thread-menu-item" onclick="viewProfile(${t.participant_id})">View Profile</div>
+                        <div class="thread-menu-item" onclick="archiveThread(${t.id})">Archive</div>
+                        <div class="thread-menu-item" onclick="spamThread(${t.id})">Spam</div>
+                        <div class="thread-menu-item" onclick="deleteThread(${t.id})">Delete</div>
+                        <div class="thread-menu-item" onclick="reportUser(${t.participant_id})">Report</div>
+                    `;
+                    menuBtn.appendChild(dropdown);
+                    dropdown.addEventListener('mouseenter', () => {
                         dropdown.classList.add('show');
-                    }
-                };
-                div.appendChild(menuBtn);
-                
-                div.onclick = (e) => {
-                    if (!e.target.closest('.thread-menu')) {
-                        openThread(t);
-                    }
-                };
-              } else {
-                // Update existing thread's title and active state
-                div.className = 'p-2 thread-item' + (t.id == currentThreadId ? ' active' : '');
-                const titleSpan = div.querySelector('span');
-                if (titleSpan) {
-                    titleSpan.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
+                    });
+                    dropdown.addEventListener('mouseleave', () => {
+                        dropdown.classList.remove('show');
+                    });
+                    dropdown.classList.add('show');
                 }
-              }
-              list.appendChild(div);
-            });
+            };
+            div.appendChild(menuBtn);
+            
+            div.onclick = (e) => {
+                if (!e.target.closest('.thread-menu')) {
+                    openThread(t);
+                }
+            };
           } else {
-            console.error('Invalid threads format:', rows);
+            // Update existing thread's title and active state
+            div.className = 'p-2 thread-item' + (t.id == currentThreadId ? ' active' : '');
+            const titleSpan = div.querySelector('span');
+            if (titleSpan) {
+                titleSpan.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
+            }
           }
-        })
-        .catch(error => console.error('Error loading threads:', error));
+          list.appendChild(div);
+        });
+      } else {
+        console.error('Invalid threads format:', rows);
+      }
     }
 
     /* 2. open thread                                    */
@@ -565,39 +693,9 @@ $user = $_SESSION['user'];
     }
 
     /* 3. create new thread (simple prompt)              */
-    document.getElementById('btnNew').onclick = async () => {
-      const username = prompt('Enter username to chat with:');
-      if (!username) return;
-
-      try {
-        // First, get the user ID from the username
-        const response = await fetch(`api/get_user_id.php?username=${encodeURIComponent(username)}`);
-        const data = await response.json();
-        
-        if (!data.user_id) {
-          alert('User not found');
-          return;
-        }
-
-        const fd = new FormData();
-        fd.append('is_group', 0);
-        fd.append('members', JSON.stringify([data.user_id]));
-        
-        const res = await fetch('api/chat_threads.php', {
-          method: 'POST',
-          body: fd
-        });
-        
-        const result = await res.json();
-        if (result.thread_id) {
-          loadThreads();
-        } else {
-          alert(result.error || 'Error creating thread');
-        }
-      } catch (error) {
-        console.error('Error creating thread:', error);
-        alert('Error creating thread. Please try again.');
-      }
+    document.getElementById('btnNew').onclick = function() {
+        const modal = new bootstrap.Modal(document.getElementById('newChatModal'));
+        modal.show();
     };
 
     function toggleSidebar() {
@@ -762,8 +860,120 @@ $user = $_SESSION['user'];
     function viewSpamMessages() {
         window.location.href = 'messages_spam.php';
     }
+
+    // Add this to your existing JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        const newChatBtn = document.getElementById('btnNew');
+        const newChatModal = new bootstrap.Modal(document.getElementById('newChatModal'));
+        const searchInput = document.querySelector('.user-search-input');
+        const searchResults = document.querySelector('.user-search-results');
+        let searchTimeout;
+
+        newChatBtn.addEventListener('click', function() {
+            newChatModal.show();
+            searchInput.value = '';
+            searchResults.innerHTML = '';
+            searchResults.classList.remove('show');
+        });
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+            
+            if (query.length < 2) {
+                searchResults.innerHTML = '';
+                searchResults.classList.remove('show');
+                return;
+            }
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(`api/search_users.php?query=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        console.error('Search error:', data.error);
+                        return;
+                    }
+
+                    searchResults.innerHTML = '';
+                    
+                    if (data.users.length === 0) {
+                        searchResults.innerHTML = '<div class="user-search-item">No users found</div>';
+                    } else {
+                        data.users.forEach(user => {
+                            const div = document.createElement('div');
+                            div.className = 'user-search-item';
+                            div.innerHTML = `
+                                <img src="${user.profile_picture}" alt="${user.name}" onerror="this.src='assets/images/default-avatar.png'">
+                                <div class="user-search-item-info">
+                                    <div class="user-search-item-name">${user.name}</div>
+                                    <div class="user-search-item-email">${user.email}</div>
+                                </div>
+                            `;
+                            div.addEventListener('click', () => startChat(user.id));
+                            searchResults.appendChild(div);
+                        });
+                    }
+                    
+                    searchResults.classList.add('show');
+                } catch (error) {
+                    console.error('Search error:', error);
+                }
+            }, 300);
+        });
+
+        // Close search results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.remove('show');
+            }
+        });
+
+        async function startChat(userId) {
+            try {
+                const response = await fetch('api/chat_start.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                // Close the modal and remove backdrop
+                newChatModal.hide();
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                // Clear the search input and results
+                searchInput.value = '';
+                searchResults.innerHTML = '';
+                searchResults.classList.remove('show');
+                
+                // Open the new thread and reload threads
+                if (data.thread) {
+                    // First reload threads to ensure the new thread is in the list
+                    await loadThreads();
+                    // Then open the thread
+                    openThread(data.thread);
+                }
+            } catch (error) {
+                console.error('Error starting chat:', error);
+                alert('Error starting chat. Please try again.');
+            }
+        }
+    });
     </script>
     <script src="assets/chat_widget.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

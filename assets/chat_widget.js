@@ -647,6 +647,6 @@ class ChatWidget {
         .catch(error => {
             console.error('Heartbeat error:', error);
             setTimeout(() => this.heartbeat(), 4000);
-        });
-    }
+       });
+  }
 }

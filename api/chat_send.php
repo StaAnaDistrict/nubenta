@@ -48,7 +48,7 @@ try {
         
         // Use absolute paths
         $baseDir = dirname(dirname(__FILE__));
-        $sub = date('Y/m');
+    $sub = date('Y/m');
         $publicDir = $baseDir . "/uploads/msg_files/$sub";
         
         error_log("Upload directory path: $publicDir");
@@ -99,7 +99,7 @@ try {
                 }
 
                 $uuid = bin2hex(random_bytes(8)) . '.' . $ext;
-                $publicPath = "$publicDir/$uuid";
+    $publicPath = "$publicDir/$uuid";
                 
                 error_log("Attempting to move file to: $publicPath");
                 if (move_uploaded_file($tmp_name, $publicPath)) {
@@ -112,7 +112,7 @@ try {
                 } else {
                     error_log("Failed to move uploaded file to: $publicPath");
                     error_log("Upload error: " . error_get_last()['message']);
-                }
+}
             } else {
                 error_log("File upload error: " . $_FILES['files']['error'][$key]);
             }
