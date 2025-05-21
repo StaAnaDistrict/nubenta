@@ -95,7 +95,7 @@ class ChatWidget {
         input.click();
     }
 
-    renderMessage(msg) {
+    renderMessage(msg, isLastFromSender = false) {
         console.log('Rendering message:', msg); // Debug log
         const isSent = msg.sender_id === window.me;
         const messageClass = isSent ? 'sent msg-me' : 'received msg-you';
@@ -175,18 +175,23 @@ class ChatWidget {
         timeSpan.textContent = new Date(msg.created_at || msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         metaDiv.appendChild(timeSpan);
         
-        // Add tick marks for sent messages
+        // Add tick marks for sent messages based on conditions
         if (isSent) {
-            const tickSpan = document.createElement('span');
-            tickSpan.className = 'message-ticks';
-            tickSpan.innerHTML = '✓';
-            if (msg.delivered_at) {
-                tickSpan.classList.add('delivered');
+            const hasStatus = msg.delivered_at !== null || msg.read_at !== null;
+            const shouldShowTicks = (hasStatus && isLastFromSender) || (!hasStatus);
+            
+            if (shouldShowTicks) {
+                const tickSpan = document.createElement('span');
+                tickSpan.className = 'message-ticks';
+                tickSpan.innerHTML = '✓';
+                if (msg.delivered_at) {
+                    tickSpan.classList.add('delivered');
+                }
+                if (msg.read_at) {
+                    tickSpan.classList.add('read');
+                }
+                metaDiv.appendChild(tickSpan);
             }
-            if (msg.read_at) {
-                tickSpan.classList.add('read');
-            }
-            metaDiv.appendChild(tickSpan);
         }
         
         bubbleDiv.appendChild(metaDiv);
@@ -258,15 +263,30 @@ class ChatWidget {
             
             this.messagesDiv.innerHTML = '';
             if (Array.isArray(data.messages)) {
+                // Group messages by sender
+                const messagesBySender = {};
                 data.messages.forEach(msg => {
-                    console.log('Processing message:', msg); // Debug log
-                    const messageElement = this.renderMessage(msg);
+                    if (!messagesBySender[msg.sender_id]) {
+                        messagesBySender[msg.sender_id] = [];
+                    }
+                    messagesBySender[msg.sender_id].push(msg);
+                });
+
+                // Render messages
+                data.messages.forEach((msg, index) => {
+                    // Check if this is the last message from this sender
+                    const senderMessages = messagesBySender[msg.sender_id];
+                    const isLastFromSender = msg.id === senderMessages[senderMessages.length - 1].id;
+                    
+                    const messageElement = this.renderMessage(msg, isLastFromSender);
                     this.messagesDiv.appendChild(messageElement);
+                    
                     // Observe newly added messages
                     if (msg.sender_id !== window.me) { // Only observe received messages
                         this.observer.observe(messageElement);
                     }
                 });
+                
                 this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
                 
                 // After loading messages, mark received messages as delivered
@@ -498,14 +518,14 @@ class ChatWidget {
                          .map(el => el.dataset.messageId);
 
         if (!ids.length) {
-            setTimeout(() => this.heartbeat(), 2000); // Use arrow function to preserve 'this'
+            setTimeout(() => this.heartbeat(), 2000);
             return;
         }
 
         fetch('api/chat_status.php', {
             method:'POST',
             headers: {
-                'Content-Type': 'application/json', // Use JSON for consistency
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({ ids: ids })
         })
@@ -513,42 +533,120 @@ class ChatWidget {
         .then(response => {
             if (!response.success) {
                 console.error('Heartbeat error:', response.error);
-                setTimeout(() => this.heartbeat(), 4000); // Retry after a longer delay on error
+                setTimeout(() => this.heartbeat(), 4000);
                 return;
             }
             
             const statuses = response.statuses || [];
+            
+            // Group messages by sender and status
+            const messagesBySender = {};
+            const messagesWithStatus = new Set();
+            const messagesWithReadStatus = new Set();
+            
             statuses.forEach(s => {
-                const el = this.messagesDiv.querySelector(`[data-message-id="${s.id}"] .message-ticks`);
-                if (!el) return;
-
-                // Apply tick count and color based on status
-                console.log('checkMessageStatus:', s.id, 'status.delivered_at explicitly check:', s.delivered_at !== null && s.delivered_at !== '', 'status.read_at explicitly check:', s.read_at !== null && s.read_at !== '');
-
-                if (s.read_at !== null && s.read_at !== '') {
-                    el.textContent = '✓✓'; // Read is two ticks
-                    el.classList.add('read');
-                    el.classList.remove('delivered');
-                    console.log('checkMessageStatus: Marked message', s.id, 'as read (✓✓ white).');
-                    console.log('checkMessageStatus:', s.id, 'Entered READ condition.');
-                } else if (s.delivered_at !== null && s.delivered_at !== '') {
-                    el.textContent = '✓'; // Delivered is one tick
-                    el.classList.add('delivered');
-                    el.classList.remove('read');
-                    console.log('checkMessageStatus: Marked message', s.id, 'as delivered (✓ yellow).');
-                    console.log('checkMessageStatus:', s.id, 'Entered DELIVERED condition.');
-                } else {
-                    el.textContent = '✓'; // Sent is one tick
-                    el.classList.remove('read', 'delivered');
-                    console.log('checkMessageStatus: Marked message', s.id, 'as sent (✓ dark gray).');
-                    console.log('checkMessageStatus:', s.id, 'Entered SENT condition.');
+                const messageElement = this.messagesDiv.querySelector(`[data-message-id="${s.id}"]`);
+                if (!messageElement) return;
+                
+                const senderId = messageElement.dataset.me === '1' ? window.me : 'other';
+                if (!messagesBySender[senderId]) {
+                    messagesBySender[senderId] = [];
                 }
-          });
-            setTimeout(() => this.heartbeat(), 2000); // Use arrow function to preserve 'this'
+                messagesBySender[senderId].push(s);
+                
+                // Track messages that have status
+                if (s.delivered_at !== null || s.read_at !== null) {
+                    messagesWithStatus.add(s.id);
+                }
+                // Track messages that have been read
+                if (s.read_at !== null) {
+                    messagesWithReadStatus.add(s.id);
+                }
+            });
+
+            // Update tick marks based on conditions
+            Object.values(messagesBySender).forEach(senderMessages => {
+                const lastMessage = senderMessages[senderMessages.length - 1];
+                const hasStatus = messagesWithStatus.has(lastMessage.id);
+                const hasReadStatus = messagesWithReadStatus.has(lastMessage.id);
+                
+                // Remove all existing tick marks first
+                senderMessages.forEach(s => {
+                    const el = this.messagesDiv.querySelector(`[data-message-id="${s.id}"] .message-ticks`);
+                    if (el) el.remove();
+                });
+                
+                // Check if any previous messages have been read
+                const hasPreviousRead = senderMessages.some(s => 
+                    s.id !== lastMessage.id && messagesWithReadStatus.has(s.id)
+                );
+                
+                // Check if any previous messages have been delivered but not read
+                const hasPreviousDelivered = senderMessages.some(s => 
+                    s.id !== lastMessage.id && 
+                    messagesWithStatus.has(s.id) && 
+                    !messagesWithReadStatus.has(s.id)
+                );
+                
+                // Add tick marks based on conditions
+                if (hasStatus) {
+                    // Only show on last message if it has status
+                    const el = this.messagesDiv.querySelector(`[data-message-id="${lastMessage.id}"] .message-meta`);
+                    if (el) {
+                        const tickSpan = document.createElement('span');
+                        tickSpan.className = 'message-ticks';
+                        if (lastMessage.read_at !== null && lastMessage.read_at !== '') {
+                            tickSpan.textContent = '✓✓';
+                            tickSpan.classList.add('read');
+                        } else if (lastMessage.delivered_at !== null && lastMessage.delivered_at !== '') {
+                            tickSpan.textContent = '✓';
+                            tickSpan.classList.add('delivered');
+                        } else {
+                            tickSpan.textContent = '✓';
+                        }
+                        el.appendChild(tickSpan);
+                    }
+                } else if (hasPreviousRead) {
+                    // If previous messages were read but last message has no status, only show on last message
+                    const el = this.messagesDiv.querySelector(`[data-message-id="${lastMessage.id}"] .message-meta`);
+                    if (el) {
+                        const tickSpan = document.createElement('span');
+                        tickSpan.className = 'message-ticks';
+                        tickSpan.textContent = '✓';
+                        el.appendChild(tickSpan);
+                    }
+                } else if (hasPreviousDelivered) {
+                    // If previous messages were delivered but not read, show on all undelivered messages
+                    senderMessages.forEach(s => {
+                        if (!messagesWithStatus.has(s.id)) {
+                            const el = this.messagesDiv.querySelector(`[data-message-id="${s.id}"] .message-meta`);
+                            if (el) {
+                                const tickSpan = document.createElement('span');
+                                tickSpan.className = 'message-ticks';
+                                tickSpan.textContent = '✓';
+                                el.appendChild(tickSpan);
+                            }
+                        }
+                    });
+                } else {
+                    // Show on all messages that don't have status
+                    senderMessages.forEach(s => {
+                        const el = this.messagesDiv.querySelector(`[data-message-id="${s.id}"] .message-meta`);
+                        if (el) {
+                            const tickSpan = document.createElement('span');
+                            tickSpan.className = 'message-ticks';
+                            tickSpan.textContent = '✓';
+                            el.appendChild(tickSpan);
+                        }
+                    });
+                }
+            });
+
+            setTimeout(() => this.heartbeat(), 2000);
         })
         .catch(error => {
             console.error('Heartbeat error:', error);
-            setTimeout(() => this.heartbeat(), 4000); // Retry after a longer delay on error
-       });
-  }
+            setTimeout(() => this.heartbeat(), 4000);
+        });
+    }
 }
