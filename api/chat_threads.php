@@ -1,8 +1,8 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-ini_set('log_errors', 1); // Enable error logging
-ini_set('error_log', __DIR__ . '/../php_error.log'); // Set error log file path
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../php_error.log');
 
 session_start();
 require_once '../db.php';
@@ -29,8 +29,13 @@ try {
              WHERE m2.thread_id = m.thread_id 
              AND m2.read_at IS NULL 
              AND m2.sender_id != ?) as unread_count,
-            (SELECT MAX(sent_at) FROM messages 
-             WHERE thread_id = m.thread_id) as last_message_time
+            (
+                SELECT MAX(sent_at) 
+                FROM messages m3
+                WHERE m3.thread_id = m.thread_id
+                AND m3.deleted_by_sender = 0 
+                AND m3.deleted_by_receiver = 0
+            ) as last_message_time
         FROM messages m
         JOIN users u ON (
             CASE 
