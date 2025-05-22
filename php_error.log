@@ -3,3 +3,4 @@ Stack trace:
 #0 /Applications/XAMPP/xamppfiles/htdocs/nubenta/check_db.php(126): checkAndFixDatabase()
 #1 {main}
   thrown in /Applications/XAMPP/xamppfiles/htdocs/nubenta/check_db.php on line 16
+[22-May-2025 08:29:00 Europe/Berlin] Database check error: SQLSTATE[HY000]: General error: 1005 Can't create table `nubenta_db`.`chat_threads` (errno: 150 "Foreign key constraint is incorrectly formed")

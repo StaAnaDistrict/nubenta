@@ -49,7 +49,7 @@ if ($currentUser) {
         <li><a href="edit_profile.php"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
         
       <?php if ($currentUser && $currentUser['role'] === 'admin'): ?>
-            <li><a href="admin_users.php"><i class="fas fa-users-cog"></i> Manage Users</a></li>
+            <li><a href="admin_dashboard.php"><i class="fas fa-users-cog"></i> Admin Panel</a></li>
       <?php endif; ?>
         <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
     </ul>

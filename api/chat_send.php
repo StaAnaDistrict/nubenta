@@ -23,6 +23,17 @@ try {
     // Start transaction
     $pdo->beginTransaction();
 
+    // First verify that the user is a participant in this thread
+    $stmt = $pdo->prepare("
+        SELECT 1 
+        FROM thread_participants 
+        WHERE thread_id = ? AND user_id = ?
+    ");
+    $stmt->execute([$threadId, $userId]);
+    if (!$stmt->fetch()) {
+        throw new Exception('You are not a participant in this thread');
+    }
+
     // Get the receiver_id from thread participants
     $stmt = $pdo->prepare("
         SELECT tp.user_id 

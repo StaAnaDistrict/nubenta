@@ -1,0 +1,3 @@
+ALTER TABLE messages
+MODIFY COLUMN receiver_id INT NULL,
+ADD COLUMN IF NOT EXISTS is_system_message BOOLEAN DEFAULT FALSE AFTER content;

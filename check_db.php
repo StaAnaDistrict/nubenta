@@ -7,24 +7,19 @@ ini_set('error_log', __DIR__ . '/php_error.log');
 require_once 'db.php';
 
 function checkAndFixDatabase() {
-    global $conn;
+    global $pdo;
     
     try {
         // Check if tables exist
-        $tables = ['chat_threads', 'messages'];
+        $tables = ['chat_threads', 'messages', 'user_reports'];
         foreach ($tables as $table) {
-            $result = $conn->query("SHOW TABLES LIKE '$table'");
-            if ($result->num_rows === 0) {
+            $stmt = $pdo->query("SHOW TABLES LIKE '$table'");
+            if ($stmt->rowCount() === 0) {
                 echo "Table '$table' does not exist. Creating...<br>";
                 // Read and execute the SQL file
-                $sql = file_get_contents(__DIR__ . '/sql/chat_tables.sql');
-                if ($conn->multi_query($sql)) {
-                    do {
-                        // Store first result set
-                        if ($result = $conn->store_result()) {
-                            $result->free();
-                        }
-                    } while ($conn->more_results() && $conn->next_result());
+                $sql = file_get_contents(__DIR__ . '/sql/' . ($table === 'user_reports' ? 'user_reports.sql' : 'chat_tables.sql'));
+                if ($pdo->exec($sql) !== false) {
+                    echo "Table '$table' created successfully.<br>";
                 }
             }
         }
@@ -32,12 +27,7 @@ function checkAndFixDatabase() {
         // Check for missing columns
         $threadColumns = [
             'id' => 'INT PRIMARY KEY AUTO_INCREMENT',
-            'user_id' => 'INT NOT NULL',
-            'participant_id' => 'INT NOT NULL',
             'title' => 'VARCHAR(255)',
-            'is_spam' => 'BOOLEAN DEFAULT FALSE',
-            'is_archived' => 'BOOLEAN DEFAULT FALSE',
-            'is_deleted' => 'BOOLEAN DEFAULT FALSE',
             'created_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
             'updated_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
         ];
@@ -46,72 +36,56 @@ function checkAndFixDatabase() {
             'id' => 'INT PRIMARY KEY AUTO_INCREMENT',
             'thread_id' => 'INT NOT NULL',
             'sender_id' => 'INT NOT NULL',
-            'content' => 'TEXT',
+            'receiver_id' => 'INT',
+            'body' => 'TEXT',
             'file_path' => 'VARCHAR(255)',
-            'is_read' => 'BOOLEAN DEFAULT FALSE',
-            'sent_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+            'file_info' => 'TEXT',
+            'sent_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+            'delivered_at' => 'TIMESTAMP NULL',
+            'read_at' => 'TIMESTAMP NULL',
+            'deleted_by_sender' => 'BOOLEAN DEFAULT FALSE',
+            'deleted_by_receiver' => 'BOOLEAN DEFAULT FALSE'
         ];
         
         // Check chat_threads columns
-        $result = $conn->query("SHOW COLUMNS FROM chat_threads");
+        $stmt = $pdo->query("SHOW COLUMNS FROM chat_threads");
         $existingColumns = [];
-        while ($row = $result->fetch_assoc()) {
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $existingColumns[$row['Field']] = $row['Type'];
         }
         
         foreach ($threadColumns as $column => $definition) {
             if (!isset($existingColumns[$column])) {
                 echo "Adding missing column '$column' to chat_threads...<br>";
-                $conn->query("ALTER TABLE chat_threads ADD COLUMN $column $definition");
+                $pdo->exec("ALTER TABLE chat_threads ADD COLUMN $column $definition");
             }
         }
         
         // Check messages columns
-        $result = $conn->query("SHOW COLUMNS FROM messages");
+        $stmt = $pdo->query("SHOW COLUMNS FROM messages");
         $existingColumns = [];
-        while ($row = $result->fetch_assoc()) {
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $existingColumns[$row['Field']] = $row['Type'];
         }
         
         foreach ($messageColumns as $column => $definition) {
             if (!isset($existingColumns[$column])) {
                 echo "Adding missing column '$column' to messages...<br>";
-                $conn->query("ALTER TABLE messages ADD COLUMN $column $definition");
+                $pdo->exec("ALTER TABLE messages ADD COLUMN $column $definition");
             }
         }
         
-        // Check foreign keys
-        $result = $conn->query("
-            SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
-            FROM information_schema.KEY_COLUMN_USAGE
-            WHERE REFERENCED_TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME IN ('chat_threads', 'messages')
-        ");
-        
-        $existingKeys = [];
-        while ($row = $result->fetch_assoc()) {
-            $existingKeys[] = $row['CONSTRAINT_NAME'];
-        }
-        
-        // Add missing foreign keys
-        if (!in_array('chat_threads_ibfk_1', $existingKeys)) {
-            echo "Adding foreign key for chat_threads.user_id...<br>";
-            $conn->query("ALTER TABLE chat_threads ADD CONSTRAINT chat_threads_ibfk_1 FOREIGN KEY (user_id) REFERENCES users(id)");
-        }
-        
-        if (!in_array('chat_threads_ibfk_2', $existingKeys)) {
-            echo "Adding foreign key for chat_threads.participant_id...<br>";
-            $conn->query("ALTER TABLE chat_threads ADD CONSTRAINT chat_threads_ibfk_2 FOREIGN KEY (participant_id) REFERENCES users(id)");
-        }
-        
-        if (!in_array('messages_ibfk_1', $existingKeys)) {
-            echo "Adding foreign key for messages.thread_id...<br>";
-            $conn->query("ALTER TABLE messages ADD CONSTRAINT messages_ibfk_1 FOREIGN KEY (thread_id) REFERENCES chat_threads(id)");
-        }
-        
-        if (!in_array('messages_ibfk_2', $existingKeys)) {
-            echo "Adding foreign key for messages.sender_id...<br>";
-            $conn->query("ALTER TABLE messages ADD CONSTRAINT messages_ibfk_2 FOREIGN KEY (sender_id) REFERENCES users(id)");
+        // Create thread_participants table if it doesn't exist
+        $stmt = $pdo->query("SHOW TABLES LIKE 'thread_participants'");
+        if ($stmt->rowCount() === 0) {
+            echo "Creating thread_participants table...<br>";
+            $pdo->exec("
+                CREATE TABLE thread_participants (
+                    thread_id INT NOT NULL,
+                    user_id INT NOT NULL,
+                    PRIMARY KEY (thread_id, user_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
         }
         
         echo "Database check completed successfully!<br>";

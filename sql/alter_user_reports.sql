@@ -1,0 +1,4 @@
+ALTER TABLE user_reports
+ADD COLUMN IF NOT EXISTS user_appeal TEXT NULL AFTER admin_response,
+ADD COLUMN IF NOT EXISTS appeal_date DATETIME NULL AFTER user_appeal,
+ADD COLUMN IF NOT EXISTS closed_at DATETIME NULL AFTER appeal_date; 

@@ -711,3 +711,40 @@ class ChatWidget {
        });
   }
 }
+
+function createMessageElement(message) {
+    const div = document.createElement('div');
+    
+    if (message.is_system_message) {
+        // System message styling
+        div.className = 'message system-message';
+        const isAdminResponse = message.content.includes('admin response');
+        
+        // Add a special class for admin responses
+        if (isAdminResponse) {
+            div.classList.add('admin-response');
+        }
+        
+        div.innerHTML = `
+            <div class="message-content">
+                <div class="message-text">
+                    ${isAdminResponse ? '<i class="fas fa-shield-alt"></i> ' : ''}
+                    ${message.content}
+                </div>
+                <div class="message-time">${new Date(message.created_at).toLocaleTimeString()}</div>
+            </div>
+        `;
+    } else {
+        // Regular message styling
+        div.className = `message ${message.sender_id == me ? 'sent' : 'received'}`;
+        div.innerHTML = `
+            <div class="message-content">
+                ${message.content ? `<div class="message-text">${message.content}</div>` : ''}
+                ${message.file_path ? createFileElement(message) : ''}
+                <div class="message-time">${new Date(message.created_at).toLocaleTimeString()}</div>
+            </div>
+        `;
+    }
+    
+    return div;
+}

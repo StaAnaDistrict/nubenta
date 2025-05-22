@@ -55,6 +55,32 @@ $user = $_SESSION['user'];
         padding: 10px !important;
     }
     
+    .thread-indicators {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .admin-response-indicator {
+        color: #0056b3;
+        font-size: 0.9em;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .admin-response-indicator i {
+        font-size: 1.1em;
+    }
+    
+    .thread-item[data-has-admin-response="true"] {
+        background-color: #e8f4ff;
+    }
+    
+    .thread-item[data-has-admin-response="true"]:hover {
+        background-color: #d8e9ff;
+    }
+    
     .thread-menu {
         display: none;
         width: 30px;
@@ -473,6 +499,54 @@ $user = $_SESSION['user'];
     .notification-badge.show {
         display: inline-block;
     }
+
+    /* System message styling */
+    .system-message {
+        text-align: center;
+        margin: 10px 0;
+    }
+    
+    .system-message .message-content {
+        display: inline-block;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 15px;
+        padding: 8px 15px;
+        max-width: 80%;
+    }
+    
+    .system-message .message-text {
+        color: #6c757d;
+        font-style: italic;
+    }
+    
+    .system-message .message-time {
+        font-size: 0.8em;
+        color: #adb5bd;
+        margin-top: 4px;
+    }
+
+    /* Admin response styling */
+    .system-message.admin-response {
+        margin: 15px 0;
+    }
+    
+    .system-message.admin-response .message-content {
+        background-color: #e8f4ff;
+        border: 1px solid #b8daff;
+        padding: 12px 20px;
+    }
+    
+    .system-message.admin-response .message-text {
+        color: #004085;
+        font-style: normal;
+        font-weight: 500;
+    }
+    
+    .system-message.admin-response .message-text i {
+        color: #0056b3;
+        margin-right: 8px;
+    }
 </style>
 </head>
 <body>
@@ -504,6 +578,7 @@ $user = $_SESSION['user'];
                     <div id="chat-title" class="border-bottom">
                         <span class="chat-title-text">Select a chat</span>
                         <div class="chat-actions">
+                            <i class="fas fa-flag chat-action-icon" title="View My Reports" onclick="window.location.href='user_reports.php'"></i>
                             <i class="fas fa-archive chat-action-icon" title="View Archived Messages" onclick="viewArchivedMessages()"></i>
                             <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
                         </div>
@@ -559,6 +634,50 @@ $user = $_SESSION['user'];
         </div>
     </div>
 
+    <!-- Report Modal -->
+    <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reportModalLabel">Report User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="reportForm" onsubmit="event.preventDefault(); submitReport();">
+                        <input type="hidden" id="reportedUserId" name="reported_user_id">
+                        <input type="hidden" id="reportThreadId" name="thread_id">
+                        
+                        <div class="mb-3">
+                            <label for="reportType" class="form-label">Reason for Report</label>
+                            <select class="form-select" id="reportType" name="report_type" required>
+                                <option value="">Select a reason</option>
+                                <option value="harassment">Harassment</option>
+                                <option value="spam">Spam</option>
+                                <option value="hate_speech">Hate Speech</option>
+                                <option value="inappropriate_content">Inappropriate Content</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="reportDetails" class="form-label">Additional Details</label>
+                            <textarea class="form-control" id="reportDetails" name="details" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="reportScreenshot" class="form-label">Screenshot (Optional)</label>
+                            <input type="file" class="form-control" id="reportScreenshot" name="screenshot" accept="image/*">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submitReportBtn" onclick="submitReport()">Submit Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <script>
 const stickers = <?= json_encode($sticker_names) ?>;   // now contains all 94 names
 
@@ -595,14 +714,30 @@ let currentThread=0;
             titleSpan.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
             div.appendChild(titleSpan);
             
-            // Create notification badge
+            // Create indicators container
+            const indicatorsDiv = document.createElement('div');
+            indicatorsDiv.className = 'thread-indicators';
+            
+            // Add admin response indicator if exists
+            if (t.has_admin_response) {
+                div.dataset.hasAdminResponse = 'true';
+                const adminResponseIndicator = document.createElement('div');
+                adminResponseIndicator.className = 'admin-response-indicator';
+                adminResponseIndicator.title = 'You have received an admin response to your report. Click to view the thread.';
+                adminResponseIndicator.innerHTML = '<i class="fas fa-shield-alt"></i> Admin Response';
+                indicatorsDiv.appendChild(adminResponseIndicator);
+            }
+            
+            // Add notification badge
             const notificationBadge = document.createElement('span');
             notificationBadge.className = 'notification-badge';
             if (t.unread_count > 0) {
                 notificationBadge.textContent = t.unread_count;
                 notificationBadge.classList.add('show');
             }
-            div.appendChild(notificationBadge);
+            indicatorsDiv.appendChild(notificationBadge);
+            
+            div.appendChild(indicatorsDiv);
             
             // Create menu button
             const menuBtn = document.createElement('div');
@@ -648,22 +783,51 @@ let currentThread=0;
                 }
             };
           } else {
-            // Update existing thread's title, active state, and notification
+            // Update existing thread's title, active state, and indicators
             div.className = 'p-2 thread-item' + (t.id == currentThreadId ? ' active' : '');
             const titleSpan = div.querySelector('span');
             if (titleSpan) {
                 titleSpan.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
             }
             
-            // Update notification badge
-            const notificationBadge = div.querySelector('.notification-badge');
-            if (notificationBadge) {
-                if (t.unread_count > 0) {
-                    notificationBadge.textContent = t.unread_count;
-                    notificationBadge.classList.add('show');
-                } else {
-                    notificationBadge.classList.remove('show');
+            // Update indicators
+            let indicatorsDiv = div.querySelector('.thread-indicators');
+            if (!indicatorsDiv) {
+                indicatorsDiv = document.createElement('div');
+                indicatorsDiv.className = 'thread-indicators';
+                div.insertBefore(indicatorsDiv, div.querySelector('.thread-menu'));
+            }
+            
+            // Update admin response indicator
+            if (t.has_admin_response) {
+                div.dataset.hasAdminResponse = 'true';
+                if (!indicatorsDiv.querySelector('.admin-response-indicator')) {
+                    const adminResponseIndicator = document.createElement('div');
+                    adminResponseIndicator.className = 'admin-response-indicator';
+                    adminResponseIndicator.title = 'You have received an admin response to your report. Click to view the thread.';
+                    adminResponseIndicator.innerHTML = '<i class="fas fa-shield-alt"></i> Admin Response';
+                    indicatorsDiv.insertBefore(adminResponseIndicator, indicatorsDiv.firstChild);
                 }
+            } else {
+                div.dataset.hasAdminResponse = 'false';
+                const existingIndicator = indicatorsDiv.querySelector('.admin-response-indicator');
+                if (existingIndicator) {
+                    existingIndicator.remove();
+                }
+            }
+            
+            // Update notification badge
+            let notificationBadge = indicatorsDiv.querySelector('.notification-badge');
+            if (!notificationBadge) {
+                notificationBadge = document.createElement('span');
+                notificationBadge.className = 'notification-badge';
+                indicatorsDiv.appendChild(notificationBadge);
+            }
+            if (t.unread_count > 0) {
+                notificationBadge.textContent = t.unread_count;
+                notificationBadge.classList.add('show');
+            } else {
+                notificationBadge.classList.remove('show');
             }
           }
         list.appendChild(div);
@@ -719,6 +883,7 @@ function openThread(t){
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'chat-actions';
         actionsDiv.innerHTML = `
+            <i class="fas fa-flag chat-action-icon" title="View My Reports" onclick="window.location.href='user_reports.php'"></i>
             <i class="fas fa-archive chat-action-icon" title="View Archived Messages" onclick="viewArchivedMessages()"></i>
             <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
         `;
@@ -924,8 +1089,69 @@ loadThreads();          // initial load
         }
 
         function reportUser(userId) {
-            // TODO: Implement report functionality
-            alert('Report functionality coming soon');
+            // Set the reported user ID and current thread ID
+            document.getElementById('reportedUserId').value = userId;
+            document.getElementById('reportThreadId').value = currentThread;
+            
+            // Reset the form
+            document.getElementById('reportForm').reset();
+            
+            // Show the modal
+            const reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
+            reportModal.show();
+            
+            // Focus the first form element
+            setTimeout(() => {
+                document.getElementById('reportType').focus();
+            }, 100);
+        }
+
+        async function submitReport() {
+            const form = document.getElementById('reportForm');
+            const formData = new FormData(form);
+            
+            // Validate required fields
+            const reportType = formData.get('report_type');
+            const details = formData.get('details');
+            
+            if (!reportType) {
+                alert('Please select a reason for the report');
+                document.getElementById('reportType').focus();
+                return;
+            }
+            
+            if (!details || details.trim() === '') {
+                alert('Please provide additional details about the report');
+                document.getElementById('reportDetails').focus();
+                return;
+            }
+            
+            try {
+                const response = await fetch('api/submit_report.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Close the modal
+                    const reportModal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
+                    reportModal.hide();
+                    
+                    // Show success message
+                    alert('Report submitted successfully. Our team will review it shortly.');
+                    
+                    // Reset the form
+                    form.reset();
+                } else {
+                    // Show specific error message if available
+                    alert(data.error || 'Failed to submit report. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error submitting report:', error);
+                alert('An error occurred while submitting the report. Please try again.');
+            }
         }
 
         // Close dropdowns when clicking outside
@@ -1047,29 +1273,23 @@ loadThreads();          // initial load
                         }
                         
                         // No existing thread, create new one
-                        const response = await fetch('api/chat_create.php', {
+                        const response = await fetch('api/chat_start.php', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify({
-                                receiver_id: userId
+                                user_id: userId
                             })
                         });
                         
                         const data = await response.json();
-                        if (data.success) {
-                            // Get the new thread details
-                            const threadResponse = await fetch('api/chat_threads.php');
-                            const threads = await threadResponse.json();
-                            const newThread = threads.find(t => t.id === data.thread_id);
-                            if (newThread) {
-                                openThread(newThread);
-                                // Close the modal
-                                const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
-                                if (modal) {
-                                    modal.hide();
-                                }
+                        if (data.thread) {
+                            openThread(data.thread);
+                            // Close the modal
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
+                            if (modal) {
+                                modal.hide();
                             }
                         } else {
                             showToast('Failed to create chat', 'error');
@@ -1172,13 +1392,17 @@ loadThreads();          // initial load
 document.addEventListener('DOMContentLoaded', function() {
     const newChatModal = document.getElementById('newChatModal');
     const modalInstance = new bootstrap.Modal(newChatModal);
+    let lastFocusedElement = null;
 
-    // Handle modal hidden event
+    // Store the last focused element before opening the modal
+    newChatModal.addEventListener('show.bs.modal', function () {
+        lastFocusedElement = document.activeElement;
+    });
+
+    // Restore focus when modal is hidden
     newChatModal.addEventListener('hidden.bs.modal', function () {
-        // Remove any remaining backdrop
-        const backdrop = document.querySelector('.modal-backdrop');
-        if (backdrop) {
-            backdrop.remove();
+        if (lastFocusedElement) {
+            lastFocusedElement.focus();
         }
         // Remove modal-open class from body
         document.body.classList.remove('modal-open');
@@ -1188,6 +1412,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle modal show event
     newChatModal.addEventListener('show.bs.modal', function () {
+        // Ensure any existing backdrop is removed
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+    });
+});
+</script>
+<script>
+// Add this after your existing script
+document.addEventListener('DOMContentLoaded', function() {
+    const reportModal = document.getElementById('reportModal');
+    const modalInstance = new bootstrap.Modal(reportModal);
+    let lastFocusedElement = null;
+
+    // Store the last focused element before opening the modal
+    reportModal.addEventListener('show.bs.modal', function () {
+        lastFocusedElement = document.activeElement;
+    });
+
+    // Restore focus when modal is hidden
+    reportModal.addEventListener('hidden.bs.modal', function () {
+        if (lastFocusedElement) {
+            lastFocusedElement.focus();
+        }
+        // Reset the form
+        document.getElementById('reportForm').reset();
+    });
+
+    // Handle modal show event
+    reportModal.addEventListener('show.bs.modal', function () {
         // Ensure any existing backdrop is removed
         const backdrop = document.querySelector('.modal-backdrop');
         if (backdrop) {

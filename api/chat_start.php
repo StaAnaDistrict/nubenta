@@ -32,11 +32,30 @@ try {
         JOIN thread_participants tp1 ON t.id = tp1.thread_id
         JOIN thread_participants tp2 ON t.id = tp2.thread_id
         JOIN users u ON u.id = ?
-        WHERE tp1.user_id = ? AND tp2.user_id = ?
+        WHERE tp1.user_id = ? 
+        AND tp2.user_id = ?
+        AND NOT EXISTS (
+            SELECT 1 FROM archived_threads at 
+            WHERE at.thread_id = t.id 
+            AND at.user_id IN (?, ?)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM spam_threads st 
+            WHERE st.thread_id = t.id 
+            AND st.user_id IN (?, ?)
+        )
         LIMIT 1
     ");
     
-    $stmt->execute([$otherUserId, $currentUserId, $otherUserId]);
+    $stmt->execute([
+        $otherUserId, 
+        $currentUserId, 
+        $otherUserId,
+        $currentUserId,
+        $otherUserId,
+        $currentUserId,
+        $otherUserId
+    ]);
     $existingThread = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($existingThread) {

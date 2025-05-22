@@ -35,7 +35,14 @@ try {
                 WHERE m3.thread_id = m.thread_id
                 AND m3.deleted_by_sender = 0 
                 AND m3.deleted_by_receiver = 0
-            ) as last_message_time
+            ) as last_message_time,
+            (
+                SELECT COUNT(*) > 0
+                FROM user_reports r
+                WHERE r.thread_id = m.thread_id
+                AND r.admin_response IS NOT NULL
+                AND r.notification_sent = TRUE
+            ) as has_admin_response
         FROM messages m
         JOIN users u ON (
             CASE 

@@ -1,0 +1,2 @@
+ALTER TABLE messages 
+ADD COLUMN is_system_message BOOLEAN DEFAULT FALSE; 
