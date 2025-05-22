@@ -5,6 +5,8 @@ class ChatWidget {
         this.container = container;
         this.stickers = stickers;
         this.attachments = []; // Initialize attachments array
+        this.me = window.me;
+        this.isArchived = window.location.pathname.includes('messages_archive.php');
         this.setupUI();
         this.loadMessages();
         this.setupPolling();
@@ -359,18 +361,20 @@ class ChatWidget {
     }
 
     async sendMessage() {
-        if (!this.textarea.value.trim() && !this.attachments.length) return;
+        const content = this.textarea.value.trim();
+        const files = this.attachments;
         
+        if (!content && files.length === 0) return;
+
+        const formData = new FormData();
+        formData.append('thread_id', this.threadId);
+        formData.append('content', content);
+        
+        for (let i = 0; i < files.length; i++) {
+            formData.append('files[]', files[i]);
+        }
+
         try {
-            const formData = new FormData();
-            formData.append('thread_id', this.threadId);
-            formData.append('content', this.textarea.value.trim());
-            
-            // Add attachments
-            this.attachments.forEach(file => {
-                formData.append('attachments[]', file);
-            });
-            
             const response = await fetch('api/chat_send.php', {
                 method: 'POST',
                 body: formData
@@ -378,43 +382,50 @@ class ChatWidget {
             
             const data = await response.json();
             
-            if (data.error) {
-                alert(data.error);
-                return;
-            }
-            
-            // Clear input and attachments
-            this.textarea.value = '';
-            this.attachments = [];
-            this.updateAttachmentPreview();
-            
-            // If we're in the archive page, move the thread back to inbox
-            if (window.location.pathname.includes('messages_archive.php')) {
-                try {
-                    await fetch('api/chat_flag.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            thread_id: this.threadId,
-                            action: 'unarchive'
-                        })
-                    });
-                    
-                    // Redirect to main inbox
-                    window.location.href = 'messages.php?thread=' + this.threadId;
-                } catch (error) {
-                    console.error('Error moving thread back to inbox:', error);
+            if (data.success) {
+                // Clear input and files
+                this.textarea.value = '';
+                this.attachments = [];
+                this.updateAttachmentPreview();
+                
+                // Add message to chat
+                this.addMessage(data.message);
+                
+                // If in archive, move thread back to inbox
+                if (this.isArchived) {
+                    await this.moveThreadToInbox();
                 }
+            } else {
+                console.error('Error sending message:', data.error);
             }
-            
-            // Reload messages to show the new message
-            this.loadMessages();
-            
         } catch (error) {
             console.error('Error sending message:', error);
-            alert('Error sending message. Please try again.');
+        }
+    }
+
+    async moveThreadToInbox() {
+        try {
+            const response = await fetch('api/chat_flag.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    thread_id: this.threadId,
+                    action: 'unarchive'
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Redirect to main inbox
+                window.location.href = 'messages.php?thread=' + this.threadId;
+            } else {
+                console.error('Error moving thread to inbox:', data.error);
+            }
+        } catch (error) {
+            console.error('Error moving thread to inbox:', error);
         }
     }
 

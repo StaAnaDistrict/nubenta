@@ -542,7 +542,7 @@ $user = $_SESSION['user'];
     </div>
 
     <!-- Add this modal HTML before the closing body tag -->
-    <div class="modal fade" id="newChatModal" tabindex="-1" aria-labelledby="newChatModalLabel" aria-hidden="true">
+    <div class="modal fade" id="newChatModal" tabindex="-1" aria-labelledby="newChatModalLabel" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -1140,6 +1140,35 @@ let currentThread=0;
                 console.error('Error loading messages:', error);
             }
         }
+</script>
+<script>
+// Add this after your existing script
+document.addEventListener('DOMContentLoaded', function() {
+    const newChatModal = document.getElementById('newChatModal');
+    const modalInstance = new bootstrap.Modal(newChatModal);
+
+    // Handle modal hidden event
+    newChatModal.addEventListener('hidden.bs.modal', function () {
+        // Remove any remaining backdrop
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    });
+
+    // Handle modal show event
+    newChatModal.addEventListener('show.bs.modal', function () {
+        // Ensure any existing backdrop is removed
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+    });
+});
 </script>
 <script src="assets/chat_widget.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

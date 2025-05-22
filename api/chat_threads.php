@@ -16,6 +16,7 @@ if (!isset($_SESSION['user'])) {
 try {
     $userId = $_SESSION['user']['id'];
     $showArchived = isset($_GET['archived']) && $_GET['archived'] === '1';
+    $showSpam = isset($_GET['spam']) && $_GET['spam'] === '1';
     
     // Base query for threads
     $sql = "
@@ -40,16 +41,38 @@ try {
         WHERE (m.sender_id = ? OR m.receiver_id = ?)
         AND m.deleted_by_sender = 0 
         AND m.deleted_by_receiver = 0
+        " . ($showArchived ? "
+        AND EXISTS (
+            SELECT 1 FROM archived_threads at 
+            WHERE at.thread_id = m.thread_id 
+            AND at.user_id = ?
+        )" : ($showSpam ? "
+        AND EXISTS (
+            SELECT 1 FROM spam_threads st 
+            WHERE st.thread_id = m.thread_id 
+            AND st.user_id = ?
+        )" : "
         AND NOT EXISTS (
             SELECT 1 FROM archived_threads at 
             WHERE at.thread_id = m.thread_id 
             AND at.user_id = ?
         )
+        AND NOT EXISTS (
+            SELECT 1 FROM spam_threads st 
+            WHERE st.thread_id = m.thread_id 
+            AND st.user_id = ?
+        )")) . "
         ORDER BY last_message_time DESC
     ";
     
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$userId, $userId, $userId, $userId, $userId]);
+    if ($showArchived) {
+        $stmt->execute([$userId, $userId, $userId, $userId, $userId]);
+    } else if ($showSpam) {
+        $stmt->execute([$userId, $userId, $userId, $userId, $userId]);
+    } else {
+        $stmt->execute([$userId, $userId, $userId, $userId, $userId, $userId]);
+    }
     
     $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
