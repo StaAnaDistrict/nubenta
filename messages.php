@@ -666,7 +666,7 @@ let currentThread=0;
                 }
             }
           }
-          list.appendChild(div);
+        list.appendChild(div);
       });
       } else {
         console.error('Invalid threads format:', rows);
@@ -700,10 +700,10 @@ let currentThread=0;
     // Check for new messages every 5 seconds
     setInterval(checkNewMessages, 5000);
 
-    /* 2. open thread                                    */
-    function openThread(t){
+/* 2. open thread                                    */
+function openThread(t){
         console.log('openThread called with thread:', t);
-        currentThread=t.id;
+  currentThread=t.id;
         const chatTitleElement = document.getElementById('chat-title');
         
         // Create the chat title content
@@ -741,7 +741,7 @@ let currentThread=0;
             titleText.onclick = null;
         }
 
-        document.getElementById('chat-box').innerHTML='';
+  document.getElementById('chat-box').innerHTML='';
         console.log('Initializing ChatWidget for thread ID:', t.id);
         new ChatWidget(t.id, document.getElementById('chat-box'), stickers);
         
@@ -768,7 +768,7 @@ let currentThread=0;
         console.log('openThread finished.');
     }
 
-        /* 3. create new thread (simple prompt)              */
+/* 3. create new thread (simple prompt)              */
         document.getElementById('btnNew').onclick = function() {
             const modal = new bootstrap.Modal(document.getElementById('newChatModal'));
             modal.show();
@@ -788,7 +788,7 @@ let currentThread=0;
             }
         });
 
-        loadThreads();          // initial load
+loadThreads();          // initial load
 
         // Check for thread parameter in URL
         const urlParams = new URLSearchParams(window.location.search);

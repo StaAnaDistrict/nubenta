@@ -44,10 +44,15 @@ class ChatWidget {
     }
 
     handleAttachment() {
+        // Prevent multiple file inputs
+        if (document.querySelector('.file-preview-container')) {
+            return;
+        }
+        
         const input = document.createElement('input');
         input.type = 'file';
         input.multiple = true;
-        input.accept = '*/*'; // Accept all file types
+        input.accept = '*/*';
         
         input.onchange = (e) => {
             const files = Array.from(e.target.files);
@@ -362,39 +367,29 @@ class ChatWidget {
 
     async sendMessage() {
         const content = this.textarea.value.trim();
-        const files = this.attachments;
+        if (!content && this.attachments.length === 0) return;
         
-        if (!content && files.length === 0) return;
-
-        const formData = new FormData();
-        formData.append('thread_id', this.threadId);
-        formData.append('content', content);
-        
-        for (let i = 0; i < files.length; i++) {
-            formData.append('files[]', files[i]);
-        }
-
         try {
+            const formData = new FormData();
+            formData.append('thread_id', this.threadId);
+            formData.append('content', content);
+            
+            // Add each attachment
+            this.attachments.forEach((file, index) => {
+                formData.append('attachments[]', file);
+            });
+            
             const response = await fetch('api/chat_send.php', {
                 method: 'POST',
                 body: formData
             });
             
             const data = await response.json();
-            
             if (data.success) {
-                // Clear input and files
                 this.textarea.value = '';
                 this.attachments = [];
                 this.updateAttachmentPreview();
-                
-                // Add message to chat
-                this.addMessage(data.message);
-                
-                // If in archive, move thread back to inbox
-                if (this.isArchived) {
-                    await this.moveThreadToInbox();
-                }
+                this.loadMessages();
             } else {
                 console.error('Error sending message:', data.error);
             }
@@ -437,53 +432,52 @@ class ChatWidget {
 
     toggleStickerPicker() {
         const picker = document.getElementById('picker');
-        const emojiButton = document.querySelector('#btnEmoji');
+        if (!picker) return;
         
-        if (!picker) {
-            console.error('Sticker picker element not found');
+        if (picker.style.display === 'block') {
+            picker.style.display = 'none';
             return;
         }
-
-        if (picker.style.display === 'none') {
-            // Position the picker relative to the emoji button
-            const buttonRect = emojiButton.getBoundingClientRect();
-            picker.style.position = 'fixed';
-            picker.style.bottom = `${window.innerHeight - buttonRect.top}px`;
-            picker.style.right = `${window.innerWidth - buttonRect.right}px`;
-            picker.style.display = 'block';
-            picker.innerHTML = '';
-            
-            // Create a 10-column grid of stickers
-            const grid = document.createElement('div');
-            grid.style.display = 'grid';
-            grid.style.gridTemplateColumns = 'repeat(10, 1fr)';
-            grid.style.gap = '2px';
-            grid.style.padding = '2px';
-            
-            this.stickers.forEach(sticker => {
-                const img = document.createElement('img');
-                img.src = `assets/stickers/${sticker}.gif`;
-                img.className = 'sticker';
-                img.onclick = () => {
-                    this.textarea.value += `:${sticker}:`;
-                    picker.style.display = 'none';
-                };
-                grid.appendChild(img);
-            });
-            
-            picker.appendChild(grid);
-
-            // Close picker when clicking outside
-            const closePicker = (e) => {
-                if (!picker.contains(e.target) && !emojiButton.contains(e.target)) {
-                    picker.style.display = 'none';
-                    document.removeEventListener('click', closePicker);
-                }
+        
+        // Position the picker above the emoticon button
+        const buttonRect = this.btnEmoji.getBoundingClientRect();
+        picker.style.position = 'fixed';
+        picker.style.bottom = `${window.innerHeight - buttonRect.top + 10}px`;
+        picker.style.right = `${window.innerWidth - buttonRect.right}px`;
+        
+        // Clear and rebuild picker
+        picker.innerHTML = '';
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(10, 1fr)';
+        grid.style.gap = '5px';
+        
+        this.stickers.forEach(sticker => {
+            const img = document.createElement('img');
+            img.src = `assets/stickers/${sticker}.gif`;
+            img.className = 'sticker';
+            img.onclick = () => {
+                this.textarea.value += `:${sticker}:`;
+                picker.style.display = 'none';
             };
+            grid.appendChild(img);
+        });
+        
+        picker.appendChild(grid);
+        picker.style.display = 'block';
+        
+        // Close picker when clicking outside
+        const closePicker = (e) => {
+            if (!picker.contains(e.target) && !this.btnEmoji.contains(e.target)) {
+                picker.style.display = 'none';
+                document.removeEventListener('click', closePicker);
+            }
+        };
+        
+        // Delay adding the click listener to avoid immediate trigger
+        setTimeout(() => {
             document.addEventListener('click', closePicker);
-        } else {
-            picker.style.display = 'none';
-        }
+        }, 100);
     }
 
     setupReadObserver() {
