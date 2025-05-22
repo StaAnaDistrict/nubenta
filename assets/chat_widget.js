@@ -1,9 +1,10 @@
 class ChatWidget {
-    constructor(threadId, container, stickers) {
+    constructor(threadId, container, stickers = []) {
         console.log('ChatWidget constructor called for thread ID:', threadId);
         this.threadId = threadId;
         this.container = container;
         this.stickers = stickers;
+        this.attachments = []; // Initialize attachments array
         this.setupUI();
         this.loadMessages();
         this.setupPolling();
@@ -14,85 +15,136 @@ class ChatWidget {
     }
 
     setupUI() {
-        this.container.innerHTML = `
-            <div class="chat-messages"></div>
-        `;
-
+        // Only create the messages container, not the form
+        this.container.innerHTML = `<div class="chat-messages"></div>`;
         this.messagesDiv = this.container.querySelector('.chat-messages');
         
-        // Use the existing form elements
+        // Get references to existing form elements
         this.textarea = document.querySelector('.chat-input');
-        this.sendButton = document.querySelector('.send-button');
-        this.emojiButton = document.querySelector('#btnEmoji');
-        this.attachButton = document.querySelector('#btnAttach');
+        this.btnSend = document.querySelector('#btnSend');
+        this.btnEmoji = document.querySelector('#btnEmoji');
+        this.btnAttach = document.querySelector('#btnAttach');
 
-        this.sendButton.onclick = () => this.sendMessage();
-        this.textarea.onkeydown = (e) => {
+        // Setup event listeners
+        this.textarea.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.sendMessage();
             }
-        };
-        this.emojiButton.onclick = () => this.toggleStickerPicker();
-        this.attachButton.onclick = () => this.handleFileAttachment();
+        });
+
+        this.btnSend.addEventListener('click', () => this.sendMessage());
+        this.btnAttach.addEventListener('click', () => this.handleAttachment());
+        this.btnEmoji.addEventListener('click', () => this.toggleStickerPicker());
 
         // Intersection Observer for read receipts
         this.setupReadObserver();
     }
 
-    handleFileAttachment() {
+    handleAttachment() {
         const input = document.createElement('input');
         input.type = 'file';
         input.multiple = true;
-        input.accept = 'image/*,video/*,application/pdf';
+        input.accept = '*/*'; // Accept all file types
         
         input.onchange = (e) => {
             const files = Array.from(e.target.files);
-            if (files.length === 0) return;
-
-            // Create preview container
-            const previewContainer = document.createElement('div');
-            previewContainer.className = 'file-preview-container';
-            
-            files.forEach(file => {
-                const preview = document.createElement('div');
-                preview.className = 'file-preview';
-                preview.dataset.fileName = file.name;
-                preview.dataset.fileType = file.type;
-                
-                // Store the actual File object
-                preview.file = file; // Store directly as a property instead of in dataset
-                
-                if (file.type.startsWith('image/')) {
-                    const img = document.createElement('img');
-                    img.src = URL.createObjectURL(file);
-                    preview.appendChild(img);
-                } else {
-                    const icon = document.createElement('i');
-                    icon.className = 'fas fa-file';
-                    preview.appendChild(icon);
-                }
-                
-                const info = document.createElement('div');
-                info.className = 'file-info';
-                info.textContent = file.name;
-                preview.appendChild(info);
-                
-                const remove = document.createElement('span');
-                remove.className = 'remove-file';
-                remove.innerHTML = '×';
-                remove.onclick = () => preview.remove();
-                preview.appendChild(remove);
-                
-                previewContainer.appendChild(preview);
-            });
-            
-            // Insert preview before the input container
-            const inputContainer = document.querySelector('.chat-input-container');
-            inputContainer.parentNode.insertBefore(previewContainer, inputContainer);
+            this.attachments = [...this.attachments, ...files];
+            this.updateAttachmentPreview();
         };
         
         input.click();
+    }
+
+    updateAttachmentPreview() {
+        // Remove existing preview container if any
+        const existingPreview = document.querySelector('.file-preview-container');
+        if (existingPreview) {
+            existingPreview.remove();
+        }
+
+        if (this.attachments.length > 0) {
+            const previewContainer = document.createElement('div');
+            previewContainer.className = 'file-preview-container';
+            
+            this.attachments.forEach((file, index) => {
+                const preview = document.createElement('div');
+                preview.className = 'file-preview';
+                
+                // Create preview content based on file type
+                const fileType = file.type.split('/')[0];
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                
+                if (fileType === 'image') {
+                    // Image preview
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        preview.innerHTML = `
+                            <img src="${e.target.result}" alt="${file.name}" style="max-width: 100px; max-height: 100px; object-fit: cover;">
+                            <div class="file-info">
+                                <div>${file.name}</div>
+                                <div>${this.formatFileSize(file.size)}</div>
+                            </div>
+                            <button class="remove-file" onclick="this.closest('.file-preview').remove(); this.attachments.splice(${index}, 1);">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        `;
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    // Document or other file preview
+                    const icon = this.getFileIcon(fileExt);
+                    preview.innerHTML = `
+                        <i class="${icon} fa-2x"></i>
+                        <div class="file-info">
+                            <div>${file.name}</div>
+                            <div>${this.formatFileSize(file.size)}</div>
+                        </div>
+                        <button class="remove-file" onclick="this.closest('.file-preview').remove(); this.attachments.splice(${index}, 1);">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    `;
+                }
+                
+                previewContainer.appendChild(preview);
+            });
+
+            // Insert the preview container before the chat input container
+            const chatForm = document.querySelector('.chat-form');
+            const chatInputContainer = document.querySelector('.chat-input-container');
+            chatForm.insertBefore(previewContainer, chatInputContainer);
+        }
+    }
+
+    getFileIcon(ext) {
+        const iconMap = {
+            // Documents
+            'pdf': 'fas fa-file-pdf',
+            'doc': 'fas fa-file-word',
+            'docx': 'fas fa-file-word',
+            'xls': 'fas fa-file-excel',
+            'xlsx': 'fas fa-file-excel',
+            'ppt': 'fas fa-file-powerpoint',
+            'pptx': 'fas fa-file-powerpoint',
+            'txt': 'fas fa-file-alt',
+            'csv': 'fas fa-file-csv',
+            // Archives
+            'zip': 'fas fa-file-archive',
+            'rar': 'fas fa-file-archive',
+            '7z': 'fas fa-file-archive',
+            // Default
+            'default': 'fas fa-file'
+        };
+        
+        return iconMap[ext] || iconMap.default;
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
     renderMessage(msg, isLastFromSender = false) {
@@ -114,7 +166,7 @@ class ChatWidget {
         textDiv.className = 'message-text';
         
         // Handle text content, replacing sticker codes with images inline
-        let processedContent = msg.body || msg.content || '';
+        let processedContent = msg.content || msg.body || '';
         if (processedContent) {
             this.stickers.forEach(sticker => {
                 const stickerCode = `:${sticker}:`;
@@ -287,6 +339,7 @@ class ChatWidget {
                     }
                 });
                 
+                // Scroll to bottom after loading messages
                 this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
                 
                 // After loading messages, mark received messages as delivered
@@ -306,70 +359,62 @@ class ChatWidget {
     }
 
     async sendMessage() {
-        const content = this.textarea.value.trim();
-        const filePreviews = document.querySelectorAll('.file-preview');
+        if (!this.textarea.value.trim() && !this.attachments.length) return;
         
-        // Get the actual File objects from the preview elements
-        const files = Array.from(filePreviews).map(preview => preview.file);
-
-        // Allow sending if either content or files exist
-        if (!content && files.length === 0) {
-            console.log('sendMessage: Both content and files are empty.');
-            return;
-        }
-
-        console.log('sendMessage: Sending message with content:', content, 'and files:', files, 'to thread ID:', this.threadId);
-
         try {
             const formData = new FormData();
             formData.append('thread_id', this.threadId);
-            formData.append('body', content || ''); // Always send body, even if empty
+            formData.append('content', this.textarea.value.trim());
             
-            // Add files to formData
-            files.forEach((file, index) => {
-                if (file instanceof File) {
-                    console.log('Adding file to FormData:', file.name, file.type, file.size);
-                    formData.append('files[]', file);
-                } else {
-                    console.error('Invalid file object:', file);
-                }
+            // Add attachments
+            this.attachments.forEach(file => {
+                formData.append('attachments[]', file);
             });
-
+            
             const response = await fetch('api/chat_send.php', {
                 method: 'POST',
                 body: formData
             });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('sendMessage: HTTP error!', response.status, errorText);
-                alert('Failed to send message: ' + errorText);
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                alert(data.error);
                 return;
             }
-
-            const data = await response.json();
-            console.log('sendMessage: API response:', data);
-
-            if (data.ok) {
-                this.textarea.value = '';
-                // Reset textarea height
-                this.textarea.style.height = '40px';
-                
-                // Remove any file previews
-                const previewContainer = document.querySelector('.file-preview-container');
-                if (previewContainer) {
-                    previewContainer.remove();
+            
+            // Clear input and attachments
+            this.textarea.value = '';
+            this.attachments = [];
+            this.updateAttachmentPreview();
+            
+            // If we're in the archive page, move the thread back to inbox
+            if (window.location.pathname.includes('messages_archive.php')) {
+                try {
+                    await fetch('api/chat_flag.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            thread_id: this.threadId,
+                            action: 'unarchive'
+                        })
+                    });
+                    
+                    // Redirect to main inbox
+                    window.location.href = 'messages.php?thread=' + this.threadId;
+                } catch (error) {
+                    console.error('Error moving thread back to inbox:', error);
                 }
-                
-                this.loadMessages();
-                console.log('sendMessage: Message sent successfully.');
-            } else {
-                console.error('sendMessage: API reported failure:', data.error);
-                alert('Failed to send message: ' + data.error);
             }
+            
+            // Reload messages to show the new message
+            this.loadMessages();
+            
         } catch (error) {
-            console.error('sendMessage: Error sending message:', error);
-            alert('Error sending message: ' + error.message);
+            console.error('Error sending message:', error);
+            alert('Error sending message. Please try again.');
         }
     }
 
@@ -505,6 +550,17 @@ class ChatWidget {
             }
         } catch (error) {
             console.error('Error marking messages as delivered:', error);
+        }
+    }
+
+    addMessage(message) {
+        const messageElement = this.renderMessage(message, true);
+        this.messagesDiv.appendChild(messageElement);
+        this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
+        
+        // If it's a received message, mark it as delivered
+        if (message.sender_id !== window.me) {
+            this.markMessageAsDelivered(message.id);
         }
     }
 

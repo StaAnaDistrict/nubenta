@@ -39,10 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         // Then get messages
         $stmt = $pdo->prepare("
-            SELECT m.id, m.thread_id, m.sender_id, m.body as content, m.file_path, m.sent_at as created_at, m.delivered_at, m.read_at, u.full_name as sender_name 
+            SELECT m.id, m.thread_id, m.sender_id, m.body as content, m.file_path, m.file_info, m.file_mime, m.file_size, m.sent_at as created_at, m.delivered_at, m.read_at, u.full_name as sender_name 
             FROM messages m 
             JOIN users u ON m.sender_id = u.id 
             WHERE m.thread_id = ? 
+            AND m.deleted_by_sender = 0 
+            AND m.deleted_by_receiver = 0
             ORDER BY m.sent_at ASC
         ");
         $stmt->execute([$thread_id]);

@@ -100,34 +100,47 @@ include 'assets/navigation.php';
         </aside>
 
         <script>
-            console.log('Dashboard: Attempting to call api/track_activity.php on page load');
-            fetch('api/track_activity.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => {
-                console.log('Dashboard: api/track_activity.php response status:', response.status);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Dashboard: api/track_activity.php response data:', data);
-                // You can optionally call updateUnreadCount here if needed
-                if (data.success && data.unread_count !== undefined) {
-                    if (window.updateUnreadCount) {
-                        window.updateUnreadCount(data.unread_count);
-                    } else {
-                        console.warn('Dashboard: updateUnreadCount function not found');
+            // Function to track user activity
+            async function trackActivity() {
+                try {
+                    const response = await fetch('api/track_activity.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
+                    
+                    const data = await response.json();
+                    console.log('Dashboard: Activity tracked successfully:', data);
+                    
+                    // Update unread count if available
+                    if (data.success && data.unread_count !== undefined) {
+                        if (window.updateUnreadCount) {
+                            window.updateUnreadCount(data.unread_count);
+                        }
+                    }
+                    
+                    return data;
+                } catch (error) {
+                    console.error('Dashboard: Error tracking activity:', error);
+                    throw error;
                 }
-            })
-            .catch(error => {
-                console.error('Dashboard: Error calling api/track_activity.php:', error);
+            }
+
+            // Make trackActivity available globally
+            window.trackActivity = trackActivity;
+
+            // Track activity on page load
+            trackActivity().catch(error => {
+                console.error('Initial activity tracking error:', error);
             });
+
+            // Track activity periodically
+            setInterval(trackActivity, 5000);
         </script>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -149,15 +162,12 @@ include 'assets/navigation.php';
             // Initialize navigation after DOM is loaded
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('Dashboard: DOMContentLoaded fired');
-                // Force a call to trackActivity
-                if (window.trackActivity) {
-                    console.log('Dashboard: Calling trackActivity');
-                    window.trackActivity().catch(error => {
-                        console.error('Initial trackActivity call error:', error);
-                    });
-                } else {
-                    console.error('Dashboard: trackActivity not found after navigation include');
-                    // You could potentially add a small delay and retry here if needed
+                // Track activity and check notifications
+                trackActivity().catch(error => {
+                    console.error('Initial trackActivity call error:', error);
+                });
+                if (window.checkUnreadDeliveredMessages) {
+                    window.checkUnreadDeliveredMessages();
                 }
             });
         </script>

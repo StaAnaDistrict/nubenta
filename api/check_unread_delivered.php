@@ -8,36 +8,29 @@ require_once '../db.php';
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user'])) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Not authenticated']);
+    echo json_encode(['success' => false, 'error' => 'Not authenticated']);
     exit;
 }
 
 $user_id = $_SESSION['user']['id'];
 
 try {
-    // Query to count messages that have been delivered but not read
+    // Get messages that need delivery status update
     $stmt = $pdo->prepare("
-        SELECT COUNT(*) as count
+        SELECT id, delivered_at, read_at
         FROM messages
         WHERE receiver_id = ?
-        AND delivered_at IS NOT NULL
-        AND read_at IS NULL
+        AND (delivered_at IS NOT NULL OR read_at IS NOT NULL)
+        AND updated_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE)
     ");
-    
     $stmt->execute([$user_id]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    $count = (int)$result['count'];
-    
+    $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
     echo json_encode([
         'success' => true,
-        'has_unread_delivered' => $count > 0,
-        'count' => $count
+        'messages' => $messages
     ]);
-    
 } catch (PDOException $e) {
-    error_log("Error in check_unread_delivered.php: " . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['error' => 'Database error']);
+    error_log("Error in check_message_delivery.php: " . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Database error']);
 } 

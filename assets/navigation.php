@@ -21,13 +21,13 @@ if ($currentUser) {
 }
 ?>
 
-<?php if ($currentUser): ?>
+  <?php if ($currentUser): ?>
     <div class="user-greeting">
         <h2>Welcome, <?= htmlspecialchars($currentUser['first_name']) ?>!</h2>
     </div>
-<?php endif; ?>
+  <?php endif; ?>
 
-<nav class="navbar-vertical">
+  <nav class="navbar-vertical">
     <ul>
         <li><a href="dashboard.php" class="<?php echo $currentPage === 'dashboard' ? 'active' : ''; ?>">
             <i class="fas fa-home"></i> Home
@@ -48,23 +48,18 @@ if ($currentUser) {
         <li><a href="view_profile.php?id=<?= $user['id'] ?>"><i class="fas fa-user"></i> View Profile</a></li>
         <li><a href="edit_profile.php"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
         
-        <?php if ($currentUser && $currentUser['role'] === 'admin'): ?>
+      <?php if ($currentUser && $currentUser['role'] === 'admin'): ?>
             <li><a href="admin_users.php"><i class="fas fa-users-cog"></i> Manage Users</a></li>
-        <?php endif; ?>
+      <?php endif; ?>
         <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
     </ul>
-</nav>
+  </nav>
 
 <script>
 // Function to check for unread delivered messages
 async function checkUnreadDeliveredMessages() {
     try {
-        const response = await fetch('api/check_unread_delivered.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
+        const response = await fetch('api/check_unread_delivered.php');
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -73,7 +68,7 @@ async function checkUnreadDeliveredMessages() {
         const data = await response.json();
         const messagesNotification = document.getElementById('messagesNotification');
         
-        if (data.has_unread_delivered) {
+        if (data.success && data.has_unread_delivered) {
             messagesNotification.style.display = 'inline-block';
             messagesNotification.textContent = data.count > 0 ? data.count : '';
         } else {
@@ -84,11 +79,26 @@ async function checkUnreadDeliveredMessages() {
     }
 }
 
+// Function to update unread count
+function updateUnreadCount(count) {
+    const messagesNotification = document.getElementById('messagesNotification');
+    if (count > 0) {
+        messagesNotification.style.display = 'inline-block';
+        messagesNotification.textContent = count;
+    } else {
+        messagesNotification.style.display = 'none';
+    }
+}
+
 // Check for unread delivered messages when the page loads
 checkUnreadDeliveredMessages();
 
-// Check periodically (every 30 seconds)
-setInterval(checkUnreadDeliveredMessages, 30000);
+// Check periodically (every 5 seconds)
+setInterval(checkUnreadDeliveredMessages, 5000);
+
+// Make functions available globally
+window.updateUnreadCount = updateUnreadCount;
+window.checkUnreadDeliveredMessages = checkUnreadDeliveredMessages;
 </script>
 
 <style>

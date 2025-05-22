@@ -1,0 +1,5 @@
+[21-May-2025 12:22:10 Europe/Berlin] PHP Fatal error:  Uncaught Error: Call to a member function query() on null in /Applications/XAMPP/xamppfiles/htdocs/nubenta/check_db.php:16
+Stack trace:
+#0 /Applications/XAMPP/xamppfiles/htdocs/nubenta/check_db.php(126): checkAndFixDatabase()
+#1 {main}
+  thrown in /Applications/XAMPP/xamppfiles/htdocs/nubenta/check_db.php on line 16

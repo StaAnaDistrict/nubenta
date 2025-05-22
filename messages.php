@@ -459,6 +459,20 @@ $user = $_SESSION['user'];
         overflow: hidden;
         padding-right: 0 !important;
     }
+
+    .notification-badge {
+        background: #ff4444;
+        color: white;
+        border-radius: 50%;
+        padding: 2px 6px;
+        font-size: 12px;
+        margin-left: 8px;
+        display: none;
+    }
+
+    .notification-badge.show {
+        display: inline-block;
+    }
 </style>
 </head>
 <body>
@@ -478,15 +492,15 @@ $user = $_SESSION['user'];
         <!-- Main Content -->
         <main class="main-content">
         <h3>Messages</h3>
-            <div class="row">
+<div class="row">
                 <!-- Thread List Side Bar -->
-                <div class="col-3 border-end">
-                    <button class="btn btn-sm btn-primary w-100 mb-2" id="btnNew">New chat</button>
-                    <div id="thread-list"></div>
-                </div>
+  <div class="col-3 border-end">
+      <button class="btn btn-sm btn-primary w-100 mb-2" id="btnNew">New chat</button>
+      <div id="thread-list"></div>
+  </div>
 
                 <!-- Chat Panel -->
-                <div class="col-9">
+  <div class="col-9">
                     <div id="chat-title" class="border-bottom">
                         <span class="chat-title-text">Select a chat</span>
                         <div class="chat-actions">
@@ -494,7 +508,7 @@ $user = $_SESSION['user'];
                             <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
                         </div>
                     </div>
-                    <div id="chat-box"></div>
+      <div id="chat-box"></div>
                     <div class="chat-form">
                         <div class="chat-input-container">
                             <textarea class="chat-input" placeholder="Type your message..." rows="1"></textarea>
@@ -511,11 +525,11 @@ $user = $_SESSION['user'];
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div id="picker"
-                 class="border p-2 bg-white shadow position-fixed"
-                 style="bottom:80px;right:30px;display:none"></div>
+  </div>
+</div>
+<div id="picker"
+     class="border p-2 bg-white shadow position-fixed"
+     style="bottom:80px;right:30px;display:none"></div>
         </main>
 
         <!-- Right Sidebar -->
@@ -545,15 +559,15 @@ $user = $_SESSION['user'];
         </div>
     </div>
 
-    <script>
-    const stickers = <?= json_encode($sticker_names) ?>;   // now contains all 94 names
+<script>
+const stickers = <?= json_encode($sticker_names) ?>;   // now contains all 94 names
 
-    window.me = <?= $user['id'] ?>;
+window.me = <?= $user['id'] ?>;
 
-    let currentThread=0;
+let currentThread=0;
 
-    /* ------------------------------------------------- */
-    /* 1. list threads                                   */
+/* ------------------------------------------------- */
+/* 1. list threads                                   */
     async function loadThreads(){
       const response = await fetch('api/chat_threads.php');
       const rows = await response.json();
@@ -568,7 +582,7 @@ $user = $_SESSION['user'];
       
       list.innerHTML='';
       if (Array.isArray(rows)) {
-        rows.forEach(t=>{
+      rows.forEach(t=>{
           // Check if this thread already exists
           let div = existingThreads[t.id];
           if (!div) {
@@ -580,6 +594,15 @@ $user = $_SESSION['user'];
             const titleSpan = document.createElement('span');
             titleSpan.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
             div.appendChild(titleSpan);
+            
+            // Create notification badge
+            const notificationBadge = document.createElement('span');
+            notificationBadge.className = 'notification-badge';
+            if (t.unread_count > 0) {
+                notificationBadge.textContent = t.unread_count;
+                notificationBadge.classList.add('show');
+            }
+            div.appendChild(notificationBadge);
             
             // Create menu button
             const menuBtn = document.createElement('div');
@@ -625,371 +648,500 @@ $user = $_SESSION['user'];
                 }
             };
           } else {
-            // Update existing thread's title and active state
+            // Update existing thread's title, active state, and notification
             div.className = 'p-2 thread-item' + (t.id == currentThreadId ? ' active' : '');
             const titleSpan = div.querySelector('span');
             if (titleSpan) {
                 titleSpan.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
             }
+            
+            // Update notification badge
+            const notificationBadge = div.querySelector('.notification-badge');
+            if (notificationBadge) {
+                if (t.unread_count > 0) {
+                    notificationBadge.textContent = t.unread_count;
+                    notificationBadge.classList.add('show');
+                } else {
+                    notificationBadge.classList.remove('show');
+                }
+            }
           }
           list.appendChild(div);
-        });
+      });
       } else {
         console.error('Invalid threads format:', rows);
       }
     }
 
+    // Add real-time notification check
+    async function checkNewMessages() {
+        try {
+            const response = await fetch('api/check_unread_delivered.php');
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update navigation notification
+                const messagesNotification = document.getElementById('messagesNotification');
+                if (data.has_unread_delivered) {
+                    messagesNotification.style.display = 'inline-block';
+                    messagesNotification.textContent = data.count > 0 ? data.count : '';
+                } else {
+                    messagesNotification.style.display = 'none';
+                }
+                
+                // Reload threads to update Name Grid notifications
+                loadThreads();
+            }
+        } catch (error) {
+            console.error('Error checking new messages:', error);
+        }
+    }
+
+    // Check for new messages every 5 seconds
+    setInterval(checkNewMessages, 5000);
+
     /* 2. open thread                                    */
     function openThread(t){
-      console.log('openThread called with thread:', t);
-      currentThread=t.id;
-      const chatTitleElement = document.getElementById('chat-title');
-      
-      // Create the chat title content
-      const titleContent = document.createElement('div');
-      titleContent.className = 'd-flex justify-content-between align-items-center w-100';
-      
-      // Create the title text span
-      const titleText = document.createElement('span');
-      titleText.className = 'chat-title-text';
-      titleText.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
-      
-      // Create the actions div
-      const actionsDiv = document.createElement('div');
-      actionsDiv.className = 'chat-actions';
-      actionsDiv.innerHTML = `
-          <i class="fas fa-archive chat-action-icon" title="View Archived Messages" onclick="viewArchivedMessages()"></i>
-          <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
-      `;
-      
-      // Clear and rebuild the chat title
-      chatTitleElement.innerHTML = '';
-      titleContent.appendChild(titleText);
-      titleContent.appendChild(actionsDiv);
-      chatTitleElement.appendChild(titleContent);
-
-      // Make chat title clickable if it's a direct message
-      if (t.participant_id) {
-          titleText.style.cursor = 'pointer';
-          titleText.onclick = () => {
-              console.log('Navigating to profile with user ID:', t.participant_id);
-              window.location.href = `view_profile.php?id=${t.participant_id}`;
-          };
-      } else {
-          titleText.style.cursor = 'default';
-          titleText.onclick = null;
-      }
-
-      document.getElementById('chat-box').innerHTML='';
-      console.log('Initializing ChatWidget for thread ID:', t.id);
-      new ChatWidget(t.id, document.getElementById('chat-box'), stickers);
-      
-      // Mark messages in this thread as read when opening
-      console.log('Attempting to mark thread as read via api/chat_mark_read.php for thread ID:', t.id);
-      fetch(`api/chat_mark_read.php?thread_id=${t.id}`);
-
-      loadThreads(); // Reload threads to update active state
-      console.log('openThread finished.');
-    }
-
-    /* 3. create new thread (simple prompt)              */
-    document.getElementById('btnNew').onclick = function() {
-        const modal = new bootstrap.Modal(document.getElementById('newChatModal'));
-        modal.show();
-    };
-
-    function toggleSidebar() {
-        const sidebar = document.querySelector('.left-sidebar');
-        sidebar.classList.toggle('show');
-    }
-
-    // Click outside to close
-    document.addEventListener('click', function(e) {
-        const sidebar = document.querySelector('.left-sidebar');
-        const hamburger = document.getElementById('hamburgerBtn');
-        if (!sidebar.contains(e.target) && !hamburger.contains(e.target)) {
-            sidebar.classList.remove('show');
-        }
-    });
-
-    loadThreads();          // initial load
-
-    // Check for thread parameter in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const threadId = urlParams.get('thread');
-    if (threadId) {
-        // Fetch thread details and open it
-        fetch('api/chat_threads.php')
-            .then(r => r.json())
-            .then(threads => {
-                const thread = threads.find(t => t.id === parseInt(threadId));
-                if (thread) {
-                    openThread(thread);
-                }
-            })
-            .catch(error => console.error('Error loading thread:', error));
-    }
-
-    // Initialize sticker picker
-    document.addEventListener('DOMContentLoaded', function() {
-        const picker = document.getElementById('picker');
+        console.log('openThread called with thread:', t);
+        currentThread=t.id;
+        const chatTitleElement = document.getElementById('chat-title');
         
-        // Close picker when clicking outside
-        document.addEventListener('click', function(e) {
-            if (picker && picker.style.display === 'block' && 
-                !picker.contains(e.target) && 
-                !e.target.closest('#btnEmoji')) {
-                picker.style.display = 'none';
-            }
-        });
-    });
+        // Create the chat title content
+        const titleContent = document.createElement('div');
+        titleContent.className = 'd-flex justify-content-between align-items-center w-100';
+        
+        // Create the title text span
+        const titleText = document.createElement('span');
+        titleText.className = 'chat-title-text';
+        titleText.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
+        
+        // Create the actions div
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'chat-actions';
+        actionsDiv.innerHTML = `
+            <i class="fas fa-archive chat-action-icon" title="View Archived Messages" onclick="viewArchivedMessages()"></i>
+            <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
+        `;
+        
+        // Clear and rebuild the chat title
+        chatTitleElement.innerHTML = '';
+        titleContent.appendChild(titleText);
+        titleContent.appendChild(actionsDiv);
+        chatTitleElement.appendChild(titleContent);
 
-    // Thread management functions
-    function viewProfile(userId) {
-        window.location.href = `view_profile.php?id=${userId}`;
-    }
-
-    function archiveThread(threadId) {
-        fetch('api/chat_flag.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                thread_id: threadId,
-                action: 'archive'
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                loadThreads();
-                alert('Conversation archived.');
-            } else {
-                alert('Failed to archive conversation');
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    }
-
-    function spamThread(threadId) {
-        fetch('api/chat_flag.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                thread_id: threadId,
-                action: 'spam'
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                loadThreads();
-                alert('Conversation marked as spam.');
-            } else {
-                alert('Failed to mark conversation as spam');
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    }
-
-    // Add polling for threads
-    setInterval(loadThreads, 3000);
-
-    // Add event listener for thread creation
-    window.addEventListener('threadCreated', function(e) {
-        const threadId = e.detail.threadId;
-        // Reload threads to show the new one
-        loadThreads();
-        // Open the new thread
-        fetch('api/chat_threads.php')
-            .then(r => r.json())
-            .then(threads => {
-                const thread = threads.find(t => t.id === threadId);
-                if (thread) {
-                    openThread(thread);
-                }
-            })
-            .catch(error => console.error('Error loading new thread:', error));
-    });
-
-    // Update thread deletion to handle both ends
-    async function deleteThread(threadId) {
-        if (confirm('Are you sure you want to delete this conversation?')) {
-            try {
-                const response = await fetch('api/chat_flag.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        thread_id: threadId,
-                        action: 'delete'
-                    })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    if (currentThread === threadId) {
-                        currentThread = 0;
-                        document.getElementById('chat-title').textContent = 'Select a chat';
-                        document.getElementById('chat-box').innerHTML = '';
-                    }
-                    loadThreads();
-                } else {
-                    alert('Failed to delete conversation');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error deleting conversation');
-            }
+        // Make chat title clickable if it's a direct message
+        if (t.participant_id) {
+            titleText.style.cursor = 'pointer';
+            titleText.onclick = () => {
+                console.log('Navigating to profile with user ID:', t.participant_id);
+                window.location.href = `view_profile.php?id=${t.participant_id}`;
+            };
+        } else {
+            titleText.style.cursor = 'default';
+            titleText.onclick = null;
         }
-    }
 
-    function reportUser(userId) {
-        // TODO: Implement report functionality
-        alert('Report functionality coming soon');
-    }
-
-    // Close dropdowns when clicking outside
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.thread-menu')) {
-            document.querySelectorAll('.thread-menu-dropdown').forEach(dropdown => {
-                dropdown.classList.remove('show');
-            });
-        }
-    });
-
-    // Auto-resize textarea
-    document.querySelector('.chat-input').addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
-    });
-
-    // View archived messages
-    function viewArchivedMessages() {
-        window.location.href = 'messages_archive.php';
-    }
-
-    // View spam messages
-    function viewSpamMessages() {
-        window.location.href = 'messages_spam.php';
-    }
-
-    // Add this to your existing JavaScript
-    document.addEventListener('DOMContentLoaded', function() {
-        const newChatBtn = document.getElementById('btnNew');
-        const newChatModal = new bootstrap.Modal(document.getElementById('newChatModal'));
-        const searchInput = document.querySelector('.user-search-input');
-        const searchResults = document.querySelector('.user-search-results');
-        let searchTimeout;
-
-        newChatBtn.addEventListener('click', function() {
-            newChatModal.show();
-            searchInput.value = '';
-            searchResults.innerHTML = '';
-            searchResults.classList.remove('show');
-        });
-
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            const query = this.value.trim();
+        document.getElementById('chat-box').innerHTML='';
+        console.log('Initializing ChatWidget for thread ID:', t.id);
+        new ChatWidget(t.id, document.getElementById('chat-box'), stickers);
+        
+        // Mark messages in this thread as read when opening
+        console.log('Attempting to mark thread as read via api/chat_mark_read.php for thread ID:', t.id);
+        fetch(`api/chat_mark_read.php?thread_id=${t.id}`).then(() => {
+            // Clear notification badge for this thread
+            const threadItem = document.querySelector(`.thread-item[data-thread-id="${t.id}"]`);
+            if (threadItem) {
+                const badge = threadItem.querySelector('.notification-badge');
+                if (badge) {
+                    badge.classList.remove('show');
+                }
+            }
             
-            if (query.length < 2) {
-                searchResults.innerHTML = '';
-                searchResults.classList.remove('show');
-                return;
-            }
-
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const response = await fetch(`api/search_users.php?query=${encodeURIComponent(query)}`);
-                    const data = await response.json();
-                    
-                    if (data.error) {
-                        console.error('Search error:', data.error);
-                        return;
-                    }
-
-                    searchResults.innerHTML = '';
-                    
-                    if (data.users.length === 0) {
-                        searchResults.innerHTML = '<div class="user-search-item">No users found</div>';
-                    } else {
-                        data.users.forEach(user => {
-                            const div = document.createElement('div');
-                            div.className = 'user-search-item';
-                            div.innerHTML = `
-                                <img src="${user.profile_picture}" alt="${user.name}" onerror="this.src='assets/images/default-avatar.png'">
-                                <div class="user-search-item-info">
-                                    <div class="user-search-item-name">${user.name}</div>
-                                    <div class="user-search-item-email">${user.email}</div>
-                                </div>
-                            `;
-                            div.addEventListener('click', () => startChat(user.id));
-                            searchResults.appendChild(div);
-                        });
-                    }
-                    
-                    searchResults.classList.add('show');
-                } catch (error) {
-                    console.error('Search error:', error);
-                }
-            }, 300);
+            // Reload threads to update all notifications
+            loadThreads();
+            
+            // Check for any remaining unread messages
+            checkNewMessages();
         });
 
-        // Close search results when clicking outside
+        loadThreads(); // Reload threads to update active state
+        console.log('openThread finished.');
+    }
+
+        /* 3. create new thread (simple prompt)              */
+        document.getElementById('btnNew').onclick = function() {
+            const modal = new bootstrap.Modal(document.getElementById('newChatModal'));
+            modal.show();
+        };
+
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.left-sidebar');
+            sidebar.classList.toggle('show');
+        }
+
+        // Click outside to close
         document.addEventListener('click', function(e) {
-            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
-                searchResults.classList.remove('show');
+            const sidebar = document.querySelector('.left-sidebar');
+            const hamburger = document.getElementById('hamburgerBtn');
+            if (!sidebar.contains(e.target) && !hamburger.contains(e.target)) {
+                sidebar.classList.remove('show');
             }
         });
 
-        async function startChat(userId) {
-            try {
-                const response = await fetch('api/chat_start.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ user_id: userId })
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    alert(data.error);
-                    return;
+        loadThreads();          // initial load
+
+        // Check for thread parameter in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const threadId = urlParams.get('thread');
+        if (threadId) {
+            // Fetch thread details and open it
+            fetch('api/chat_threads.php')
+                .then(r => r.json())
+                .then(threads => {
+                    const thread = threads.find(t => t.id === parseInt(threadId));
+                    if (thread) {
+                        openThread(thread);
+                    }
+                })
+                .catch(error => console.error('Error loading thread:', error));
+        }
+
+        // Initialize sticker picker
+        document.addEventListener('DOMContentLoaded', function() {
+            const picker = document.getElementById('picker');
+            
+            // Close picker when clicking outside
+            document.addEventListener('click', function(e) {
+                if (picker && picker.style.display === 'block' && 
+                    !picker.contains(e.target) && 
+                    !e.target.closest('#btnEmoji')) {
+                    picker.style.display = 'none';
                 }
-                
-                // Close the modal and remove backdrop
-                newChatModal.hide();
-                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-                document.body.classList.remove('modal-open');
-                document.body.style.overflow = '';
-                document.body.style.paddingRight = '';
-                
-                // Clear the search input and results
+            });
+        });
+
+        // Thread management functions
+        function viewProfile(userId) {
+            window.location.href = `view_profile.php?id=${userId}`;
+        }
+
+        function archiveThread(threadId) {
+            fetch('api/chat_flag.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    thread_id: threadId,
+                    action: 'archive'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadThreads();
+                    alert('Conversation archived.');
+                } else {
+                    alert('Failed to archive conversation');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function spamThread(threadId) {
+            fetch('api/chat_flag.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    thread_id: threadId,
+                    action: 'spam'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+      loadThreads();
+                    alert('Conversation marked as spam.');
+                } else {
+                    alert('Failed to mark conversation as spam');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        // Add polling for threads
+        setInterval(loadThreads, 3000);
+
+        // Add event listener for thread creation
+        window.addEventListener('threadCreated', function(e) {
+            const threadId = e.detail.threadId;
+            // Reload threads to show the new one
+            loadThreads();
+            // Open the new thread
+    fetch('api/chat_threads.php')
+                .then(r => r.json())
+                .then(threads => {
+                    const thread = threads.find(t => t.id === threadId);
+                    if (thread) {
+                        openThread(thread);
+                    }
+                })
+                .catch(error => console.error('Error loading new thread:', error));
+        });
+
+        // Update thread deletion to handle both ends
+        async function deleteThread(threadId) {
+            if (confirm('Are you sure you want to delete this conversation?')) {
+                try {
+                    const response = await fetch('api/chat_flag.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            thread_id: threadId,
+                            action: 'delete'
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        if (currentThread === threadId) {
+                            currentThread = 0;
+                            document.getElementById('chat-title').textContent = 'Select a chat';
+                            document.getElementById('chat-box').innerHTML = '';
+                        }
+                        loadThreads();
+                    } else {
+                        alert('Failed to delete conversation');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error deleting conversation');
+                }
+            }
+        }
+
+        function reportUser(userId) {
+            // TODO: Implement report functionality
+            alert('Report functionality coming soon');
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.thread-menu')) {
+                document.querySelectorAll('.thread-menu-dropdown').forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                });
+            }
+        });
+
+        // Auto-resize textarea
+        document.querySelector('.chat-input').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // View archived messages
+        function viewArchivedMessages() {
+            window.location.href = 'messages_archive.php';
+        }
+
+        // View spam messages
+        function viewSpamMessages() {
+            window.location.href = 'messages_spam.php';
+        }
+
+        // Add this to your existing JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            const newChatBtn = document.getElementById('btnNew');
+            const newChatModal = new bootstrap.Modal(document.getElementById('newChatModal'));
+            const searchInput = document.querySelector('.user-search-input');
+            const searchResults = document.querySelector('.user-search-results');
+            let searchTimeout;
+
+            newChatBtn.addEventListener('click', function() {
+                newChatModal.show();
                 searchInput.value = '';
                 searchResults.innerHTML = '';
                 searchResults.classList.remove('show');
+            });
+
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                const query = this.value.trim();
                 
-                // Open the new thread and reload threads
-                if (data.thread) {
-                    // First reload threads to ensure the new thread is in the list
-                    await loadThreads();
-                    // Then open the thread
-                    openThread(data.thread);
+                if (query.length < 2) {
+                    searchResults.innerHTML = '';
+                    searchResults.classList.remove('show');
+                    return;
+                }
+
+                searchTimeout = setTimeout(async () => {
+                    try {
+                        const response = await fetch(`api/search_users.php?query=${encodeURIComponent(query)}`);
+                        const data = await response.json();
+                        
+                        if (data.error) {
+                            console.error('Search error:', data.error);
+                            return;
+                        }
+
+                        searchResults.innerHTML = '';
+                        
+                        if (data.users.length === 0) {
+                            searchResults.innerHTML = '<div class="user-search-item">No users found</div>';
+                        } else {
+                            data.users.forEach(user => {
+                                const div = document.createElement('div');
+                                div.className = 'user-search-item';
+                                div.innerHTML = `
+                                    <img src="${user.profile_picture}" alt="${user.name}" onerror="this.src='assets/images/default-avatar.png'">
+                                    <div class="user-search-item-info">
+                                        <div class="user-search-item-name">${user.name}</div>
+                                        <div class="user-search-item-email">${user.email}</div>
+                                    </div>
+                                `;
+                                div.addEventListener('click', () => startChat(user.id));
+                                searchResults.appendChild(div);
+                            });
+                        }
+                        
+                        searchResults.classList.add('show');
+                    } catch (error) {
+                        console.error('Search error:', error);
+                    }
+                }, 300);
+            });
+
+            // Close search results when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                    searchResults.classList.remove('show');
+                }
+            });
+
+            async function startChat(userId) {
+                try {
+                    const response = await fetch('api/chat_start.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ user_id: userId })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    
+                    // Close the modal and remove backdrop
+                    newChatModal.hide();
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                    
+                    // Clear the search input and results
+                    searchInput.value = '';
+                    searchResults.innerHTML = '';
+                    searchResults.classList.remove('show');
+                    
+                    // Open the new thread and reload threads
+                    if (data.thread) {
+                        // First reload threads to ensure the new thread is in the list
+                        await loadThreads();
+                        // Then open the thread
+                        openThread(data.thread);
+                    }
+                } catch (error) {
+                    console.error('Error starting chat:', error);
+                    alert('Error starting chat. Please try again.');
+                }
+            }
+        });
+
+        /* 2. load messages for a thread                        */
+        async function loadMessages(threadId) {
+            try {
+                const response = await fetch(`api/chat_messages.php?thread_id=${threadId}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    console.error('Error loading messages:', data.error);
+                    return;
+                }
+                
+                const chatBox = document.getElementById('chat-box');
+                chatBox.innerHTML = '';
+                
+                if (Array.isArray(data.messages)) {
+                    data.messages.forEach(m => {
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = `message ${m.sender_id == me ? 'sent' : 'received'}`;
+                        
+                        // Message content
+                        const contentDiv = document.createElement('div');
+                        contentDiv.className = 'message-content';
+                        
+                        // Add message text if exists
+                        if (m.content) {
+                            const textDiv = document.createElement('div');
+                            textDiv.className = 'message-text';
+                            textDiv.textContent = m.content;
+                            contentDiv.appendChild(textDiv);
+                        }
+                        
+                        // Add file if exists
+                        if (m.file_path) {
+                            const fileDiv = document.createElement('div');
+                            fileDiv.className = 'message-file';
+                            
+                            if (m.file_mime && m.file_mime.startsWith('image/')) {
+                                // Image file
+                                const img = document.createElement('img');
+                                img.src = m.file_path;
+                                img.className = 'message-image';
+                                img.onclick = () => window.open(m.file_path, '_blank');
+                                fileDiv.appendChild(img);
+                            } else {
+                                // Other file type
+                                const fileLink = document.createElement('a');
+                                fileLink.href = m.file_path;
+                                fileLink.className = 'message-file-link';
+                                fileLink.target = '_blank';
+                                fileLink.innerHTML = `
+                                    <i class="fas ${getFileIcon(m.file_mime)}"></i>
+                                    <span>${m.file_info || 'Download File'}</span>
+                                `;
+                                fileDiv.appendChild(fileLink);
+                            }
+                            contentDiv.appendChild(fileDiv);
+                        }
+                        
+                        // Add timestamp
+                        const timeDiv = document.createElement('div');
+                        timeDiv.className = 'message-time';
+                        timeDiv.textContent = new Date(m.created_at).toLocaleTimeString();
+                        contentDiv.appendChild(timeDiv);
+                        
+                        messageDiv.appendChild(contentDiv);
+                        chatBox.appendChild(messageDiv);
+                    });
+                    
+                    // Scroll to bottom
+                    chatBox.scrollTop = chatBox.scrollHeight;
                 }
             } catch (error) {
-                console.error('Error starting chat:', error);
-                alert('Error starting chat. Please try again.');
+                console.error('Error loading messages:', error);
             }
         }
-    });
-    </script>
-    <script src="assets/chat_widget.js"></script>
+</script>
+<script src="assets/chat_widget.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
