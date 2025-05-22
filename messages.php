@@ -1003,7 +1003,7 @@ let currentThread=0;
                                         <div class="user-search-item-email">${user.email}</div>
                                     </div>
                                 `;
-                                div.addEventListener('click', () => startChat(user.id));
+                                div.addEventListener('click', () => startNewChat(user.id));
                                 searchResults.appendChild(div);
                             });
                         }
@@ -1022,46 +1022,72 @@ let currentThread=0;
                 }
             });
 
-            async function startChat(userId) {
+            // Add this function to handle new chat
+            async function startNewChat(userId) {
                 try {
-                    const response = await fetch('api/chat_start.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ user_id: userId })
-                    });
+                    // First check if thread exists
+                    const checkResponse = await fetch(`api/check_existing_thread.php?user_id=${userId}`);
+                    const checkData = await checkResponse.json();
                     
-                    const data = await response.json();
-                    
-                    if (data.error) {
-                        alert(data.error);
-                        return;
-                    }
-                    
-                    // Close the modal and remove backdrop
-                    newChatModal.hide();
-                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-                    document.body.classList.remove('modal-open');
-                    document.body.style.overflow = '';
-                    document.body.style.paddingRight = '';
-                    
-                    // Clear the search input and results
-                    searchInput.value = '';
-                    searchResults.innerHTML = '';
-                    searchResults.classList.remove('show');
-                    
-                    // Open the new thread and reload threads
-                    if (data.thread) {
-                        // First reload threads to ensure the new thread is in the list
-                        await loadThreads();
-                        // Then open the thread
-                        openThread(data.thread);
+                    if (checkData.success) {
+                        if (checkData.exists) {
+                            // Thread exists, open it
+                            const threadResponse = await fetch('api/chat_threads.php');
+                            const threads = await threadResponse.json();
+                            const existingThread = threads.find(t => t.id === checkData.thread_id);
+                            if (existingThread) {
+                                openThread(existingThread);
+                                // Close the modal
+                                const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
+                                if (modal) {
+                                    modal.hide();
+                                }
+                                return;
+                            }
+                        }
+                        
+                        // No existing thread, create new one
+                        const response = await fetch('api/chat_create.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                receiver_id: userId
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            // Get the new thread details
+                            const threadResponse = await fetch('api/chat_threads.php');
+                            const threads = await threadResponse.json();
+                            const newThread = threads.find(t => t.id === data.thread_id);
+                            if (newThread) {
+                                openThread(newThread);
+                                // Close the modal
+                                const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
+                                if (modal) {
+                                    modal.hide();
+                                }
+                            }
+                        } else {
+                            showToast('Failed to create chat', 'error');
+                        }
+                    } else {
+                        showToast('Error checking existing thread', 'error');
                     }
                 } catch (error) {
-                    console.error('Error starting chat:', error);
-                    alert('Error starting chat. Please try again.');
+                    console.error('Error:', error);
+                    showToast('Error creating chat', 'error');
                 }
+            }
+
+            // Update the user search result click handler
+            function handleUserSelect(userId, userName) {
+                startNewChat(userId);
+                // Remove jQuery modal close
+                // $('#newChatModal').modal('hide');
             }
         });
 
