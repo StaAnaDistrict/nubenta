@@ -73,15 +73,22 @@ try {
         
         // Use absolute paths
         $baseDir = dirname(dirname(__FILE__));
-    $sub = date('Y/m');
-        $publicDir = $baseDir . "/uploads/msg_files/$sub";
+        $sub = date('Y/m');
+        $uploadDir = $baseDir . "/uploads/msg_files/$sub";
         
         // Create directory with full permissions
-        if (!is_dir($publicDir)) {
-            if (!@mkdir($publicDir, 0777, true)) {
+        if (!is_dir($uploadDir)) {
+            if (!@mkdir($uploadDir, 0777, true)) {
+                error_log("Failed to create directory: $uploadDir. Error: " . error_get_last()['message']);
                 throw new Exception('Failed to create upload directory');
             }
-            chmod($publicDir, 0777);
+            chmod($uploadDir, 0777);
+        }
+        
+        // Ensure directory is writable
+        if (!is_writable($uploadDir)) {
+            error_log("Directory not writable: $uploadDir");
+            chmod($uploadDir, 0777);
         }
         
         $filePaths = [];
@@ -101,22 +108,31 @@ try {
                 }
                 
                 $uuid = bin2hex(random_bytes(8)) . '.' . $ext;
-    $publicPath = "$publicDir/$uuid";
+                $filePath = "$uploadDir/$uuid";
                 
-                if (move_uploaded_file($tmp_name, $publicPath)) {
-                    chmod($publicPath, 0644);
-                    // Store the URL path instead of the filesystem path
-                    $filePath = "/uploads/msg_files/$sub/$uuid";
-                    $filePaths[] = $filePath;
+                // Log file upload attempt
+                error_log("Attempting to upload file: $fileName to $filePath");
+                
+                if (move_uploaded_file($tmp_name, $filePath)) {
+                    chmod($filePath, 0644);
+                    // Store the relative path without uploads prefix
+                    $relativePath = "msg_files/$sub/$uuid";
+                    $filePaths[] = $relativePath;
+                    
+                    // Log successful upload
+                    error_log("Successfully uploaded file: $fileName to $filePath");
                     
                     // Store file information
                     $fileInfo[] = [
-                        'path' => $filePath,
+                        'path' => $relativePath,
                         'name' => $fileName,
                         'size' => $fileSize,
                         'type' => $ext,
                         'is_image' => in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])
                     ];
+                } else {
+                    // Log upload failure
+                    error_log("Failed to upload file: $fileName. Error: " . error_get_last()['message']);
                 }
             }
         }
@@ -135,7 +151,7 @@ try {
                 $messageId
             ]);
         }
-}
+    }
 
     // Get the complete message data
     $stmt = $pdo->prepare("

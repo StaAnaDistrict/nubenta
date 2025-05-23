@@ -625,9 +625,11 @@ $user = $_SESSION['user'];
 
     /* Sticker styling */
     .chat-sticker {
-        width: 50px;
-        height: 50px;
+        width: 25px;
+        height: 25px;
         vertical-align: middle;
+        display: inline-block;
+        margin: 0 2px;
     }
 
     /* System message styling */

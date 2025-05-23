@@ -180,11 +180,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         
         error_log("Retrieved " . count($messages) . " messages for thread " . $thread_id);
         
-        // Process messages
+        // Process messages - removed redundant uploads prefix
         foreach ($messages as &$message) {
-            if ($message['file_path']) {
-                $message['file_path'] = 'uploads/' . $message['file_path'];
-            }
+            // No need to modify file_path as it's already correct
         }
         
         error_log("=== Message Loading End - Success ===");

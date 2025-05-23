@@ -79,7 +79,25 @@ class ChatWidget {
         };
         
         this.handleSend = () => this.sendMessage();
-        this.handleAttachment = () => this.handleAttachment();
+        this.handleAttachment = () => {
+            // Prevent multiple file inputs
+            if (document.querySelector('.file-preview-container')) {
+                return;
+            }
+            
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = '*/*';
+            
+            input.onchange = (e) => {
+                const files = Array.from(e.target.files);
+                this.attachments = [...this.attachments, ...files];
+                this.updateAttachmentPreview();
+            };
+            
+            input.click();
+        };
         this.handleEmoji = () => this.toggleStickerPicker();
         this.handleFocus = () => this.clearNotificationCount();
 
@@ -249,6 +267,54 @@ class ChatWidget {
             processedContent = processedContent.replace(/\n/g, '<br>');
             textDiv.innerHTML = processedContent;
             contentDiv.appendChild(textDiv);
+        }
+
+        // Add file attachments if they exist
+        if (msg.file_path) {
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'message-file';
+            
+            // Parse file info if it exists
+            let fileInfo = null;
+            try {
+                fileInfo = msg.file_info ? JSON.parse(msg.file_info) : null;
+            } catch (e) {
+                console.error('Error parsing file info:', e);
+            }
+
+            // Handle multiple files if they exist
+            const filePaths = msg.file_path.split(',');
+            const fileInfos = fileInfo ? (Array.isArray(fileInfo) ? fileInfo : [fileInfo]) : [];
+
+            filePaths.forEach((filePath, index) => {
+                const currentFileInfo = fileInfos[index] || {};
+                const fileExt = filePath.split('.').pop().toLowerCase();
+                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExt);
+
+                if (isImage) {
+                    // Image file
+                    const img = document.createElement('img');
+                    // Construct URL path with single uploads directory
+                    img.src = '/nubenta/uploads/' + filePath.replace(/^\/+/, '');
+                    img.className = 'message-image';
+                    img.onclick = () => window.open(img.src, '_blank');
+                    fileDiv.appendChild(img);
+                } else {
+                    // Other file type
+                    const fileLink = document.createElement('a');
+                    // Construct URL path with single uploads directory
+                    fileLink.href = '/nubenta/uploads/' + filePath.replace(/^\/+/, '');
+                    fileLink.className = 'message-file-link';
+                    fileLink.target = '_blank';
+                    fileLink.innerHTML = `
+                        <i class="fas ${this.getFileIcon(fileExt)}"></i>
+                        <span>${currentFileInfo.name || 'Download File'}</span>
+                    `;
+                    fileDiv.appendChild(fileLink);
+                }
+            });
+
+            contentDiv.appendChild(fileDiv);
         }
 
         // Create message meta container for timestamp and ticks
