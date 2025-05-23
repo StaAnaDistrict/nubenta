@@ -180,9 +180,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         
         error_log("Retrieved " . count($messages) . " messages for thread " . $thread_id);
         
-        // Process messages - removed redundant uploads prefix
-        foreach ($messages as &$message) {
-            // No need to modify file_path as it's already correct
+        // Mark messages as both delivered and read when user is actively viewing the thread
+        $undeliveredMessages = array_filter($messages, function($m) use ($user_id) {
+            return $m['sender_id'] != $user_id && $m['delivered_at'] === null;
+        });
+        
+        if (!empty($undeliveredMessages)) {
+            $messageIds = array_column($undeliveredMessages, 'id');
+            $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+            
+            // Update both delivered_at and read_at
+            $stmt = $pdo->prepare("
+                UPDATE messages 
+                SET delivered_at = NOW(),
+                    read_at = NOW()
+                WHERE id IN ($placeholders)
+                AND receiver_id = ?
+            ");
+            $params = array_merge($messageIds, [$user_id]);
+            $stmt->execute($params);
+            
+            // Update the messages array with the new timestamps
+            foreach ($messages as &$message) {
+                if (in_array($message['id'], $messageIds)) {
+                    $message['delivered_at'] = date('Y-m-d H:i:s');
+                    $message['read_at'] = date('Y-m-d H:i:s');
+                }
+            }
         }
         
         error_log("=== Message Loading End - Success ===");

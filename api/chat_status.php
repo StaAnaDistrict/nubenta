@@ -103,28 +103,36 @@ $stmt->execute($ids);
     error_log("chat_status.php: Fetched statuses: " . print_r($statuses, true));
 
     // Check for 'read' action
-    if (isset($data['action']) && $data['action'] === 'read' && isset($data['message_id'])) {
-        $messageIdToMarkRead = $data['message_id'];
-        error_log("chat_status.php: Read update - Message ID: " . $messageIdToMarkRead . ", User ID: " . $userId);
-        error_log("chat_status.php: Read update - SQL: UPDATE messages m JOIN thread_participants tp ON m.thread_id = tp.thread_id SET m.read_at = NOW() WHERE m.id = ? AND tp.user_id = ? AND m.sender_id != ? AND m.read_at IS NULL");
-        // Ensure the message belongs to a thread the user is in before marking as read
+    if (isset($data['action']) && $data['action'] === 'read' && isset($data['ids']) && is_array($data['ids'])) {
+        $messageIdsToMarkRead = $data['ids'];
+        $ids_placeholders = implode(',', array_fill(0, count($messageIdsToMarkRead), '?'));
+        error_log("chat_status.php: Read update - Message IDs: " . print_r($messageIdsToMarkRead, true) . ", User ID: " . $userId);
+        
+        // Update both delivered_at and read_at for messages
         $stmt = $pdo->prepare("
             UPDATE messages m
             JOIN thread_participants tp ON m.thread_id = tp.thread_id
-            SET m.read_at = NOW()
-            WHERE m.id = ? AND tp.user_id = ? AND m.sender_id != ? AND m.read_at IS NULL
+            SET m.delivered_at = IFNULL(m.delivered_at, NOW()),
+                m.read_at = NOW()
+            WHERE m.id IN (" . $ids_placeholders . ")
+            AND tp.user_id = ?
+            AND m.sender_id != ?
+            AND m.read_at IS NULL
         ");
-        $stmt->execute([$messageIdToMarkRead, $userId, $userId]);
+        $params = array_merge($messageIdsToMarkRead, [$userId, $userId]);
+        $stmt->execute($params);
         error_log("chat_status.php: Read update - Rows affected: " . $stmt->rowCount());
-        // Return updated statuses after marking as read
+        
+        // Return updated statuses
         $stmt = $pdo->prepare("
             SELECT id, delivered_at, read_at
             FROM messages
-            WHERE id = ?
+            WHERE id IN (" . $ids_placeholders . ")
         ");
-        $stmt->execute([$messageIdToMarkRead]);
+        $stmt->execute($messageIdsToMarkRead);
         $statuses = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode(['success' => true, 'statuses' => $statuses]);
+        exit;
     }
     // Check for 'delivered' action
     else if (isset($data['action']) && $data['action'] === 'delivered' && isset($data['ids']) && is_array($data['ids']) && !empty($data['ids'])) {

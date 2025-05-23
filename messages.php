@@ -568,15 +568,15 @@ $user = $_SESSION['user'];
     }
 
     .message.sent .message-ticks {
-        color: rgba(255, 255, 255, 0.7);
+        color: rgba(255, 255, 255, 0.7); /* Default sent status - single white tick */
     }
 
     .message.sent .message-ticks.read {
-        color: #fff;
+        color: #fff; /* Read status - double white ticks */
     }
 
     .message.sent .message-ticks.delivered {
-        color: rgba(255, 255, 255, 0.9);
+        color: #ffa500; /* Delivered status - single orange tick */
     }
 
     .message.received .message-ticks {

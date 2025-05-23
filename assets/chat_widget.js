@@ -333,13 +333,17 @@ class ChatWidget {
             const tickSpan = document.createElement('span');
             tickSpan.className = 'message-ticks';
             
+            // Check message status based on timestamps
             if (msg.read_at) {
+                // Message has been read (both delivered and read)
                 tickSpan.textContent = '✓✓';
                 tickSpan.classList.add('read');
             } else if (msg.delivered_at) {
+                // Message has been delivered but not read
                 tickSpan.textContent = '✓';
                 tickSpan.classList.add('delivered');
             } else {
+                // Message has only been sent
                 tickSpan.textContent = '✓';
             }
             
@@ -424,32 +428,21 @@ class ChatWidget {
     async loadMessages(force = false) {
         // Debounce message loading
         const now = Date.now();
-        if (!force && now - this.lastLoadTime < 2000) { // 2 second debounce
-            if (this.loadTimeout) {
-                clearTimeout(this.loadTimeout);
-            }
-            this.loadTimeout = setTimeout(() => this.loadMessages(true), 2000);
+        if (now - this.lastLoadTime < 1000 && !force) {
             return;
         }
-        
+
         try {
-            console.log('Loading messages for thread:', this.threadId);
             const response = await fetch(`api/chat_messages.php?thread_id=${this.threadId}`);
             const data = await response.json();
-            console.log('Received messages data:', data);
             
             if (!data.success) {
                 console.error('Error loading messages:', data.error);
                 return;
             }
             
-            if (!Array.isArray(data.messages)) {
-                console.error('Invalid messages format:', data.messages);
-                return;
-            }
-            
-            // Only update if we have new messages
             const newMessages = data.messages.filter(msg => !this.loadedMessageIds.has(msg.id));
+            
             if (newMessages.length > 0 || force) {
                 this.messagesDiv.innerHTML = '';
                 data.messages.forEach(msg => {
@@ -462,13 +455,15 @@ class ChatWidget {
                 // Scroll to bottom
                 this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
                 
-                // Mark messages as delivered
+                // Mark messages as delivered and read if they're from other users
                 const undeliveredMessages = newMessages
                     .filter(msg => msg.sender_id !== window.me && !msg.delivered_at)
                     .map(msg => msg.id);
                 
                 if (undeliveredMessages.length > 0) {
-                    this.markMessagesAsDelivered(undeliveredMessages);
+                    await this.markMessagesAsDelivered(undeliveredMessages);
+                    // Also mark as read since user is actively viewing the thread
+                    await this.markMessagesAsRead(undeliveredMessages);
                 }
             }
             
@@ -677,6 +672,41 @@ class ChatWidget {
             }
         } catch (error) {
             console.error('Error marking messages as delivered:', error);
+        }
+    }
+
+    async markMessagesAsRead(messageIds) {
+        console.log('Attempting to mark messages as read:', messageIds);
+        try {
+            const response = await fetch('api/chat_status.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: 'read',
+                    ids: messageIds
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                console.log('Messages marked as read:', messageIds);
+                // Update the message elements visually
+                messageIds.forEach(id => {
+                    const messageElement = this.messagesDiv.querySelector(`[data-message-id="${id}"]`);
+                    if (messageElement) {
+                        const tickSpan = messageElement.querySelector('.message-ticks');
+                        if (tickSpan) {
+                            tickSpan.textContent = '✓✓';
+                            tickSpan.classList.add('read');
+                        }
+                    }
+                });
+            } else {
+                console.error('Failed to mark messages as read:', data.error);
+            }
+        } catch (error) {
+            console.error('Error marking messages as read:', error);
         }
     }
 
