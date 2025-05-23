@@ -1,2 +1,21 @@
-ALTER TABLE messages 
-ADD COLUMN is_system_message BOOLEAN DEFAULT FALSE; 
+CREATE TABLE IF NOT EXISTS messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    thread_id INT NOT NULL,
+    sender_id INT NOT NULL,
+    receiver_id INT NOT NULL,
+    body TEXT,
+    message_type ENUM('text', 'image', 'video', 'audio', 'system_unsend') DEFAULT 'text',
+    is_unsent_for_everyone BOOLEAN DEFAULT FALSE,
+    file_path VARCHAR(255) NULL,
+    file_info VARCHAR(255) NULL,
+    file_mime VARCHAR(100) NULL,
+    file_size INT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    delivered_at TIMESTAMP NULL,
+    read_at TIMESTAMP NULL,
+    deleted_by_sender BOOLEAN DEFAULT FALSE,
+    deleted_by_receiver BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (thread_id) REFERENCES chat_threads(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4; 

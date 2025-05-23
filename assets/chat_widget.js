@@ -4,43 +4,105 @@ class ChatWidget {
         this.threadId = threadId;
         this.container = container;
         this.stickers = stickers;
-        this.attachments = []; // Initialize attachments array
+        this.attachments = [];
         this.me = window.me;
         this.isArchived = window.location.pathname.includes('messages_archive.php');
+        this.loadedMessageIds = new Set();
+        this.lastLoadTime = 0;
+        this.loadTimeout = null;
+        this.isSending = false;
+        this.pollingInterval = null;
+        this.heartbeatTimeout = null;
+        this.observer = null;
+        
+        // Clean up any existing chat widget
+        if (window.currentChatWidget) {
+            window.currentChatWidget.cleanup();
+        }
+        window.currentChatWidget = this;
+        
         this.setupUI();
         this.loadMessages();
         this.setupPolling();
-        console.log('ChatWidget constructor finished.');
-        
-        // Start heartbeat polling for status updates
         this.heartbeat();
     }
 
+    cleanup() {
+        // Clear all intervals and timeouts
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+        }
+        if (this.heartbeatTimeout) {
+            clearTimeout(this.heartbeatTimeout);
+        }
+        if (this.loadTimeout) {
+            clearTimeout(this.loadTimeout);
+        }
+        if (this.observer) {
+            this.observer.disconnect();
+        }
+        
+        // Remove event listeners
+        if (this.textarea) {
+            this.textarea.removeEventListener('keydown', this.handleKeydown);
+            this.textarea.removeEventListener('focus', this.handleFocus);
+        }
+        if (this.btnSend) {
+            this.btnSend.removeEventListener('click', this.handleSend);
+        }
+        if (this.btnAttach) {
+            this.btnAttach.removeEventListener('click', this.handleAttachment);
+        }
+        if (this.btnEmoji) {
+            this.btnEmoji.removeEventListener('click', this.handleEmoji);
+        }
+        
+        // Clear the container
+        this.container.innerHTML = '';
+    }
+
     setupUI() {
-        // Only create the messages container, not the form
         this.container.innerHTML = `<div class="chat-messages"></div>`;
         this.messagesDiv = this.container.querySelector('.chat-messages');
         
-        // Get references to existing form elements
         this.textarea = document.querySelector('.chat-input');
         this.btnSend = document.querySelector('#btnSend');
         this.btnEmoji = document.querySelector('#btnEmoji');
         this.btnAttach = document.querySelector('#btnAttach');
 
-        // Setup event listeners
-        this.textarea.addEventListener('keydown', (e) => {
+        // Bind event handlers
+        this.handleKeydown = (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 this.sendMessage();
             }
-        });
+        };
+        
+        this.handleSend = () => this.sendMessage();
+        this.handleAttachment = () => this.handleAttachment();
+        this.handleEmoji = () => this.toggleStickerPicker();
+        this.handleFocus = () => this.clearNotificationCount();
 
-        this.btnSend.addEventListener('click', () => this.sendMessage());
-        this.btnAttach.addEventListener('click', () => this.handleAttachment());
-        this.btnEmoji.addEventListener('click', () => this.toggleStickerPicker());
+        // Add event listeners
+        this.textarea.addEventListener('keydown', this.handleKeydown);
+        this.btnSend.addEventListener('click', this.handleSend);
+        this.btnAttach.addEventListener('click', this.handleAttachment);
+        this.btnEmoji.addEventListener('click', this.handleEmoji);
+        this.textarea.addEventListener('focus', this.handleFocus);
 
-        // Intersection Observer for read receipts
         this.setupReadObserver();
+    }
+
+    clearNotificationCount() {
+        // Find and clear the notification badge for this thread
+        const threadItem = document.querySelector(`.thread-item[data-thread-id="${this.threadId}"]`);
+        if (threadItem) {
+            const badge = threadItem.querySelector('.notification-badge');
+            if (badge) {
+                badge.classList.remove('show');
+                badge.textContent = '';
+            }
+        }
     }
 
     handleAttachment() {
@@ -155,7 +217,7 @@ class ChatWidget {
     }
 
     renderMessage(msg, isLastFromSender = false) {
-        console.log('Rendering message:', msg); // Debug log
+        console.log('Rendering message:', msg);
         const isSent = msg.sender_id === window.me;
         const messageClass = isSent ? 'sent msg-me' : 'received msg-you';
 
@@ -164,17 +226,17 @@ class ChatWidget {
         div.dataset.messageId = msg.id;
         div.dataset.me = (msg.sender_id === window.me ? '1' : '0');
         
-        // Create message bubble content
-        const bubbleDiv = document.createElement('div');
-        bubbleDiv.className = 'message-bubble';
+        // Create message content container
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
 
         // Add message text or sticker
-        const textDiv = document.createElement('div');
-        textDiv.className = 'message-text';
-        
-        // Handle text content, replacing sticker codes with images inline
-        let processedContent = msg.content || msg.body || '';
-        if (processedContent) {
+        if (msg.content) {
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text';
+            
+            // Handle text content, replacing sticker codes with images inline
+            let processedContent = msg.content;
             this.stickers.forEach(sticker => {
                 const stickerCode = `:${sticker}:`;
                 const stickerImgTag = `<img src="assets/stickers/${sticker}.gif" alt="${stickerCode}" class="chat-sticker">`;
@@ -186,76 +248,60 @@ class ChatWidget {
             // Handle line breaks from Shift+Enter
             processedContent = processedContent.replace(/\n/g, '<br>');
             textDiv.innerHTML = processedContent;
-            bubbleDiv.appendChild(textDiv);
+            contentDiv.appendChild(textDiv);
         }
 
-        // Add file attachments if present
-        if (msg.file_path) {
-            console.log('Processing file path:', msg.file_path); // Debug log
-            const filePaths = msg.file_path.split(',');
-            filePaths.forEach(filePath => {
-                console.log('Processing individual file:', filePath); // Debug log
-                const fileDiv = document.createElement('div');
-                fileDiv.className = 'message-file';
-                
-                // Remove leading slash if present
-                const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
-                console.log('Clean file path:', cleanPath); // Debug log
-                
-                if (filePath.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-                    const img = document.createElement('img');
-                    img.src = cleanPath;
-                    img.className = 'message-image';
-                    img.onclick = () => window.open(cleanPath, '_blank');
-                    img.onerror = (e) => {
-                        console.error('Error loading image:', cleanPath, e);
-                        img.src = 'assets/images/error.png'; // Fallback image
-                    };
-                    fileDiv.appendChild(img);
-                } else {
-                    const link = document.createElement('a');
-                    link.href = cleanPath;
-                    link.className = 'message-file-link';
-                    link.target = '_blank';
-                    link.innerHTML = `<i class="fas fa-file"></i> ${filePath.split('/').pop()}`;
-                    fileDiv.appendChild(link);
-                }
-                
-                bubbleDiv.appendChild(fileDiv);
-            });
-        }
-        
-        // Add timestamp and tick marks
+        // Create message meta container for timestamp and ticks
         const metaDiv = document.createElement('div');
         metaDiv.className = 'message-meta';
         
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'message-time';
-        timeSpan.textContent = new Date(msg.created_at || msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        metaDiv.appendChild(timeSpan);
-        
-        // Add tick marks for sent messages based on conditions
+        // Add timestamp
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'message-time';
+        const messageDate = new Date(msg.created_at);
+        timeDiv.textContent = `${messageDate.toLocaleDateString()} ${messageDate.toLocaleTimeString()}`;
+        metaDiv.appendChild(timeDiv);
+
+        // Add tick marks for sent messages
         if (isSent) {
-            const hasStatus = msg.delivered_at !== null || msg.read_at !== null;
-            const shouldShowTicks = (hasStatus && isLastFromSender) || (!hasStatus);
+            const tickSpan = document.createElement('span');
+            tickSpan.className = 'message-ticks';
             
-            if (shouldShowTicks) {
-                const tickSpan = document.createElement('span');
-                tickSpan.className = 'message-ticks';
-                tickSpan.innerHTML = '✓';
-                if (msg.delivered_at) {
-                    tickSpan.classList.add('delivered');
-                }
-                if (msg.read_at) {
-                    tickSpan.classList.add('read');
-                }
-                metaDiv.appendChild(tickSpan);
+            if (msg.read_at) {
+                tickSpan.textContent = '✓✓';
+                tickSpan.classList.add('read');
+            } else if (msg.delivered_at) {
+                tickSpan.textContent = '✓';
+                tickSpan.classList.add('delivered');
+            } else {
+                tickSpan.textContent = '✓';
             }
+            
+            metaDiv.appendChild(tickSpan);
+        }
+
+        contentDiv.appendChild(metaDiv);
+        div.appendChild(contentDiv);
+
+        // Add message actions (delete, flag, etc.)
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+        
+        if (isSent) {
+            const deleteBtn = document.createElement('i');
+            deleteBtn.className = 'fas fa-trash message-action';
+            deleteBtn.title = 'Delete message';
+            deleteBtn.onclick = () => this.deleteMessage(msg.id);
+            actionsDiv.appendChild(deleteBtn);
+        } else {
+            const flagBtn = document.createElement('i');
+            flagBtn.className = 'fas fa-flag message-action';
+            flagBtn.title = 'Report message';
+            flagBtn.onclick = () => this.flagMessage(msg.id, 'spam');
+            actionsDiv.appendChild(flagBtn);
         }
         
-        bubbleDiv.appendChild(metaDiv);
-        div.appendChild(bubbleDiv);
-
+        div.appendChild(actionsDiv);
         return div;
     }
 
@@ -309,72 +355,78 @@ class ChatWidget {
         }
     }
 
-    async loadMessages() {
+    async loadMessages(force = false) {
+        // Debounce message loading
+        const now = Date.now();
+        if (!force && now - this.lastLoadTime < 2000) { // 2 second debounce
+            if (this.loadTimeout) {
+                clearTimeout(this.loadTimeout);
+            }
+            this.loadTimeout = setTimeout(() => this.loadMessages(true), 2000);
+            return;
+        }
+        
         try {
+            console.log('Loading messages for thread:', this.threadId);
             const response = await fetch(`api/chat_messages.php?thread_id=${this.threadId}`);
             const data = await response.json();
-            console.log('Loaded messages:', data); // Debug log
+            console.log('Received messages data:', data);
             
             if (!data.success) {
                 console.error('Error loading messages:', data.error);
                 return;
             }
             
-            this.messagesDiv.innerHTML = '';
-            if (Array.isArray(data.messages)) {
-                // Group messages by sender
-                const messagesBySender = {};
+            if (!Array.isArray(data.messages)) {
+                console.error('Invalid messages format:', data.messages);
+                return;
+            }
+            
+            // Only update if we have new messages
+            const newMessages = data.messages.filter(msg => !this.loadedMessageIds.has(msg.id));
+            if (newMessages.length > 0 || force) {
+                this.messagesDiv.innerHTML = '';
                 data.messages.forEach(msg => {
-                    if (!messagesBySender[msg.sender_id]) {
-                        messagesBySender[msg.sender_id] = [];
-                    }
-                    messagesBySender[msg.sender_id].push(msg);
-                });
-
-                // Render messages
-                data.messages.forEach((msg, index) => {
-                    // Check if this is the last message from this sender
-                    const senderMessages = messagesBySender[msg.sender_id];
-                    const isLastFromSender = msg.id === senderMessages[senderMessages.length - 1].id;
-                    
-                    const messageElement = this.renderMessage(msg, isLastFromSender);
+                    console.log('Processing message:', msg);
+                    const messageElement = this.renderMessage(msg);
                     this.messagesDiv.appendChild(messageElement);
-                    
-                    // Observe newly added messages
-                    if (msg.sender_id !== window.me) { // Only observe received messages
-                        this.observer.observe(messageElement);
-                    }
+                    this.loadedMessageIds.add(msg.id);
                 });
                 
-                // Scroll to bottom after loading messages
+                // Scroll to bottom
                 this.messagesDiv.scrollTop = this.messagesDiv.scrollHeight;
                 
-                // After loading messages, mark received messages as delivered
-                const receivedMessageIds = data.messages
-                    .filter(msg => msg.sender_id !== window.me)
+                // Mark messages as delivered
+                const undeliveredMessages = newMessages
+                    .filter(msg => msg.sender_id !== window.me && !msg.delivered_at)
                     .map(msg => msg.id);
                 
-                if (receivedMessageIds.length > 0) {
-                    this.markMessagesAsDelivered(receivedMessageIds);
+                if (undeliveredMessages.length > 0) {
+                    this.markMessagesAsDelivered(undeliveredMessages);
                 }
-            } else {
-                console.error('Invalid messages format:', data);
             }
+            
+            this.lastLoadTime = now;
         } catch (error) {
             console.error('Error loading messages:', error);
         }
     }
 
     async sendMessage() {
+        if (this.isSending) {
+            console.log('Message send already in progress');
+            return;
+        }
+
         const content = this.textarea.value.trim();
         if (!content && this.attachments.length === 0) return;
         
         try {
+            this.isSending = true;
             const formData = new FormData();
             formData.append('thread_id', this.threadId);
             formData.append('content', content);
             
-            // Add each attachment
             this.attachments.forEach((file, index) => {
                 formData.append('attachments[]', file);
             });
@@ -389,12 +441,15 @@ class ChatWidget {
                 this.textarea.value = '';
                 this.attachments = [];
                 this.updateAttachmentPreview();
-                this.loadMessages();
+                this.loadMessages(true);
+                this.clearNotificationCount();
             } else {
                 console.error('Error sending message:', data.error);
             }
         } catch (error) {
             console.error('Error sending message:', error);
+        } finally {
+            this.isSending = false;
         }
     }
 
@@ -425,9 +480,10 @@ class ChatWidget {
     }
 
     setupPolling() {
-        // This polling is primarily for new messages
-        // Poll for new messages every 5 seconds
-        setInterval(() => this.loadMessages(), 5000);
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+        }
+        this.pollingInterval = setInterval(() => this.loadMessages(false), 5000);
     }
 
     toggleStickerPicker() {

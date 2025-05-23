@@ -33,8 +33,10 @@ try {
                 SELECT MAX(sent_at) 
                 FROM messages m3
                 WHERE m3.thread_id = m.thread_id
-                AND m3.deleted_by_sender = 0 
-                AND m3.deleted_by_receiver = 0
+                AND (
+                    (m3.sender_id = ? AND m3.deleted_by_sender = 0) OR
+                    (m3.receiver_id = ? AND m3.deleted_by_receiver = 0)
+                )
             ) as last_message_time,
             (
                 SELECT COUNT(*) > 0
@@ -42,7 +44,10 @@ try {
                 WHERE r.thread_id = m.thread_id
                 AND r.admin_response IS NOT NULL
                 AND r.notification_sent = TRUE
-            ) as has_admin_response
+            ) as has_admin_response,
+            ucs.is_muted,
+            ucs.is_archived_for_user,
+            ucs.is_deleted_for_user
         FROM messages m
         JOIN users u ON (
             CASE 
@@ -50,58 +55,49 @@ try {
                 ELSE m.sender_id = u.id
             END
         )
+        LEFT JOIN user_conversation_settings ucs ON m.thread_id = ucs.conversation_id AND ucs.user_id = ?
         WHERE (m.sender_id = ? OR m.receiver_id = ?)
-        AND m.deleted_by_sender = 0 
-        AND m.deleted_by_receiver = 0
-        " . ($showArchived ? "
-        AND EXISTS (
-            SELECT 1 FROM archived_threads at 
-            WHERE at.thread_id = m.thread_id 
-            AND at.user_id = ?
-        )" : ($showSpam ? "
-        AND EXISTS (
-            SELECT 1 FROM spam_threads st 
-            WHERE st.thread_id = m.thread_id 
-            AND st.user_id = ?
-        )" : "
-        AND NOT EXISTS (
-            SELECT 1 FROM archived_threads at 
-            WHERE at.thread_id = m.thread_id 
-            AND at.user_id = ?
+        AND (
+            (m.sender_id = ? AND m.deleted_by_sender = 0) OR
+            (m.receiver_id = ? AND m.deleted_by_receiver = 0)
         )
-        AND NOT EXISTS (
-            SELECT 1 FROM spam_threads st 
-            WHERE st.thread_id = m.thread_id 
-            AND st.user_id = ?
-        )")) . "
+        AND (ucs.is_deleted_for_user IS NULL OR ucs.is_deleted_for_user = FALSE)
+        " . ($showArchived ? "
+        AND ucs.is_archived_for_user = TRUE" : ($showSpam ? "
+        AND ucs.is_muted = TRUE" : "
+        AND (ucs.is_archived_for_user IS NULL OR ucs.is_archived_for_user = FALSE)
+        AND (ucs.is_muted IS NULL OR ucs.is_muted = FALSE)")) . "
         ORDER BY last_message_time DESC
     ";
     
     $stmt = $pdo->prepare($sql);
-    if ($showArchived) {
-        $stmt->execute([$userId, $userId, $userId, $userId, $userId]);
-    } else if ($showSpam) {
-        $stmt->execute([$userId, $userId, $userId, $userId, $userId]);
-    } else {
-        $stmt->execute([$userId, $userId, $userId, $userId, $userId, $userId]);
-    }
     
-    $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Count the number of ? placeholders in the query
+    $paramCount = substr_count($sql, '?');
+    $params = array_fill(0, $paramCount, $userId);
     
-    // Process threads to handle profile pictures
-    foreach ($threads as &$thread) {
-        if ($thread['profile_pic']) {
-            $thread['profile_pic'] = 'uploads/profile_pics/' . $thread['profile_pic'];
-        } else {
-            $thread['profile_pic'] = 'assets/images/default-avatar.png';
+    try {
+        $stmt->execute($params);
+        $threads = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Process threads to handle profile pictures
+        foreach ($threads as &$thread) {
+            if ($thread['profile_pic']) {
+                $thread['profile_pic'] = 'uploads/profile_pics/' . $thread['profile_pic'];
+            } else {
+                $thread['profile_pic'] = 'assets/images/default-avatar.png';
+            }
         }
+        
+        header('Content-Type: application/json');
+        echo json_encode($threads);
+    } catch (PDOException $e) {
+        error_log("Error in chat_threads.php: " . $e->getMessage());
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
     }
-    
-    header('Content-Type: application/json');
-    echo json_encode($threads);
-
 } catch (Exception $e) {
     error_log("Error in chat_threads.php: " . $e->getMessage());
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Server error: ' . $e->getMessage()]);
 }

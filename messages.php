@@ -500,12 +500,142 @@ $user = $_SESSION['user'];
         display: inline-block;
     }
 
+    /* Message styling */
+    .message {
+        position: relative;
+        margin: 10px 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .message.sent {
+        align-items: flex-end;
+    }
+
+    .message.received {
+        align-items: flex-start;
+    }
+
+    .message-content {
+        max-width: 70%;
+        padding: 10px 15px;
+        border-radius: 15px;
+        position: relative;
+    }
+
+    .message.sent .message-content {
+        background-color: #2c2c2c;
+        color: white;
+        border-bottom-right-radius: 5px;
+    }
+
+    .message.received .message-content {
+        background-color: #f0f0f0;
+        color: #333;
+        border-bottom-left-radius: 5px;
+    }
+
+    .message-text {
+        word-wrap: break-word;
+        font-size: 14px;
+        line-height: 1.4;
+    }
+
+    .message-meta {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 4px;
+    }
+
+    .message.sent .message-meta {
+        justify-content: flex-end;
+    }
+
+    .message.received .message-meta {
+        justify-content: flex-start;
+    }
+
+    .message-time {
+        font-size: 11px;
+        color: #999;
+        margin-top: 2px;
+    }
+
+    .message-ticks {
+        font-size: 12px;
+        color: #999;
+    }
+
+    .message.sent .message-ticks {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .message.sent .message-ticks.read {
+        color: #fff;
+    }
+
+    .message.sent .message-ticks.delivered {
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .message.received .message-ticks {
+        color: #999;
+    }
+
+    .message.received .message-ticks.read {
+        color: #4CAF50;
+    }
+
+    .message.received .message-ticks.delivered {
+        color: #2196F3;
+    }
+
+    .message-actions {
+        display: none;
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .message:hover .message-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .message-action {
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+        font-size: 14px;
+    }
+
+    .message-action:hover {
+        opacity: 1;
+    }
+
+    .message.sent .message-action {
+        color: white;
+    }
+
+    .message.received .message-action {
+        color: #666;
+    }
+
+    /* Sticker styling */
+    .chat-sticker {
+        width: 50px;
+        height: 50px;
+        vertical-align: middle;
+    }
+
     /* System message styling */
     .system-message {
         text-align: center;
         margin: 10px 0;
     }
-    
+
     .system-message .message-content {
         display: inline-block;
         background-color: #f8f9fa;
@@ -514,12 +644,12 @@ $user = $_SESSION['user'];
         padding: 8px 15px;
         max-width: 80%;
     }
-    
+
     .system-message .message-text {
         color: #6c757d;
         font-style: italic;
     }
-    
+
     .system-message .message-time {
         font-size: 0.8em;
         color: #adb5bd;
@@ -530,19 +660,19 @@ $user = $_SESSION['user'];
     .system-message.admin-response {
         margin: 15px 0;
     }
-    
+
     .system-message.admin-response .message-content {
         background-color: #e8f4ff;
         border: 1px solid #b8daff;
         padding: 12px 20px;
     }
-    
+
     .system-message.admin-response .message-text {
         color: #004085;
         font-style: normal;
         font-weight: 500;
     }
-    
+
     .system-message.admin-response .message-text i {
         color: #0056b3;
         margin-right: 8px;
@@ -865,73 +995,78 @@ let currentThread=0;
     setInterval(checkNewMessages, 5000);
 
 /* 2. open thread                                    */
-function openThread(t){
-        console.log('openThread called with thread:', t);
-  currentThread=t.id;
-        const chatTitleElement = document.getElementById('chat-title');
-        
-        // Create the chat title content
-        const titleContent = document.createElement('div');
-        titleContent.className = 'd-flex justify-content-between align-items-center w-100';
-        
-        // Create the title text span
-        const titleText = document.createElement('span');
-        titleText.className = 'chat-title-text';
-        titleText.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
-        
-        // Create the actions div
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'chat-actions';
-        actionsDiv.innerHTML = `
-            <i class="fas fa-flag chat-action-icon" title="View My Reports" onclick="window.location.href='user_reports.php'"></i>
-            <i class="fas fa-archive chat-action-icon" title="View Archived Messages" onclick="viewArchivedMessages()"></i>
-            <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
-        `;
-        
-        // Clear and rebuild the chat title
-        chatTitleElement.innerHTML = '';
-        titleContent.appendChild(titleText);
-        titleContent.appendChild(actionsDiv);
-        chatTitleElement.appendChild(titleContent);
+function openThread(t) {
+    console.log('openThread called with thread:', t);
+    currentThread = t.id;
+    const chatTitleElement = document.getElementById('chat-title');
+    
+    // Create the chat title content
+    const titleContent = document.createElement('div');
+    titleContent.className = 'd-flex justify-content-between align-items-center w-100';
+    
+    // Create the title text span
+    const titleText = document.createElement('span');
+    titleText.className = 'chat-title-text';
+    titleText.textContent = t.participant_name ? t.participant_name : (t.title ? t.title : ('Chat #' + t.id));
+    
+    // Create the actions div
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'chat-actions';
+    actionsDiv.innerHTML = `
+        <i class="fas fa-flag chat-action-icon" title="View My Reports" onclick="window.location.href='user_reports.php'"></i>
+        <i class="fas fa-archive chat-action-icon" title="View Archived Messages" onclick="viewArchivedMessages()"></i>
+        <i class="fas fa-ban chat-action-icon" title="View Spam Messages" onclick="viewSpamMessages()"></i>
+    `;
+    
+    // Clear and rebuild the chat title
+    chatTitleElement.innerHTML = '';
+    titleContent.appendChild(titleText);
+    titleContent.appendChild(actionsDiv);
+    chatTitleElement.appendChild(titleContent);
 
-        // Make chat title clickable if it's a direct message
-        if (t.participant_id) {
-            titleText.style.cursor = 'pointer';
-            titleText.onclick = () => {
-                console.log('Navigating to profile with user ID:', t.participant_id);
-                window.location.href = `view_profile.php?id=${t.participant_id}`;
-            };
-        } else {
-            titleText.style.cursor = 'default';
-            titleText.onclick = null;
-        }
-
-  document.getElementById('chat-box').innerHTML='';
-        console.log('Initializing ChatWidget for thread ID:', t.id);
-        new ChatWidget(t.id, document.getElementById('chat-box'), stickers);
-        
-        // Mark messages in this thread as read when opening
-        console.log('Attempting to mark thread as read via api/chat_mark_read.php for thread ID:', t.id);
-        fetch(`api/chat_mark_read.php?thread_id=${t.id}`).then(() => {
-            // Clear notification badge for this thread
-            const threadItem = document.querySelector(`.thread-item[data-thread-id="${t.id}"]`);
-            if (threadItem) {
-                const badge = threadItem.querySelector('.notification-badge');
-                if (badge) {
-                    badge.classList.remove('show');
-                }
-            }
-            
-            // Reload threads to update all notifications
-            loadThreads();
-            
-            // Check for any remaining unread messages
-            checkNewMessages();
-        });
-
-        loadThreads(); // Reload threads to update active state
-        console.log('openThread finished.');
+    // Make chat title clickable if it's a direct message
+    if (t.participant_id) {
+        titleText.style.cursor = 'pointer';
+        titleText.onclick = () => {
+            console.log('Navigating to profile with user ID:', t.participant_id);
+            window.location.href = `view_profile.php?id=${t.participant_id}`;
+        };
+    } else {
+        titleText.style.cursor = 'default';
+        titleText.onclick = null;
     }
+
+    // Clear the chat box and initialize new chat widget
+    const chatBox = document.getElementById('chat-box');
+    chatBox.innerHTML = '';
+    
+    // Clear notification count immediately when opening thread
+    const threadItem = document.querySelector(`.thread-item[data-thread-id="${t.id}"]`);
+    if (threadItem) {
+        const badge = threadItem.querySelector('.notification-badge');
+        if (badge) {
+            badge.classList.remove('show');
+            badge.textContent = '';
+        }
+    }
+    
+    // Mark messages in this thread as read when opening
+    console.log('Attempting to mark thread as read via api/chat_mark_read.php for thread ID:', t.id);
+    fetch(`api/chat_mark_read.php?thread_id=${t.id}`).then(() => {
+        // Reload threads to update all notifications
+        loadThreads();
+        
+        // Check for any remaining unread messages
+        checkNewMessages();
+    });
+
+    // Initialize new chat widget after cleanup
+    console.log('Initializing ChatWidget for thread ID:', t.id);
+    new ChatWidget(t.id, chatBox, stickers);
+
+    loadThreads(); // Reload threads to update active state
+    console.log('openThread finished.');
+}
 
 /* 3. create new thread (simple prompt)              */
         document.getElementById('btnNew').onclick = function() {
@@ -998,7 +1133,8 @@ loadThreads();          // initial load
                 },
                 body: JSON.stringify({
                     thread_id: threadId,
-                    action: 'archive'
+                    action: 'archive',
+                    value: true
                 })
             })
             .then(response => response.json())
@@ -1021,13 +1157,14 @@ loadThreads();          // initial load
                 },
                 body: JSON.stringify({
                     thread_id: threadId,
-                    action: 'spam'
+                    action: 'mute',
+                    value: true
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-      loadThreads();
+                    loadThreads();
                     alert('Conversation marked as spam.');
                 } else {
                     alert('Failed to mark conversation as spam');
@@ -1058,19 +1195,28 @@ loadThreads();          // initial load
 
         // Update thread deletion to handle both ends
         async function deleteThread(threadId) {
+            console.log('Attempting to delete thread:', threadId);
             if (confirm('Are you sure you want to delete this conversation?')) {
                 try {
+                    const requestData = {
+                        thread_id: parseInt(threadId),
+                        action: 'delete',
+                        value: 1  // Use integer 1 for true
+                    };
+                    console.log('Sending delete request with data:', requestData);
+                    
                     const response = await fetch('api/chat_flag.php', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({
-                            thread_id: threadId,
-                            action: 'delete'
-                        })
+                        body: JSON.stringify(requestData)
                     });
+                    
+                    console.log('Delete response status:', response.status);
                     const data = await response.json();
+                    console.log('Delete response data:', data);
+                    
                     if (data.success) {
                         if (currentThread === threadId) {
                             currentThread = 0;
@@ -1079,11 +1225,12 @@ loadThreads();          // initial load
                         }
                         loadThreads();
                     } else {
-                        alert('Failed to delete conversation');
+                        console.error('Delete error:', data);
+                        alert(data.error || 'Failed to delete conversation');
                     }
                 } catch (error) {
                     console.error('Error:', error);
-                    alert('Error deleting conversation');
+                    alert('Error deleting conversation: ' + error.message);
                 }
             }
         }
@@ -1263,7 +1410,7 @@ loadThreads();          // initial load
                             const existingThread = threads.find(t => t.id === checkData.thread_id);
                             if (existingThread) {
                                 openThread(existingThread);
-                                // Close the modal
+                                // Close the modal properly
                                 const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
                                 if (modal) {
                                     modal.hide();
@@ -1286,20 +1433,20 @@ loadThreads();          // initial load
                         const data = await response.json();
                         if (data.thread) {
                             openThread(data.thread);
-                            // Close the modal
+                            // Close the modal properly
                             const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
                             if (modal) {
                                 modal.hide();
                             }
                         } else {
-                            showToast('Failed to create chat', 'error');
+                            alert('Failed to create chat');
                         }
                     } else {
-                        showToast('Error checking existing thread', 'error');
+                        alert('Error checking existing thread');
                     }
                 } catch (error) {
                     console.error('Error:', error);
-                    showToast('Error creating chat', 'error');
+                    alert('Error creating chat');
                 }
             }
 
@@ -1399,15 +1546,19 @@ document.addEventListener('DOMContentLoaded', function() {
         lastFocusedElement = document.activeElement;
     });
 
-    // Restore focus when modal is hidden
+    // Restore focus and clean up when modal is hidden
     newChatModal.addEventListener('hidden.bs.modal', function () {
         if (lastFocusedElement) {
             lastFocusedElement.focus();
         }
-        // Remove modal-open class from body
+        // Remove modal-open class and backdrop
         document.body.classList.remove('modal-open');
         document.body.style.overflow = '';
         document.body.style.paddingRight = '';
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
     });
 
     // Handle modal show event
@@ -1418,6 +1569,55 @@ document.addEventListener('DOMContentLoaded', function() {
             backdrop.remove();
         }
     });
+
+    // Update the startNewChat function to properly handle modal closing
+    async function startNewChat(userId) {
+        try {
+            // First check if thread exists
+            const checkResponse = await fetch(`api/check_existing_thread.php?user_id=${userId}`);
+            const checkData = await checkResponse.json();
+            
+            if (checkData.success) {
+                if (checkData.exists) {
+                    // Thread exists, open it
+                    const threadResponse = await fetch('api/chat_threads.php');
+                    const threads = await threadResponse.json();
+                    const existingThread = threads.find(t => t.id === checkData.thread_id);
+                    if (existingThread) {
+                        openThread(existingThread);
+                        // Close the modal properly
+                        modalInstance.hide();
+                        return;
+                    }
+                }
+                
+                // No existing thread, create new one
+                const response = await fetch('api/chat_start.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_id: userId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.thread) {
+                    openThread(data.thread);
+                    // Close the modal properly
+                    modalInstance.hide();
+                } else {
+                    alert('Failed to create chat');
+                }
+            } else {
+                alert('Error checking existing thread');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error creating chat');
+        }
+    }
 });
 </script>
 <script>
