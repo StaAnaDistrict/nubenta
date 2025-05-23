@@ -811,11 +811,115 @@ $user = $_SESSION['user'];
     </div>
 
 <script>
-const stickers = <?= json_encode($sticker_names) ?>;   // now contains all 94 names
-
+const stickers = <?= json_encode($sticker_names) ?>;
 window.me = <?= $user['id'] ?>;
+let currentThread = 0;
 
-let currentThread=0;
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const threadId = urlParams.get('thread');
+    const newChatUserId = urlParams.get('new_chat');
+    const preserveThreadId = urlParams.get('preserve_thread');
+    
+    // Prioritize loading a specific thread if 'thread' parameter exists
+    if (threadId) {
+        console.log('Loading thread from URL parameter:', threadId);
+        // Remove the parameter from URL without reloading
+        const newUrl = window.location.pathname + window.location.search.replace(/[?&]thread=\d+/, '');
+        window.history.replaceState({}, '', newUrl);
+        
+        // Call openThread function with the threadId
+        // Assuming openThread is accessible in this scope
+        if (typeof openThread === 'function') {
+            openThread({ id: parseInt(threadId) }); // openThread likely expects an object with an id
+        } else {
+            console.error('openThread function not found!');
+            alert('Error: Could not load chat thread. Please select a chat manually.');
+        }
+        
+    } else if (newChatUserId) {
+        console.log('Handling new chat from URL parameter:', newChatUserId, 'Preserve thread:', preserveThreadId);
+        // Remove parameters from URL without reloading
+        let newUrl = window.location.pathname + window.location.search.replace(/[?&]new_chat=\d+/, '');
+        if (preserveThreadId) {
+             newUrl = newUrl.replace(/[?&]preserve_thread=\d+/, '');
+        }
+        window.history.replaceState({}, '', newUrl);
+        
+        // Trigger new chat flow
+        const newChatBtn = document.getElementById('btnNew');
+        if (newChatBtn) {
+            // Use a small delay to ensure the modal is ready
+            setTimeout(() => {
+                newChatBtn.click();
+                
+                // After modal opens, trigger user search and selection
+                setTimeout(async () => {
+                    const searchInput = document.querySelector('.user-search-input');
+                    if (searchInput) {
+                        // Get user info
+                        try {
+                            const response = await fetch(`api/get_user_info.php?id=${newChatUserId}`);
+                            const userData = await response.json();
+                            
+                            if (userData.success && userData.user) {
+                                // Set search input value
+                                searchInput.value = userData.user.first_name + ' ' + userData.user.last_name;
+                                
+                                // Trigger search
+                                const event = new Event('input', { bubbles: true });
+                                searchInput.dispatchEvent(event);
+                                
+                                // Wait for search results and select the user
+                                // Pass preserveThreadId if it exists
+                                setTimeout(() => {
+                                    const searchResults = document.querySelector('.user-search-results');
+                                    // Assuming user results have a specific class like 'user-result'
+                                    const userResult = searchResults.querySelector(`.user-search-item[data-user-id="${newChatUserId}"]`); // Assuming results have data-user-id
+                                    if (userResult) {
+                                        // If preserveThreadId exists, call openThread with it
+                                        if (preserveThreadId && typeof openThread === 'function') {
+                                             // Need to simulate clicking the user result and pass preserveThreadId
+                                             // This might require modifying how the user result click handler works
+                                             // or creating a new function to handle this specific case.
+                                             // For now, let's focus on triggering the click and then handling preserve_thread inside openThread
+                                             // Or, perhaps better, modify the openThread call triggered by the click to accept preserveThreadId
+
+                                            // Let's modify the user search result click handler to accept preserveThreadId
+                                            // Or, call openThread directly here with the new user id and preserveThreadId
+                                            console.log('Attempting to start new chat or preserve thread via openThread...');
+                                            if (typeof openThread === 'function') {
+                                                // openThread needs to handle the new_chat and preserve_thread logic
+                                                // Let's assume openThread can handle { id: userId, preserve_thread_id: threadId }
+                                                openThread({ id: parseInt(newChatUserId), preserve_thread_id: preserveThreadId });
+                                            } else {
+                                                console.error('openThread function not found!');
+                                                alert('Error: Could not start new chat.');
+                                            }
+
+                                        } else if (userResult) {
+                                            userResult.click(); // Simulate click if no preserveThreadId
+                                        }
+                                    }
+                                }, 500);
+                            } else {
+                                console.error('Error fetching user data:', userData.error);
+                                alert('Error starting new chat: Could not fetch user information.');
+                            }
+                        } catch (error) {
+                            console.error('Error getting user info for new chat:', error);
+                            alert('Error starting new chat: ' + error.message);
+                        }
+                    }
+                }, 500); // Short delay to allow modal elements to be present
+
+            }, 50); // Short delay to allow modal to open
+        }
+    }
+    
+    // Initial load of threads
+    loadThreads();
+});
 
 /* ------------------------------------------------- */
 /* 1. list threads                                   */

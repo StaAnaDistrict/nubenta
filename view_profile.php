@@ -406,19 +406,44 @@ $isFollowing   = false;  // placeholder
     <script>
     async function startMessage(userId) {
         try {
-            const response = await fetch(`api/get_or_create_thread.php?user_id=${userId}`);
-            const data = await response.json();
+            console.log('Starting message with user ID:', userId);
             
-            if (data.error) {
-                alert(data.error);
-                return;
+            // Check thread status for both users
+            const checkResponse = await fetch(`api/check_thread_status.php?user_id=${userId}`);
+            console.log('Thread status response:', checkResponse);
+            
+            if (!checkResponse.ok) {
+                throw new Error(`HTTP error! status: ${checkResponse.status}`);
             }
             
-            // Redirect to messages.php with the thread ID
-            window.location.href = `messages.php?thread=${data.thread.id}`;
+            const checkData = await checkResponse.json();
+            console.log('Thread status data:', checkData);
+            
+            if (checkData.success) {
+                if (checkData.exists) {
+                    if (!checkData.deleted_by_current_user) {
+                        // Thread exists and wasn't deleted by current user, open it
+                        console.log('Opening existing thread:', checkData.thread_id);
+                        window.location.href = `messages.php?thread=${checkData.thread_id}`;
+                        return;
+                    }
+                    // Thread exists but was deleted by current user
+                    // We'll create a new thread but preserve the old one for the other user
+                    console.log('Creating new thread while preserving:', checkData.thread_id);
+                    window.location.href = `messages.php?new_chat=${userId}&preserve_thread=${checkData.thread_id}`;
+                    return;
+                }
+                
+                // No thread exists, start new chat
+                console.log('Starting new chat with user:', userId);
+                window.location.href = `messages.php?new_chat=${userId}`;
+            } else {
+                console.error('Error in thread status check:', checkData.error);
+                alert('Error checking thread status: ' + (checkData.error || 'Unknown error'));
+            }
         } catch (error) {
             console.error('Error starting message:', error);
-            alert('Error starting message. Please try again.');
+            alert('Error starting message: ' + error.message);
         }
     }
     </script>
