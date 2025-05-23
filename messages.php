@@ -828,14 +828,32 @@ document.addEventListener('DOMContentLoaded', function() {
         const newUrl = window.location.pathname + window.location.search.replace(/[?&]thread=\d+/, '');
         window.history.replaceState({}, '', newUrl);
         
-        // Call openThread function with the threadId
-        // Assuming openThread is accessible in this scope
-        if (typeof openThread === 'function') {
-            openThread({ id: parseInt(threadId) }); // openThread likely expects an object with an id
-        } else {
-            console.error('openThread function not found!');
-            alert('Error: Could not load chat thread. Please select a chat manually.');
-        }
+        // Fetch participant info for the thread and then call openThread
+        fetch(`api/get_thread_participant_info.php?thread_id=${threadId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.participant) {
+                    console.log('Participant info fetched:', data.participant);
+                    // Call openThread function with the threadId and participant info
+                    if (typeof openThread === 'function') {
+                        openThread({ 
+                            id: parseInt(threadId), 
+                            participant_id: data.participant.id,
+                            participant_name: data.participant.name
+                        });
+                    } else {
+                        console.error('openThread function not found!');
+                        alert('Error: Could not load chat thread. Please select a chat manually.');
+                    }
+                } else {
+                    console.error('Error fetching participant info:', data.error);
+                    alert('Error loading chat thread: ' + (data.error || 'Could not fetch participant information.'));
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching participant info:', error);
+                alert('Error loading chat thread: ' + error.message);
+            });
         
     } else if (newChatUserId) {
         console.log('Handling new chat from URL parameter:', newChatUserId, 'Preserve thread:', preserveThreadId);
@@ -917,8 +935,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Initial load of threads
-    loadThreads();
+    // Initial load of threads (only if no threadId or newChatUserId)
+    if (!threadId && !newChatUserId) {
+       loadThreads();
+    }
 });
 
 /* ------------------------------------------------- */

@@ -142,7 +142,7 @@ $friends = $friends_stmt->fetchAll();
             border-color: #1a1a1a;
         }
         .friend-card .btn-primary:hover {
-            background-color: #333;
+            background-color:#afafaf;
             border-color: #333;
         }
         .friend-card .btn-outline-primary {
@@ -150,7 +150,7 @@ $friends = $friends_stmt->fetchAll();
             border-color: #1a1a1a;
         }
         .friend-card .btn-outline-primary:hover {
-            background-color: #1a1a1a;
+            background-color: #afafaf;
             border-color: #1a1a1a;
         }
         .friend-card .btn-outline-danger {
@@ -158,7 +158,7 @@ $friends = $friends_stmt->fetchAll();
             border-color: #1a1a1a;
         }
         .friend-card .btn-outline-danger:hover {
-            background-color: #1a1a1a;
+            background-color: #afafaf;
             border-color: #1a1a1a;
         }
         .friend-card .btn-outline-secondary {
@@ -166,7 +166,7 @@ $friends = $friends_stmt->fetchAll();
             border-color: #1a1a1a;
         }
         .friend-card .btn-outline-secondary:hover {
-            background-color: #1a1a1a;
+            background-color: #afafaf;
             border-color: #1a1a1a;
         }
 
@@ -198,7 +198,7 @@ $friends = $friends_stmt->fetchAll();
         <!-- Main Content -->
         <main class="main-content">
             <!-- Friend Requests Section -->
-            <h2 class="section-title">Friend Requests</h2>
+            <h2 class="section-title">Friend Connectivity Requests</h2>
   <?php if (count($incoming_requests) > 0): ?>
                 <div class="row">
       <?php foreach ($incoming_requests as $req): ?>
@@ -229,11 +229,11 @@ $friends = $friends_stmt->fetchAll();
       <?php endforeach; ?>
                 </div>
   <?php else: ?>
-                <p class="text-muted">No pending friend requests.</p>
+                <p class="text-muted">No pending connectivity requests.</p>
   <?php endif; ?>
 
             <!-- My Friends Section -->
-            <h2 class="section-title">My Friends</h2>
+            <h2 class="section-title">My Connections</h2>
   <?php if (count($friends) > 0): ?>
                 <div class="row">
       <?php foreach ($friends as $friend): ?>
@@ -252,7 +252,7 @@ $friends = $friends_stmt->fetchAll();
                                             </a>
                                         </h5>
                                         <div class="friend-actions">
-                                            <button class="btn btn-outline-primary btn-sm">Message</button>
+                                            <button class="btn btn-outline-primary btn-sm" onclick="startMessage(<?= $friend['id'] ?>)">Message</button>
                                             <button class="btn btn-outline-danger btn-sm unfriend-btn" 
                                                     data-id="<?= $friend['id'] ?>">Unfriend</button>
                                         </div>
@@ -267,7 +267,7 @@ $friends = $friends_stmt->fetchAll();
   <?php endif; ?>
 
             <!-- Suggested Friends Section -->
-            <h2 class="section-title">Suggested Friends</h2>
+            <h2 class="section-title">Suggested Connectivity - Friends</h2>
             <?php if (count($suggested_friends) > 0): ?>
                 <div class="row">
                     <?php foreach ($suggested_friends as $suggested): ?>
@@ -405,6 +405,51 @@ $friends = $friends_stmt->fetchAll();
             sidebar.classList.remove('show');
         }
     });
+    </script>
+
+    <script>
+    async function startMessage(userId) {
+        try {
+            console.log('Starting message with user ID:', userId);
+
+            // Check thread status for both users
+            const checkResponse = await fetch(`api/check_thread_status.php?user_id=${userId}`);
+            console.log('Thread status response:', checkResponse);
+
+            if (!checkResponse.ok) {
+                throw new Error(`HTTP error! status: ${checkResponse.status}`);
+            }
+
+            const checkData = await checkResponse.json();
+            console.log('Thread status data:', checkData);
+
+            if (checkData.success) {
+                if (checkData.exists) {
+                    if (!checkData.deleted_by_current_user) {
+                        // Thread exists and wasn't deleted by current user, open it
+                        console.log('Opening existing thread:', checkData.thread_id);
+                        window.location.href = `messages.php?thread=${checkData.thread_id}`;
+                        return;
+                    }
+                    // Thread exists but was deleted by current user
+                    // We'll create a new thread but preserve the old one for the other user
+                    console.log('Creating new thread while preserving:', checkData.thread_id);
+                    window.location.href = `messages.php?new_chat=${userId}&preserve_thread=${checkData.thread_id}`;
+                    return;
+                }
+
+                // No thread exists, start new chat
+                console.log('Starting new chat with user:', userId);
+                window.location.href = `messages.php?new_chat=${userId}`;
+            } else {
+                console.error('Error in thread status check:', checkData.error);
+                alert('Error checking thread status: ' + (checkData.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error starting message:', error);
+            alert('Error starting message: ' + error.message);
+        }
+    }
     </script>
 </body>
 </html>

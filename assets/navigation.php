@@ -38,7 +38,7 @@ if ($currentUser) {
         </a></li>
         <li>
             <a href="friends.php">
-                <i class="fas fa-user-friends"></i> Friend Requests
+                <i class="fas fa-user-friends"></i> Connections
                 <?php if ($pending_requests > 0): ?>
                     <span class="notification-badge"><?= $pending_requests ?></span>
                 <?php endif; ?>
