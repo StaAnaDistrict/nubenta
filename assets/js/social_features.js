@@ -3,7 +3,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize reaction system
   if (window.ReactionSystem) {
     console.log("Initializing ReactionSystem from social_features.js");
-    ReactionSystem.init();
+    window.ReactionSystem.init().catch(error => {
+      console.error("Error initializing ReactionSystem from social_features.js:", error);
+    });
   }
   
   // Initialize comment system
@@ -23,22 +25,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const postId = this.getAttribute('data-post-id');
         Utils.deletePost(postId);
       }
-    });
-  });
-  
-  // Set up admin remove post buttons
-  document.querySelectorAll('.post-remove-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const postId = this.getAttribute('data-post-id');
-      Utils.openRemoveDialog(postId);
-    });
-  });
-  
-  // Set up admin flag post buttons
-  document.querySelectorAll('.post-flag-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const postId = this.getAttribute('data-post-id');
-      Utils.openFlagDialog(postId);
     });
   });
 });

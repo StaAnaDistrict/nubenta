@@ -6,6 +6,7 @@
   overflow: hidden;
   border: 2px solid #e0e0e0;
   flex-shrink: 0;
+  display: inline-block;
 }
 
 .profile-pic-container-sm {
@@ -15,6 +16,7 @@
   overflow: hidden;
   border: 2px solid #e0e0e0;
   flex-shrink: 0;
+  display: inline-block;
 }
 
 .profile-pic {
@@ -22,6 +24,47 @@
   height: 100%;
   object-fit: cover;
   object-position: center;
+}
+
+/* Post header styling */
+.post-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.post-info {
+  margin-left: 10px;
+  flex-grow: 1;
+}
+
+.post-author {
+  font-weight: 600;
+  margin-bottom: 0;
+  font-size: 16px;
+}
+
+.post-date {
+  font-size: 12px;
+  color: #65676b;
+  margin-bottom: 0;
+}
+
+/* Post content */
+.post-content {
+  margin-bottom: 15px;
+  width: 100%;
+}
+
+.post-content p {
+  margin-bottom: 10px;
+}
+
+/* Post media */
+.post-media {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 10px;
 }
 
 /* Reaction system */
@@ -344,65 +387,73 @@
   border-color: #fff;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .share-modal-content {
-    width: 95%;
-    max-width: none;
-  }
-  
-  .reaction-picker {
-    position: fixed;
-    bottom: auto;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    margin-bottom: 0;
-  }
-  
-  .comment-form {
-    flex-direction: column;
-  }
-  
-  .comment-input {
-    margin-bottom: 10px;
-  }
-  
-  .comment-submit-btn {
-    align-self: flex-end;
-  }
+/* Post styling */
+.post {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  margin-bottom: 20px;
 }
 
-@media (max-width: 576px) {
+.post-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+}
+
+.visibility-badge {
+  display: inline-block;
+  background-color: #f0f2f5;
+  color: #65676b;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 5px;
+}
+
+/* Reaction picker styling */
+#reaction-picker {
+  background-color: #242526;
+  border-radius: 30px;
+  box-shadow: 0 2px 15px rgba(0,0,0,0.3);
+  padding: 8px 12px;
+}
+
+.reaction-option {
+  width: 36px;
+  height: 36px;
+  margin: 0 4px;
+  cursor: pointer;
+  transition: transform 0.15s ease-out;
+}
+
+.reaction-option:hover {
+  transform: scale(1.3);
+}
+
+.reaction-option img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Media queries for responsive design */
+@media (max-width: 768px) {
+  .post-actions {
+    justify-content: space-between;
+  }
+  
+  .post-action-btn {
+    flex: 1;
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  
   .profile-pic-container {
     width: 40px;
     height: 40px;
-  }
-  
-  .profile-pic-container-sm {
-    width: 32px;
-    height: 32px;
-  }
-  
-  .reaction-option {
-    width: 28px;
-    height: 28px;
-    margin: 0 3px;
-  }
-  
-  .reaction-icon {
-    width: 20px;
-    height: 20px;
-  }
-  
-  .user-pic {
-    width: 24px;
-    height: 24px;
-  }
-  
-  .share-modal-header,
-  .share-modal-body,
-  .share-modal-footer {
-    padding: 10px;
   }
 }

@@ -1,40 +1,25 @@
-// Reaction initialization script
+/**
+ * Reaction System Initialization
+ * This script ensures the reaction system is properly initialized
+ */
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('Reaction init: DOM loaded');
-  
-  // Add test button for reaction picker
-  function addReactionTestButton() {
-    console.log('Adding reaction test button');
-    const testButton = document.getElementById('test-reaction-picker');
-    if (!testButton) {
-      const newTestButton = document.createElement('button');
-      newTestButton.id = 'test-reaction-picker';
-      newTestButton.className = 'btn btn-sm btn-secondary';
-      newTestButton.textContent = 'Test Reaction Picker';
-      newTestButton.style.position = 'fixed';
-      newTestButton.style.bottom = '20px';
-      newTestButton.style.right = '20px';
-      newTestButton.style.zIndex = '9999';
-      document.body.appendChild(newTestButton);
-      
-      newTestButton.addEventListener('click', function() {
-        console.log('Test reaction picker button clicked');
-        if (window.ReactionSystem && ReactionSystem.testReactionPicker) {
-          ReactionSystem.testReactionPicker();
-        } else {
-          console.error('ReactionSystem not available');
-        }
-      });
-    }
-  }
+  console.log('Reaction Init: DOMContentLoaded fired');
   
   // Initialize reaction system after posts are loaded
   function initReactionSystem() {
-    console.log('Initializing reaction system');
+    console.log('Checking if reaction system needs initialization');
+    
+    // Skip initialization if ReactionSystem is already initialized
+    if (window.ReactionSystem && window.ReactionSystem.initialized) {
+      console.log('ReactionSystem already initialized, skipping');
+      return;
+    }
+    
     if (window.ReactionSystem) {
       console.log('ReactionSystem found, initializing');
-      ReactionSystem.init();
-      addReactionTestButton();
+      window.ReactionSystem.init().catch(error => {
+        console.error("Error initializing ReactionSystem from reaction-init.js:", error);
+      });
     } else {
       console.error('ReactionSystem not found, trying to load it');
       const script = document.createElement('script');
@@ -42,8 +27,9 @@ document.addEventListener('DOMContentLoaded', function() {
       script.onload = function() {
         console.log('ReactionSystem loaded dynamically');
         if (window.ReactionSystem) {
-          ReactionSystem.init();
-          addReactionTestButton();
+          window.ReactionSystem.init().catch(error => {
+            console.error("Error initializing dynamically loaded ReactionSystem:", error);
+          });
         }
       };
       document.head.appendChild(script);
@@ -55,6 +41,10 @@ document.addEventListener('DOMContentLoaded', function() {
     loadNewsfeed().then(() => {
       console.log('Newsfeed loaded, initializing reaction system');
       initReactionSystem();
+    }).catch(error => {
+      console.error("Error loading newsfeed:", error);
+      // Try to initialize anyway
+      initReactionSystem();
     });
   } else {
     // If loadNewsfeed isn't available yet, wait a bit and try again
@@ -62,6 +52,10 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.loadNewsfeed) {
         loadNewsfeed().then(() => {
           console.log('Delayed newsfeed loaded, initializing reaction system');
+          initReactionSystem();
+        }).catch(error => {
+          console.error("Error loading delayed newsfeed:", error);
+          // Try to initialize anyway
           initReactionSystem();
         });
       } else {

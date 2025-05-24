@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (previewContainer) {
         previewContainer.innerHTML = '';
         
-        if (this.files.length > 0) {
+        if (this.files && this.files.length > 0) {
           for (let i = 0; i < this.files.length; i++) {
             const file = this.files[i];
             const reader = new FileReader();
@@ -20,9 +20,9 @@ document.addEventListener('DOMContentLoaded', function() {
               preview.className = 'media-preview';
               
               if (file.type.startsWith('image/')) {
-                preview.innerHTML = `<img src="${e.target.result}" alt="Preview" class="img-thumbnail me-2 mb-2" style="max-width: 100px; max-height: 100px;">`;
+                preview.innerHTML = `<img src="${e.target.result}" class="img-thumbnail me-2 mb-2" style="max-height: 100px;">`;
               } else if (file.type === 'video/mp4') {
-                preview.innerHTML = `<video class="img-thumbnail me-2 mb-2" style="max-width: 100px; max-height: 100px;" controls><source src="${e.target.result}" type="video/mp4"></video>`;
+                preview.innerHTML = `<video class="img-thumbnail me-2 mb-2" style="max-height: 100px;"><source src="${e.target.result}" type="video/mp4"></video>`;
               }
               
               previewContainer.appendChild(preview);
@@ -42,13 +42,29 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Load newsfeed
   if (window.loadNewsfeed) {
-    loadNewsfeed();
+    loadNewsfeed().then(() => {
+      // Initialize reaction system after posts are loaded
+      if (window.ReactionSystem) {
+        console.log('Initializing ReactionSystem after newsfeed load');
+        window.ReactionSystem.init().then(() => {
+          window.ReactionSystem.loadReactionsForVisiblePosts();
+        }).catch(error => {
+          console.error("Error initializing ReactionSystem after newsfeed load:", error);
+        });
+      }
+    }).catch(error => {
+      console.error("Error loading newsfeed:", error);
+    });
+  } else {
+    console.error('loadNewsfeed function not found');
   }
   
   // Initialize social features
   if (window.ReactionSystem) {
     console.log('Initializing ReactionSystem from dashboard-init.js');
-    ReactionSystem.init();
+    window.ReactionSystem.init().catch(error => {
+      console.error("Error initializing ReactionSystem from dashboard-init.js:", error);
+    });
   }
   
   if (window.CommentSystem) {
