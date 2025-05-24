@@ -232,9 +232,40 @@ header {
 .post-actions {
   display: flex;
   flex-wrap: wrap;
+  margin-top: 10px;
   gap: 5px;
-  padding-top: 10px;
-  border-top: 1px solid #eee;
+}
+
+.post-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.post-actions button i {
+  margin-right: 5px;
+}
+
+.post-actions .btn-outline-secondary:hover {
+  background-color: #f0f2f5;
+  color: #1877f2;
+  border-color: #f0f2f5;
+}
+
+.post-actions .btn-outline-danger:hover {
+  background-color: #ffebee;
+  color: #d32f2f;
+  border-color: #ffebee;
+}
+
+.post-actions .btn-outline-warning:hover {
+  background-color: #fff8e1;
+  color: #ffa000;
+  border-color: #fff8e1;
 }
 
 .post-action-btn {

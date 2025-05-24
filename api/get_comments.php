@@ -60,21 +60,53 @@ try {
         ? 'uploads/profile_pics/' . htmlspecialchars($comment['profile_pic']) 
         : ($comment['gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
     
+    // Get replies for this comment
+    $repliesStmt = $pdo->prepare("
+      SELECT cr.*, 
+             CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
+             u.profile_pic,
+             u.gender
+      FROM comment_replies cr
+      JOIN users u ON cr.user_id = u.id
+      WHERE cr.comment_id = ?
+      ORDER BY cr.created_at ASC
+    ");
+    $repliesStmt->execute([$comment['id']]);
+    $replies = $repliesStmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Format replies
+    $formatted_replies = [];
+    foreach ($replies as $reply) {
+      $replyProfilePic = !empty($reply['profile_pic']) 
+          ? 'uploads/profile_pics/' . htmlspecialchars($reply['profile_pic']) 
+          : ($reply['gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
+      
+      $formatted_replies[] = [
+        'id' => $reply['id'],
+        'content' => htmlspecialchars($reply['content']),
+        'author' => htmlspecialchars($reply['author_name']),
+        'profile_pic' => $replyProfilePic,
+        'created_at' => $reply['created_at'],
+        'is_own_reply' => ($reply['user_id'] == $user_id)
+      ];
+    }
+    
     $formatted_comments[] = [
       'id' => $comment['id'],
       'content' => htmlspecialchars($comment['content']),
       'author' => htmlspecialchars($comment['author_name']),
       'profile_pic' => $profilePic,
       'created_at' => $comment['created_at'],
-      'is_own_comment' => ($comment['user_id'] == $user_id)
+      'is_own_comment' => ($comment['user_id'] == $user_id),
+      'replies' => $formatted_replies,
+      'reply_count' => count($formatted_replies)
     ];
   }
   
   header('Content-Type: application/json');
   echo json_encode([
-    'success' => true, 
-    'comments' => $formatted_comments,
-    'count' => count($formatted_comments)
+    'success' => true,
+    'comments' => $formatted_comments
   ]);
   
 } catch (Exception $e) {

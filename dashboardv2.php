@@ -36,6 +36,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <link rel="stylesheet" href="assets/css/dashboard_style.css">
     <link rel="stylesheet" href="assets/css/reactions.css">
     <link rel="stylesheet" href="assets/css/simple-reactions.css">
+    <link rel="stylesheet" href="assets/css/comments.css">
     <script>
         // Set global variables for JavaScript modules
         window.isAdmin = <?php echo (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin') ? 'true' : 'false'; ?>;
@@ -197,27 +198,27 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
                             ${post.media && !post.is_removed ? renderPostMedia(post.media, post.is_flagged) : ''}
                         </div>
-                        <div class="post-actions">
-                            <button class="btn btn-sm post-react-btn" data-post-id="${post.id}">
-                                <i class="far fa-smile"></i> React
+                        <div class="post-actions d-flex mt-3">
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}">
+                                <i class="far fa-smile me-1"></i> React
                             </button>
-                            <button class="btn btn-sm post-comment-btn" data-post-id="${post.id}">
-                                <i class="far fa-comment"></i> Comment
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
+                                <i class="far fa-comment me-1"></i> <span class="comment-text">Comment</span> <span class="comment-count-badge"></span>
                             </button>
-                            <button class="btn btn-sm post-share-btn" data-post-id="${post.id}">
-                                <i class="far fa-share-square"></i> Share
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}">
+                                <i class="far fa-share-square me-1"></i> Share
                             </button>
                             ${post.is_own_post ? `
-                                <button class="btn btn-sm post-delete-btn" data-post-id="${post.id}">
-                                    <i class="far fa-trash-alt"></i> Delete
+                                <button class="btn btn-sm btn-outline-danger me-2 post-delete-btn" data-post-id="${post.id}">
+                                    <i class="far fa-trash-alt me-1"></i> Delete
                                 </button>
                             ` : ''}
                             ${isAdmin ? `
-                                <button class="btn btn-sm post-admin-remove-btn" data-post-id="${post.id}">
-                                    <i class="fas fa-trash"></i> Remove
+                                <button class="btn btn-sm btn-outline-danger me-2 post-admin-remove-btn" data-post-id="${post.id}">
+                                    <i class="fas fa-trash me-1"></i> Remove
                                 </button>
-                                <button class="btn btn-sm post-admin-flag-btn" data-post-id="${post.id}">
-                                    <i class="fas fa-flag"></i> Flag
+                                <button class="btn btn-sm btn-outline-warning post-admin-flag-btn" data-post-id="${post.id}">
+                                    <i class="fas fa-flag me-1"></i> Flag
                                 </button>
                             ` : ''}
                         </div>
@@ -234,17 +235,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 if (window.ReactionSystem) {
                     console.log("Loading reactions for visible posts");
                     try {
-                        // ONLY load reactions, don't initialize the system again
                         await window.ReactionSystem.loadReactionsForVisiblePosts();
                     } catch (error) {
                         console.error("Error loading reactions for visible posts:", error);
                     }
-                }
-                
-                // Initialize share system for the newly loaded posts
-                if (window.ShareSystem) {
-                    console.log("Initializing ShareSystem after posts are loaded");
-                    ShareSystem.init();
                 }
                 
                 // Load comment counts for all posts
@@ -270,14 +264,20 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
     // Set up event listeners for post actions
     function setupPostActionListeners() {
-        // Comment button
+        // First, remove any existing event listeners to prevent duplicates
+        document.querySelectorAll('.post-comment-btn').forEach(btn => {
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+        });
+        
+        // Now add fresh event listeners
         document.querySelectorAll('.post-comment-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const postId = this.getAttribute('data-post-id');
                 console.log("Comment button clicked for post:", postId);
                 
-                if (window.CommentSystem) {
-                    CommentSystem.toggleCommentForm(postId);
+                if (window.CommentSystem && typeof window.CommentSystem.toggleCommentForm === 'function') {
+                    window.CommentSystem.toggleCommentForm(postId);
                 } else {
                     // Fallback to inline implementation
                     toggleCommentForm(postId);
@@ -306,7 +306,8 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     // Function to load comment count for a post
     async function loadCommentCount(postId) {
         try {
-            const response = await fetch(`api/get_comments.php?post_id=${postId}&count_only=1`);
+            console.log(`Loading comment count for post ${postId}`);
+            const response = await fetch(`api/get_comment_count.php?post_id=${postId}`);
             if (!response.ok) {
                 throw new Error('Network response was not ok');
             }
@@ -314,15 +315,16 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             const data = await response.json();
             
             if (data.success) {
-                // Find the comment count element
+                const count = data.count;
                 const commentBtn = document.querySelector(`.post-comment-btn[data-post-id="${postId}"]`);
+                
                 if (commentBtn) {
-                    const countSpan = commentBtn.querySelector('.comment-count');
-                    if (countSpan) {
-                        if (data.count > 0) {
-                            countSpan.textContent = `(${data.count})`;
+                    const countBadge = commentBtn.querySelector('.comment-count-badge');
+                    if (countBadge) {
+                        if (count > 0) {
+                            countBadge.textContent = `(${count})`;
                         } else {
-                            countSpan.textContent = '';
+                            countBadge.textContent = '';
                         }
                     }
                 }
@@ -334,61 +336,355 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
     // Function to toggle comment form
     function toggleCommentForm(postId) {
-        const commentsContainer = document.getElementById(`comments-container-${postId}`);
-        const commentForm = commentsContainer.querySelector('.comment-form');
+        // Find the post element
+        const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
         
-        if (commentsContainer.style.display === 'none') {
-            commentsContainer.style.display = 'block';
-            commentForm.style.display = 'block';
-            
-            // Load existing comments
-            loadComments(postId);
-        } else {
-            commentsContainer.style.display = 'none';
-            commentForm.style.display = 'none';
+        if (!postElement) {
+            console.error(`Post element not found for ID: ${postId}`);
+            return;
         }
+        
+        // Check if comments section already exists
+        let commentsSection = postElement.querySelector('.comments-section');
+        
+        if (commentsSection) {
+            // Toggle visibility
+            if (commentsSection.classList.contains('d-none')) {
+                commentsSection.classList.remove('d-none');
+            } else {
+                commentsSection.classList.add('d-none');
+            }
+            return;
+        }
+        
+        // Create comments section if it doesn't exist
+        commentsSection = document.createElement('div');
+        commentsSection.className = 'comments-section mt-3';
+        
+        commentsSection.innerHTML = `
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3 text-muted">Comments</h6>
+                    
+                    <!-- Comments container -->
+                    <div class="comments-container" data-post-id="${postId}">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <span class="ms-2">Loading comments...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Comment form -->
+                    <form class="comment-form mt-3" data-post-id="${postId}">
+                        <div class="input-group">
+                            <input type="text" class="form-control comment-input" placeholder="Write a comment...">
+                            <button type="submit" class="btn btn-primary">Post</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        
+        // Add after post actions
+        const postActions = postElement.querySelector('.post-actions');
+        if (!postActions) {
+            console.error(`Post actions element not found for post ID: ${postId}`);
+            return;
+        }
+        
+        postActions.after(commentsSection);
+        
+        // Add event listener for comment form submission
+        // First, remove any existing event listeners to prevent duplicates
+        const commentForm = commentsSection.querySelector('.comment-form');
+        const newCommentForm = commentForm.cloneNode(true);
+        commentForm.parentNode.replaceChild(newCommentForm, commentForm);
+        
+        // Now add the event listener to the fresh form
+        newCommentForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            console.log('Comment form submitted');
+            
+            const commentInput = this.querySelector('.comment-input');
+            const commentContent = commentInput.value.trim();
+            
+            if (!commentContent) return;
+            
+            // Disable the submit button to prevent multiple submissions
+            const submitButton = this.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            
+            try {
+                console.log(`Submitting comment for post ${postId}: ${commentContent}`);
+                
+                const formData = new FormData();
+                formData.append('post_id', postId);
+                formData.append('content', commentContent);
+                
+                const response = await fetch('api/post_comment.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Comment submission response:', data);
+                
+                if (data.success) {
+                    // Clear input
+                    commentInput.value = '';
+                    
+                    // Reload comments
+                    loadComments(postId, commentsSection.querySelector('.comments-container'));
+                    
+                    // Update comment count
+                    loadCommentCount(postId);
+                } else {
+                    alert('Error posting comment: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while posting your comment.');
+            } finally {
+                // Re-enable the submit button
+                submitButton.disabled = false;
+            }
+        });
+        
+        // Load existing comments
+        loadComments(postId, commentsSection.querySelector('.comments-container'));
     }
 
     // Function to load comments for a post
-    async function loadComments(postId) {
+    async function loadComments(postId, commentsContainer) {
         try {
+            console.log(`Loading comments for post ${postId}`);
+            
+            if (!commentsContainer) {
+                commentsContainer = document.querySelector(`.comments-container[data-post-id="${postId}"]`);
+                if (!commentsContainer) {
+                    console.error(`Comments container not found for post ID: ${postId}`);
+                    return;
+                }
+            }
+            
+            // Show loading indicator
+            commentsContainer.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <span class="ms-2">Loading comments...</span>
+                </div>
+            `;
+            
             const response = await fetch(`api/get_comments.php?post_id=${postId}`);
+            
             if (!response.ok) {
                 throw new Error('Network response was not ok');
             }
             
             const data = await response.json();
-            
-            const commentsContainer = document.getElementById(`comments-container-${postId}`);
-            const commentsList = commentsContainer.querySelector('.comments-list');
+            console.log('Comments data:', data);
             
             if (data.success && data.comments) {
-                commentsList.innerHTML = '';
+                commentsContainer.innerHTML = '';
+                
+                if (data.comments.length === 0) {
+                    commentsContainer.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+                    return;
+                }
                 
                 data.comments.forEach(comment => {
                     const commentElement = document.createElement('div');
-                    commentElement.className = 'comment';
+                    commentElement.className = 'comment mb-3';
+                    commentElement.dataset.commentId = comment.id;
+                    
+                    // Format the date
+                    const commentDate = new Date(comment.created_at);
+                    const formattedDate = commentDate.toLocaleString();
+                    
+                    // Create the comment HTML
                     commentElement.innerHTML = `
-                        <div class="comment-header">
-                            <img src="${comment.profile_pic}" alt="Profile" class="comment-profile-pic">
-                            <div>
-                                <p class="comment-author mb-0">${comment.author}</p>
-                                <small class="text-muted">${new Date(comment.created_at).toLocaleString()}</small>
+                        <div class="d-flex">
+                            <img src="${comment.profile_pic || 'assets/images/default-profile.png'}" alt="${comment.author}" class="rounded-circle me-2" width="32" height="32">
+                            <div class="comment-content flex-grow-1">
+                                <div class="comment-bubble p-2 rounded">
+                                    <div class="fw-bold">${comment.author}</div>
+                                    <div>${comment.content}</div>
+                                </div>
+                                <div class="comment-actions mt-1">
+                                    <small class="text-muted">${formattedDate}</small>
+                                    <button class="btn btn-sm text-primary reply-button" data-comment-id="${comment.id}">Reply</button>
+                                    ${comment.is_own_comment ? '<button class="btn btn-sm text-danger delete-comment-button" data-comment-id="' + comment.id + '">Delete</button>' : ''}
+                                </div>
+                                
+                                <!-- Replies container -->
+                                <div class="replies-container mt-2">
+                                    ${comment.replies && comment.replies.length > 0 ? 
+                                        comment.replies.map(reply => {
+                                            const replyDate = new Date(reply.created_at);
+                                            const formattedReplyDate = replyDate.toLocaleString();
+                                            
+                                            return `
+                                                <div class="reply d-flex mt-2" data-reply-id="${reply.id}">
+                                                    <img src="${reply.profile_pic || 'assets/images/default-profile.png'}" alt="${reply.author}" class="rounded-circle me-2" width="24" height="24">
+                                                    <div class="reply-content flex-grow-1">
+                                                        <div class="reply-bubble p-2 rounded">
+                                                            <div class="fw-bold">${reply.author}</div>
+                                                            <div>${reply.content}</div>
+                                                        </div>
+                                                        <div class="reply-actions mt-1">
+                                                            <small class="text-muted">${formattedReplyDate}</small>
+                                                            ${reply.is_own_reply ? '<button class="btn btn-sm text-danger delete-reply-button" data-reply-id="' + reply.id + '">Delete</button>' : ''}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }).join('') 
+                                        : ''}
+                                </div>
+                                
+                                <!-- Reply form -->
+                                <form class="reply-form mt-2 d-none" data-comment-id="${comment.id}">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control reply-input" placeholder="Write a reply...">
+                                        <button type="submit" class="btn btn-primary btn-sm">Reply</button>
+                                    </div>
+                                </form>
                             </div>
-                        </div>
-                        <div class="comment-content">
-                            <p>${comment.content}</p>
                         </div>
                     `;
                     
-                    commentsList.appendChild(commentElement);
+                    commentsContainer.appendChild(commentElement);
                 });
+                
+                // Add event listeners for reply buttons and forms
+                setupCommentInteractions(commentsContainer, postId);
+                
             } else {
-                commentsList.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+                commentsContainer.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
             }
         } catch (error) {
             console.error(`Error loading comments for post ${postId}:`, error);
+            if (commentsContainer) {
+                commentsContainer.innerHTML = `<div class="alert alert-danger">Error loading comments: ${error.message}</div>`;
+            }
         }
+    }
+
+    // Function to set up comment interactions (reply buttons, forms, etc.)
+    function setupCommentInteractions(commentsContainer, postId) {
+        // Add event listeners for reply buttons
+        commentsContainer.querySelectorAll('.reply-button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const commentId = this.dataset.commentId;
+                const replyForm = commentsContainer.querySelector(`.reply-form[data-comment-id="${commentId}"]`);
+                
+                if (replyForm) {
+                    // Toggle visibility
+                    replyForm.classList.toggle('d-none');
+                    if (!replyForm.classList.contains('d-none')) {
+                        replyForm.querySelector('.reply-input').focus();
+                    }
+                }
+            });
+        });
+        
+        // Add event listeners for reply forms
+        commentsContainer.querySelectorAll('.reply-form').forEach(form => {
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const commentId = this.dataset.commentId;
+                const replyInput = this.querySelector('.reply-input');
+                const replyContent = replyInput.value.trim();
+                
+                if (!replyContent) return;
+                
+                // Disable submit button
+                const submitButton = this.querySelector('button[type="submit"]');
+                submitButton.disabled = true;
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('comment_id', commentId);
+                    formData.append('content', replyContent);
+                    
+                    const response = await fetch('api/post_comment_reply.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Clear input
+                        replyInput.value = '';
+                        
+                        // Hide form
+                        this.classList.add('d-none');
+                        
+                        // Reload comments to show the new reply
+                        loadComments(postId, commentsContainer);
+                    } else {
+                        alert('Error posting reply: ' + data.error);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while posting your reply.');
+                } finally {
+                    // Re-enable submit button
+                    submitButton.disabled = false;
+                }
+            });
+        });
+        
+        // Add event listeners for delete buttons
+        commentsContainer.querySelectorAll('.delete-comment-button').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                if (!confirm('Are you sure you want to delete this comment?')) return;
+                
+                const commentId = this.dataset.commentId;
+                
+                try {
+                    const response = await fetch('api/delete_comment.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `comment_id=${commentId}`
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Remove comment from UI
+                        const commentElement = commentsContainer.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                        if (commentElement) {
+                            commentElement.remove();
+                        }
+                        
+                        // Update comment count
+                        loadCommentCount(postId);
+                        
+                        // If no comments left, show message
+                        if (commentsContainer.querySelectorAll('.comment').length === 0) {
+                            commentsContainer.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+                        }
+                    } else {
+                        alert('Error deleting comment: ' + data.error);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while deleting your comment.');
+                }
+            });
+        });
     }
     </script>
     <script>
@@ -417,6 +713,33 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
       document.addEventListener('DOMContentLoaded', function() {
         // Any dashboard-specific initialization can go here
         console.log('Dashboard v2 loaded');
+        
+        // Initialize comment system - but only once
+        if (window.CommentSystem && !window.commentSystemInitialized) {
+          window.CommentSystem.init();
+          window.commentSystemInitialized = true;
+        }
+        
+        // Remove any existing event listeners to prevent duplicates
+        document.querySelectorAll('.post-comment-btn').forEach(btn => {
+          const newBtn = btn.cloneNode(true);
+          btn.parentNode.replaceChild(newBtn, btn);
+        });
+        
+        // Add event listeners for comment buttons
+        document.querySelectorAll('.post-comment-btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const postId = this.getAttribute('data-post-id');
+            console.log("Comment button clicked for post:", postId);
+            
+            if (window.CommentSystem && typeof window.CommentSystem.toggleCommentForm === 'function') {
+              window.CommentSystem.toggleCommentForm(postId);
+            } else {
+              // Fallback to inline implementation
+              toggleCommentForm(postId);
+            }
+          });
+        });
       });
     </script>
 </body>

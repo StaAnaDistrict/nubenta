@@ -1,0 +1,33 @@
+<div class="post card mb-3" data-post-id="${post.id}">
+  <div class="card-body">
+    <!-- Post header -->
+    <div class="d-flex align-items-center mb-3">
+      <img src="${post.author_profile_pic}" alt="${post.author}" class="rounded-circle me-2" width="40" height="40">
+      <div>
+        <h6 class="mb-0">${post.author}</h6>
+        <small class="text-muted">${formattedDate}</small>
+      </div>
+    </div>
+    
+    <!-- Post content -->
+    <div class="post-content mb-3">
+      <p>${post.content}</p>
+      ${post.media ? `<img src="${post.media}" class="img-fluid rounded mb-2" alt="Post image">` : ''}
+    </div>
+    
+    <!-- Post actions -->
+    <div class="post-actions d-flex">
+      <button class="btn btn-sm me-2 post-react-btn" data-post-id="${post.id}">
+        <i class="far fa-smile"></i> React
+      </button>
+      <button class="btn btn-sm me-2 post-comment-btn" data-post-id="${post.id}">
+        <i class="far fa-comment"></i> <span class="comment-count" data-post-id="${post.id}">Comment</span>
+      </button>
+      <button class="btn btn-sm post-share-btn" data-post-id="${post.id}">
+        <i class="far fa-share-square"></i> Share
+      </button>
+    </div>
+    
+    <!-- Comments section will be dynamically added here -->
+  </div>
+</div>

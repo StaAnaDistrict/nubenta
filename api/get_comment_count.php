@@ -2,37 +2,36 @@
 session_start();
 require_once '../db.php';
 
-// Check if user is logged in
+header('Content-Type: application/json');
+
 if (!isset($_SESSION['user'])) {
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'error' => 'Not authenticated']);
-  exit();
+    echo json_encode(['success' => false, 'error' => 'Not logged in']);
+    exit;
 }
 
-// Get post ID from query string
-if (!isset($_GET['post_id'])) {
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'error' => 'Post ID is required']);
-  exit();
-}
+$post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 0;
 
-$post_id = intval($_GET['post_id']);
-$user_id = $_SESSION['user']['id'];
+if ($post_id <= 0) {
+    echo json_encode(['success' => false, 'error' => 'Invalid post ID']);
+    exit;
+}
 
 try {
-  // Get comment count for the post
-  $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM comments WHERE post_id = ?");
-  $stmt->execute([$post_id]);
-  $result = $stmt->fetch(PDO::FETCH_ASSOC);
-  
-  header('Content-Type: application/json');
-  echo json_encode([
-    'success' => true,
-    'count' => intval($result['count'])
-  ]);
-  
-} catch (Exception $e) {
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    // Get comment count for the post
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count
+        FROM comments
+        WHERE post_id = ?
+    ");
+    $stmt->execute([$post_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    echo json_encode([
+        'success' => true,
+        'count' => intval($result['count'])
+    ]);
+} catch (PDOException $e) {
+    error_log("Error in get_comment_count.php: " . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Database error']);
 }
 ?>

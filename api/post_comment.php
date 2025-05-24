@@ -9,20 +9,30 @@ if (!isset($_SESSION['user'])) {
   exit();
 }
 
-// Get JSON data
-$data = json_decode(file_get_contents('php://input'), true);
+// Get data from request
 $user = $_SESSION['user'];
 $user_id = $user['id'];
 
+// Check if it's a JSON request or form data
+$contentType = isset($_SERVER["CONTENT_TYPE"]) ? trim($_SERVER["CONTENT_TYPE"]) : '';
+
+if (strpos($contentType, 'application/json') !== false) {
+  // Handle JSON input
+  $data = json_decode(file_get_contents('php://input'), true);
+  $post_id = isset($data['post_id']) ? intval($data['post_id']) : 0;
+  $content = isset($data['content']) ? trim($data['content']) : '';
+} else {
+  // Handle form data
+  $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+  $content = isset($_POST['content']) ? trim($_POST['content']) : '';
+}
+
 // Validate input
-if (!isset($data['post_id']) || !isset($data['content']) || trim($data['content']) === '') {
+if ($post_id <= 0 || empty($content)) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'error' => 'Invalid input']);
   exit();
 }
-
-$post_id = intval($data['post_id']);
-$content = trim($data['content']);
 
 try {
   // First check if the user has permission to view the post
@@ -107,7 +117,8 @@ try {
     'content' => htmlspecialchars($comment['content']),
     'author' => htmlspecialchars($comment['author_name']),
     'profile_pic' => $profilePic,
-    'created_at' => $comment['created_at']
+    'created_at' => $comment['created_at'],
+    'is_own_comment' => true
   ];
   
   // Get total comment count for this post

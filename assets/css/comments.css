@@ -1,0 +1,57 @@
+/* Comment system styling */
+.comments-section {
+  margin-top: 15px;
+}
+
+.comment-bubble, .reply-bubble {
+  background-color: #f0f2f5;
+  border-radius: 18px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+}
+
+.comment-actions, .reply-actions {
+  display: flex;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.reply-button, .delete-comment-button, .delete-reply-button {
+  padding: 0;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.reply-button:hover, .delete-comment-button:hover, .delete-reply-button:hover {
+  text-decoration: underline;
+}
+
+.replies-container {
+  margin-left: 20px;
+  margin-top: 5px;
+}
+
+.reply {
+  margin-bottom: 8px;
+}
+
+.reply-bubble {
+  background-color: #f0f2f5;
+  font-size: 0.95em;
+}
+
+.comment-form, .reply-form {
+  margin-top: 10px;
+}
+
+.comment-input, .reply-input {
+  border-radius: 20px;
+  padding: 8px 12px;
+}
+
+/* Profile pictures */
+.comment img, .reply img {
+  object-fit: cover;
+}
