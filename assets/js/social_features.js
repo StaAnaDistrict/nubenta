@@ -2,6 +2,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   // Initialize reaction system
   if (window.ReactionSystem) {
+    console.log("Initializing ReactionSystem from social_features.js");
     ReactionSystem.init();
   }
   

@@ -20,124 +20,56 @@ $post_id = intval($_GET['post_id']);
 $user_id = $_SESSION['user']['id'];
 
 try {
-  // First check if the user has permission to view the post
+  // Get all reactions for the post
   $stmt = $pdo->prepare("
-    SELECT p.*, 
-           u.id as author_id
-    FROM posts p
-    JOIN users u ON p.user_id = u.id
-    WHERE p.id = ?
+    SELECT pr.*, u.name, u.profile_pic 
+    FROM post_reactions pr
+    JOIN users u ON pr.user_id = u.id
+    WHERE pr.post_id = ?
   ");
   $stmt->execute([$post_id]);
-  $post = $stmt->fetch(PDO::FETCH_ASSOC);
+  $reactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
   
-  if (!$post) {
-    throw new Exception('Post not found');
-  }
-  
-  // Check visibility permissions
-  $can_view = false;
-  
-  if ($post['visibility'] === 'public') {
-    // Anyone can view reactions on public posts
-    $can_view = true;
-  } else if ($post['visibility'] === 'friends') {
-    // Check if user is friends with the post author
-    if ($user_id == $post['author_id']) {
-      // User is the author
-      $can_view = true;
-    } else {
-      // Check friendship status
-      $stmt = $pdo->prepare("
-        SELECT COUNT(*) as is_friend
-        FROM friend_requests
-        WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
-        AND status = 'accepted'
-      ");
-      $stmt->execute([$user_id, $post['author_id'], $post['author_id'], $user_id]);
-      $friendship = $stmt->fetch(PDO::FETCH_ASSOC);
-      
-      $can_view = ($friendship['is_friend'] > 0);
-    }
-  }
-  
-  if (!$can_view) {
-    throw new Exception('You do not have permission to view reactions on this post');
-  }
-  
-  // Get user's reaction to this post
-  $stmt = $pdo->prepare("
-    SELECT reaction_type 
-    FROM post_reactions 
-    WHERE post_id = ? AND user_id = ?
-  ");
+  // Get user's reaction if any
+  $stmt = $pdo->prepare("SELECT reaction_type FROM post_reactions WHERE post_id = ? AND user_id = ?");
   $stmt->execute([$post_id, $user_id]);
-  $user_reaction = $stmt->fetch(PDO::FETCH_ASSOC);
-
-  // Get reaction counts
-  $stmt = $pdo->prepare("
-    SELECT reaction_type, COUNT(*) as count
-    FROM post_reactions
-    WHERE post_id = ?
-    GROUP BY reaction_type
-  ");
-  $stmt->execute([$post_id]);
-  $reaction_counts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-  // Format reaction counts
-  $formatted_counts = [
-    'total' => 0,
+  $user_reaction = $stmt->fetchColumn();
+  
+  // Count reactions by type
+  $reaction_count = [
+    'total' => count($reactions),
     'by_type' => []
   ];
-
-  foreach ($reaction_counts as $reaction) {
-    $formatted_counts['total'] += (int)$reaction['count'];
-    $formatted_counts['by_type'][$reaction['reaction_type']] = (int)$reaction['count'];
-  }
-
-  // Get detailed reaction data with user info (for displaying in modal)
-  $stmt = $pdo->prepare("
-    SELECT r.reaction_type,
-           u.id as user_id,
-           CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as user_name,
-           u.profile_pic,
-           u.gender
-    FROM post_reactions r
-    JOIN users u ON r.user_id = u.id
-    WHERE r.post_id = ?
-    ORDER BY r.created_at DESC
-  ");
-  $stmt->execute([$post_id]);
-  $detailed_reactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-  // Group reactions by type with user info
+  
+  // Group reactions by type
   $reactions_by_type = [];
-  foreach ($detailed_reactions as $reaction) {
+  
+  foreach ($reactions as $reaction) {
     $type = $reaction['reaction_type'];
     
-    // Determine profile picture
-    $defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
-    $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
-    $profilePic = !empty($reaction['profile_pic']) 
-        ? 'uploads/profile_pics/' . htmlspecialchars($reaction['profile_pic']) 
-        : ($reaction['gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
+    // Count by type
+    if (!isset($reaction_count['by_type'][$type])) {
+      $reaction_count['by_type'][$type] = 0;
+    }
+    $reaction_count['by_type'][$type]++;
     
+    // Group users by reaction type
     if (!isset($reactions_by_type[$type])) {
       $reactions_by_type[$type] = [];
     }
     
     $reactions_by_type[$type][] = [
       'id' => $reaction['user_id'],
-      'name' => htmlspecialchars($reaction['user_name']),
-      'profile_pic' => $profilePic
+      'name' => $reaction['name'],
+      'profile_pic' => $reaction['profile_pic'] ?: 'assets/images/default-avatar.png'
     ];
   }
   
   header('Content-Type: application/json');
   echo json_encode([
     'success' => true,
-    'reaction_count' => $formatted_counts,
-    'user_reaction' => $user_reaction ? $user_reaction['reaction_type'] : null,
+    'reaction_count' => $reaction_count,
+    'user_reaction' => $user_reaction,
     'reactions_by_type' => $reactions_by_type
   ]);
   

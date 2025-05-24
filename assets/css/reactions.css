@@ -1,4 +1,4 @@
-/* Reaction system styles */
+/* Reaction system styles - Version 2 */
 
 /* Reaction picker */
 .reaction-picker {
@@ -6,39 +6,30 @@
   display: none;
   background-color: white;
   border-radius: 30px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-  padding: 8px 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  padding: 10px 15px;
   z-index: 1000;
-  justify-content: space-around;
-  align-items: center;
   width: auto;
-  min-width: 200px;
-}
-
-.like-picker {
-  border-top: 3px solid #1877f2;
-}
-
-.dislike-picker {
-  border-top: 3px solid #e41e3f;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Reaction option (emoticon) */
 .reaction-option {
-  height: 28px;
+  height: 40px;
   width: auto;
   cursor: pointer;
   transition: transform 0.2s;
-  margin: 0 4px;
-  object-fit: contain;
+  margin: 0 5px;
 }
 
 .reaction-option:hover {
-  transform: scale(1.2);
+  transform: scale(1.3);
 }
 
 /* Reaction buttons */
-.post-like-btn, .post-dislike-btn {
+.post-react-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -50,45 +41,58 @@
   transition: background-color 0.2s;
 }
 
-.post-like-btn:hover {
+.post-react-btn:hover {
   background-color: rgba(24, 119, 242, 0.1);
 }
 
-.post-dislike-btn:hover {
-  background-color: rgba(228, 30, 63, 0.1);
+.post-react-btn.has-reacted {
+  color: #1877f2;
+  background-color: rgba(24, 119, 242, 0.1);
 }
 
 .btn-reaction-icon {
   height: 20px;
   width: auto;
   margin-right: 5px;
-  object-fit: contain;
-}
-
-.post-like-btn.has-reacted {
-  background-color: #333 !important;
-  color: white !important;
-  font-weight: bold !important;
-}
-
-.post-dislike-btn.has-reacted {
-  background-color: #333 !important;
-  color: white !important;
-  font-weight: bold !important;
 }
 
 /* Reactions display */
-.reaction-icon {
-  height: 24px;
-  width: auto;
-  margin-right: 2px;
-  object-fit: contain;
+.post-reactions {
+  margin: 10px 0;
+  padding: 5px 10px;
+  background-color: rgba(0,0,0,0.02);
+  border-radius: 8px;
+}
+
+.reactions-summary {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.reaction-count-text {
+  margin-right: 10px;
+  font-weight: 500;
+  color: #65676b;
+}
+
+.reaction-icons {
+  display: flex;
+  flex-wrap: wrap;
 }
 
 .reaction-icon-container {
   display: flex;
   align-items: center;
   margin-left: 5px;
+  margin-bottom: 5px;
+}
+
+.reaction-icon {
+  height: 24px;
+  width: auto;
+  margin-right: 2px;
+  object-fit: contain;
 }
 
 .reaction-count {
@@ -104,7 +108,7 @@
   width: 100%;
   height: 100%;
   background-color: rgba(0,0,0,0.5);
-  display: flex;
+  display: none;
   justify-content: center;
   align-items: center;
   z-index: 1000;
@@ -173,6 +177,14 @@
     box-shadow: 0 2px 10px rgba(0,0,0,0.5);
   }
   
+  .reaction-scroll-container::-webkit-scrollbar-track {
+    background: #3a3b3c;
+  }
+  
+  .reaction-scroll-container::-webkit-scrollbar-thumb {
+    background: #5d5e5f;
+  }
+  
   .post-reactions {
     background-color: rgba(255,255,255,0.05);
   }
@@ -182,12 +194,8 @@
     color: #b0b3b8;
   }
   
-  .post-like-btn.has-reacted {
+  .post-react-btn.has-reacted {
     color: #2d88ff;
-  }
-  
-  .post-dislike-btn.has-reacted {
-    color: #f25268;
   }
   
   .reaction-details-content {

@@ -9,60 +9,68 @@ if (!isset($_SESSION['user'])) {
   exit();
 }
 
-// Get JSON data
+// Get JSON data from request
 $data = json_decode(file_get_contents('php://input'), true);
+
+// Get user info
 $user = $_SESSION['user'];
 $user_id = $user['id'];
 
 // Validate input
 if (!isset($data['post_id']) || !isset($data['reaction_type'])) {
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'error' => 'Invalid input']);
+  echo json_encode(['success' => false, 'error' => 'Missing required fields']);
   exit();
 }
 
-$post_id = $data['post_id'];
+$post_id = intval($data['post_id']);
 $reaction_type = $data['reaction_type'];
 $toggle_off = isset($data['toggle_off']) ? $data['toggle_off'] : false;
 
 // Validate reaction type
-$valid_reactions = ['twothumbs', 'clap', 'bigsmile', 'love', 'dislike', 'angry', 'annoyed', 'shame'];
+$valid_reactions = ['twothumbs', 'clap', 'pray', 'love', 'drool', 'laughloud', 'dislike', 'angry', 'annoyed', 'brokenheart', 'cry', 'loser'];
 if (!in_array($reaction_type, $valid_reactions)) {
   header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'error' => 'Invalid reaction type: ' . $reaction_type]);
+  echo json_encode(['success' => false, 'error' => 'Invalid reaction type']);
   exit();
 }
 
 try {
-  // Check if user has already reacted to this post
-  $check_stmt = $pdo->prepare("SELECT id, reaction_type FROM post_reactions WHERE post_id = ? AND user_id = ?");
-  $check_stmt->execute([$post_id, $user_id]);
-  $existing_reaction = $check_stmt->fetch();
+  // Start transaction
+  $pdo->beginTransaction();
+  
+  // Check if user already has a reaction for this post
+  $stmt = $pdo->prepare("SELECT * FROM post_reactions WHERE post_id = ? AND user_id = ?");
+  $stmt->execute([$post_id, $user_id]);
+  $existing_reaction = $stmt->fetch(PDO::FETCH_ASSOC);
   
   if ($existing_reaction) {
-    // If toggling off the same reaction, delete it
+    // If toggling off the same reaction
     if ($toggle_off && $existing_reaction['reaction_type'] === $reaction_type) {
-      $delete_stmt = $pdo->prepare("DELETE FROM post_reactions WHERE id = ?");
-      $delete_stmt->execute([$existing_reaction['id']]);
-      
-      header('Content-Type: application/json');
-      echo json_encode(['success' => true, 'message' => 'Reaction removed']);
-      exit();
+      // Delete the reaction
+      $stmt = $pdo->prepare("DELETE FROM post_reactions WHERE id = ?");
+      $stmt->execute([$existing_reaction['id']]);
     } else {
-      // Update existing reaction
-      $update_stmt = $pdo->prepare("UPDATE post_reactions SET reaction_type = ?, updated_at = NOW() WHERE id = ?");
-      $update_stmt->execute([$reaction_type, $existing_reaction['id']]);
+      // Update to new reaction type
+      $stmt = $pdo->prepare("UPDATE post_reactions SET reaction_type = ?, updated_at = NOW() WHERE id = ?");
+      $stmt->execute([$reaction_type, $existing_reaction['id']]);
     }
   } else {
     // Insert new reaction
-    $insert_stmt = $pdo->prepare("INSERT INTO post_reactions (post_id, user_id, reaction_type, created_at) VALUES (?, ?, ?, NOW())");
-    $insert_stmt->execute([$post_id, $user_id, $reaction_type]);
+    $stmt = $pdo->prepare("INSERT INTO post_reactions (post_id, user_id, reaction_type, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())");
+    $stmt->execute([$post_id, $user_id, $reaction_type]);
   }
   
+  // Commit transaction
+  $pdo->commit();
+  
   header('Content-Type: application/json');
-  echo json_encode(['success' => true, 'message' => 'Reaction saved']);
+  echo json_encode(['success' => true]);
   
 } catch (Exception $e) {
+  // Rollback transaction on error
+  $pdo->rollBack();
+  
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
