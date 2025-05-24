@@ -34,6 +34,9 @@ if (typeof window.ReactionSystem === 'undefined') {
         // Simple click handler (default twothumbs or toggle off)
         btn.addEventListener('click', function(e) {
           console.log("React button clicked");
+          e.preventDefault();
+          e.stopPropagation(); // Prevent event bubbling
+          
           // If clicking directly on the button (not a reaction)
           if (e.target === btn || e.target.tagName === 'I' || e.target.tagName === 'SPAN' || e.target.tagName === 'IMG') {
             const postId = this.getAttribute('data-post-id');
@@ -48,16 +51,9 @@ if (typeof window.ReactionSystem === 'undefined') {
               ReactionSystem.showReactionPickerForPost(postId, this);
             }
           }
-        });
+        }, true); // Use capture phase to ensure this handler runs first
         
-        // Hover handler for desktop
-        btn.addEventListener('mouseenter', function() {
-          console.log("Mouse enter on react button");
-          const postId = this.getAttribute('data-post-id');
-          ReactionSystem.showReactionPickerForPost(postId, this);
-        });
-        
-        // Long press handler for mobile
+        // Long press handler for mobile - keep this for mobile users
         let pressTimer;
         
         btn.addEventListener('touchstart', function(e) {
@@ -133,18 +129,44 @@ if (typeof window.ReactionSystem === 'undefined') {
       const picker = document.getElementById('global-reaction-picker');
       if (!picker) {
         console.error("Global reaction picker not found");
-        return;
+        // Try to recreate it if it's missing
+        ReactionSystem.createGlobalReactionPicker();
+        const newPicker = document.getElementById('global-reaction-picker');
+        if (!newPicker) {
+          console.error("Failed to create global reaction picker");
+          return;
+        }
       }
       
+      // Get the picker again in case it was just created
+      const currentPicker = document.getElementById('global-reaction-picker');
+      
       // Set the post ID on the picker
-      picker.setAttribute('data-post-id', postId);
+      currentPicker.setAttribute('data-post-id', postId);
       
       // Position picker above the button
-      ReactionSystem.positionReactionPicker(picker, button);
+      ReactionSystem.positionReactionPicker(currentPicker, button);
       
-      // Show picker
-      picker.style.display = 'flex';
-      console.log("Reaction picker shown");
+      // Force hide any other UI elements that might interfere
+      document.querySelectorAll('.dropdown-menu, .popover, .tooltip').forEach(el => {
+        if (el.style.display !== 'none') {
+          el.style.display = 'none';
+        }
+      });
+      
+      // Show picker with a slight delay to ensure other scripts have completed
+      setTimeout(() => {
+        currentPicker.style.display = 'flex';
+        console.log("Reaction picker shown");
+        
+        // Ensure picker stays visible by checking again after a short delay
+        setTimeout(() => {
+          if (currentPicker.style.display !== 'flex') {
+            currentPicker.style.display = 'flex';
+            console.log("Forced reaction picker to stay visible");
+          }
+        }, 100);
+      }, 50);
     }
     
     // Position reaction picker relative to button
