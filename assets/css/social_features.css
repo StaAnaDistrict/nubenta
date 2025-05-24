@@ -1,0 +1,408 @@
+/* Profile pictures */
+.profile-pic-container {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.profile-pic-container-sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.profile-pic {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Reaction system */
+.reaction-picker {
+  position: absolute;
+  display: none;
+  flex-direction: row;
+  background-color: white;
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  padding: 8px;
+  z-index: 100;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 5px;
+}
+
+.reaction-option {
+  width: 32px;
+  height: 32px;
+  margin: 0 5px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.reaction-option:hover {
+  transform: scale(1.2);
+}
+
+.btn-reaction-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.post-reactions {
+  margin: 10px 0;
+  padding: 5px 10px;
+  background-color: rgba(0,0,0,0.02);
+  border-radius: 8px;
+}
+
+.reactions-summary {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.reaction-count-text {
+  margin-right: 10px;
+  font-weight: 500;
+}
+
+.reaction-icons {
+  display: flex;
+}
+
+.reaction-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 5px;
+}
+
+/* Reaction details modal */
+.reaction-details-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.reaction-details-content {
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.reaction-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.reaction-details-body {
+  padding: 15px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.reaction-type-group {
+  margin-bottom: 15px;
+}
+
+.reaction-type-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.reaction-users {
+  margin-left: 30px;
+}
+
+.reaction-user {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.user-pic {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  margin-right: 10px;
+  object-fit: cover;
+}
+
+/* Comment system */
+.post-comments {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: rgba(0,0,0,0.02);
+  border-radius: 8px;
+}
+
+.comment-form {
+  margin-bottom: 10px;
+}
+
+.comment-input {
+  resize: none;
+  min-height: 38px;
+}
+
+.comment-item {
+  margin-bottom: 10px;
+}
+
+.comment-bubble {
+  background-color: #f0f2f5;
+  border-radius: 18px;
+  padding: 8px 12px;
+  position: relative;
+}
+
+.comment-author {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.comment-meta {
+  margin-top: 2px;
+  margin-left: 12px;
+}
+
+/* Comment styles */
+.comment-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.comment-profile-pic {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.comment-content {
+  flex: 1;
+  background-color: #f0f2f5;
+  border-radius: 18px;
+  padding: 8px 12px;
+}
+
+.comment-header {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.comment-text {
+  word-break: break-word;
+}
+
+/* Share modal */
+.share-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.share-modal-content {
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.share-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.share-modal-body {
+  padding: 15px;
+}
+
+.share-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px;
+  border-top: 1px solid #eee;
+}
+
+.share-text {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.shared-post-preview {
+  background-color: #f8f9fa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 15px;
+}
+
+.shared-post-header {
+  margin-bottom: 10px;
+}
+
+.shared-post-content {
+  font-size: 14px;
+}
+
+/* Notification styles */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 15px 20px;
+  background-color: #333;
+  color: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  z-index: 1100;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+.notification-success {
+  background-color: #28a745;
+}
+
+.notification-error {
+  background-color: #dc3545;
+}
+
+.notification-info {
+  background-color: #17a2b8;
+}
+
+.notification-warning {
+  background-color: #ffc107;
+  color: #333;
+}
+
+.notification-hide {
+  opacity: 0;
+}
+
+/* Add these styles for active reaction buttons */
+.post-like-btn.has-reacted {
+  background-color: #333;
+  color: white;
+  border-color: #fff;
+}
+
+.post-dislike-btn.has-reacted {
+  background-color: #333;
+  color: white;
+  border-color: #fff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .share-modal-content {
+    width: 95%;
+    max-width: none;
+  }
+  
+  .reaction-picker {
+    position: fixed;
+    bottom: auto;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin-bottom: 0;
+  }
+  
+  .comment-form {
+    flex-direction: column;
+  }
+  
+  .comment-input {
+    margin-bottom: 10px;
+  }
+  
+  .comment-submit-btn {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 576px) {
+  .profile-pic-container {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .profile-pic-container-sm {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .reaction-option {
+    width: 28px;
+    height: 28px;
+    margin: 0 3px;
+  }
+  
+  .reaction-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .user-pic {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .share-modal-header,
+  .share-modal-body,
+  .share-modal-footer {
+    padding: 10px;
+  }
+}

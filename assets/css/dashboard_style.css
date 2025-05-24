@@ -231,6 +231,49 @@ header {
   font-size: 16px;
 }
 
+/* Post media styles */
+.post-media-container {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.post-media {
+  width: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* For images in a grid */
+.post-media-container .row .col-6 .post-media,
+.post-media-container .row .col-12 .post-media {
+  height: 200px;
+  object-fit: cover;
+}
+
+/* Comment form styles */
+.comment-form-container {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.comment-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.comment {
+  padding: 8px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.comment:last-child {
+  border-bottom: none;
+}
+
 @media (max-width: 1200px) {
   .dashboard-grid {
     grid-template-columns: 200px 1fr 250px;

@@ -37,7 +37,7 @@ if ($currentUser) {
             <span class="notification-badge" id="messagesNotification" style="display: none;"></span>
         </a></li>
         <li>
-            <a href="friends.php">
+            <a href="friends.php" id="connectionsLink" class="<?php echo $currentPage === 'friends' ? 'active' : ''; ?>">
                 <i class="fas fa-user-friends"></i> Connections
                 <?php if ($pending_requests > 0): ?>
                     <span class="notification-badge"><?= $pending_requests ?></span>
@@ -139,6 +139,10 @@ window.checkUnreadDeliveredMessages = checkUnreadDeliveredMessages;
 }
 
 #messagesLink {
+    position: relative;
+}
+
+#connectionsLink {
     position: relative;
 }
 </style>

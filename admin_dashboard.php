@@ -132,6 +132,17 @@ $admin_user = $_SESSION['user']; // Get admin user details
                     <p>Monitor suspicious activities</p>
                 </a>
             </div>
+            
+            <!-- Newsfeed Repository Card -->
+            <div class="admin-card">
+                <a href="admin_newsfeed.php">
+                    <div class="admin-card-header-flex">
+                        <i class="fas fa-newspaper"></i>
+                        <h3>Newsfeed Repository</h3>
+                    </div>
+                    <p>View and manage all user posts</p>
+                </a>
+            </div>
         </div>
         
         <div class="mt-4">

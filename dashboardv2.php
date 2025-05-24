@@ -34,7 +34,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="assets/css/dashboard_style.css">
-    <!-- Include social features CSS -->
     <link rel="stylesheet" href="assets/css/social_features.css">
     <link rel="stylesheet" href="assets/css/reactions.css">
 </head>
@@ -186,12 +185,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 console.log(`Fetching posts from ${endpoint}`);
                 const response = await fetch(endpoint);
                 
-                // Check if response is OK
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-                // Check if response is JSON
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     const text = await response.text();
@@ -200,7 +197,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 }
                 
                 const data = await response.json();
-                
                 const postsContainer = document.getElementById('posts-container');
                 
                 if (data.success && data.posts && data.posts.length > 0) {
@@ -211,20 +207,59 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                         postElement.className = 'post';
                         postElement.setAttribute('data-post-id', post.id);
                         
-                        let postHTML = `
-                            <div class="post-header">
-                                <img src="${post.profile_pic}" alt="Profile" class="profile-pic me-3" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
-                                <div>
-                                    <p class="author mb-0">${post.author}</p>
-                                    <small class="text-muted">
-                                        <i class="far fa-clock me-1"></i> ${new Date(post.created_at).toLocaleString()}
-                                        ${post.visibility === 'friends' ? '<span class="ms-2"><i class="fas fa-user-friends"></i> Friends only</span>' : ''}
-                                    </small>
-                                </div>
-                            </div>
-                            <div class="post-content mt-3">
-                                ${post.content ? `<p>${post.content}</p>` : ''}
-                        `;
+                        // Create post header
+                        const postHeader = document.createElement('div');
+                        postHeader.className = 'post-header';
+                        
+                        const profilePic = document.createElement('img');
+                        profilePic.src = post.profile_pic;
+                        profilePic.alt = 'Profile';
+                        profilePic.className = 'profile-pic me-3';
+                        profilePic.style = 'width: 50px; height: 50px; border-radius: 50%; object-fit: cover;';
+                        
+                        const headerInfo = document.createElement('div');
+                        
+                        const authorName = document.createElement('p');
+                        authorName.className = 'author mb-0';
+                        authorName.textContent = post.author;
+                        
+                        const timeInfo = document.createElement('small');
+                        timeInfo.className = 'text-muted';
+                        
+                        const clockIcon = document.createElement('i');
+                        clockIcon.className = 'far fa-clock me-1';
+                        
+                        timeInfo.appendChild(clockIcon);
+                        timeInfo.appendChild(document.createTextNode(' ' + new Date(post.created_at).toLocaleString()));
+                        
+                        if (post.visibility === 'friends') {
+                            const visibilitySpan = document.createElement('span');
+                            visibilitySpan.className = 'ms-2';
+                            
+                            const friendsIcon = document.createElement('i');
+                            friendsIcon.className = 'fas fa-user-friends';
+                            
+                            visibilitySpan.appendChild(friendsIcon);
+                            visibilitySpan.appendChild(document.createTextNode(' Friends only'));
+                            
+                            timeInfo.appendChild(visibilitySpan);
+                        }
+                        
+                        headerInfo.appendChild(authorName);
+                        headerInfo.appendChild(timeInfo);
+                        
+                        postHeader.appendChild(profilePic);
+                        postHeader.appendChild(headerInfo);
+                        
+                        // Create post content
+                        const postContent = document.createElement('div');
+                        postContent.className = 'post-content mt-3';
+                        
+                        if (post.content) {
+                            const contentPara = document.createElement('p');
+                            contentPara.textContent = post.content;
+                            postContent.appendChild(contentPara);
+                        }
                         
                         // Add media if exists and post is not removed
                         if (post.media && !post.is_removed) {
@@ -240,46 +275,116 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             
                             // Handle media display
                             if (/\.(jpg|jpeg|png|gif)$/i.test(mediaPath)) {
-                                postHTML += `<img src="${mediaPath}" alt="Post media" class="img-fluid post-media">`;
+                                const img = document.createElement('img');
+                                img.src = mediaPath;
+                                img.alt = 'Post media';
+                                img.className = 'img-fluid post-media';
+                                postContent.appendChild(img);
                             } else if (/\.mp4$/i.test(mediaPath)) {
-                                postHTML += `
-                                    <video controls class="img-fluid post-media">
-                                        <source src="${mediaPath}" type="video/mp4">
-                                        Your browser does not support the video tag.
-                                    </video>`;
+                                const video = document.createElement('video');
+                                video.controls = true;
+                                video.className = 'img-fluid post-media';
+                                
+                                const source = document.createElement('source');
+                                source.src = mediaPath;
+                                source.type = 'video/mp4';
+                                
+                                video.appendChild(source);
+                                video.appendChild(document.createTextNode('Your browser does not support the video tag.'));
+                                
+                                postContent.appendChild(video);
                             }
                         }
                         
-                        // Add post actions
-                        postHTML += `
-                            </div>
-                            <div class="post-actions mt-3">
-                                <button class="btn btn-sm post-like-btn" data-post-id="${post.id}">
-                                    <i class="far fa-thumbs-up"></i> Like
-                                </button>
-                                <button class="btn btn-sm post-comment-btn" data-post-id="${post.id}">
-                                    <i class="far fa-comment"></i> Comment
-                                </button>
-                                <button class="btn btn-sm post-share-btn" data-post-id="${post.id}">
-                                    <i class="far fa-share-square"></i> Share
-                                </button>
-                                ${post.is_own_post ? `
-                                    <button class="btn btn-sm post-delete-btn" data-post-id="${post.id}">
-                                        <i class="far fa-trash-alt"></i> Delete
-                                    </button>
-                                ` : ''}
-                                ${isAdmin ? `
-                                    <button class="btn btn-sm post-admin-remove-btn" data-post-id="${post.id}">
-                                        <i class="fas fa-ban"></i> Remove
-                                    </button>
-                                    <button class="btn btn-sm post-admin-flag-btn" data-post-id="${post.id}">
-                                        <i class="fas fa-flag"></i> Flag
-                                    </button>
-                                ` : ''}
-                            </div>
-                        `;
+                        // Create post actions
+                        const postActions = document.createElement('div');
+                        postActions.className = 'post-actions mt-3';
                         
-                        postElement.innerHTML = postHTML;
+                        // Like button
+                        const likeBtn = document.createElement('button');
+                        likeBtn.className = 'btn btn-sm post-like-btn';
+                        likeBtn.setAttribute('data-post-id', post.id);
+                        
+                        const likeIcon = document.createElement('i');
+                        likeIcon.className = 'far fa-thumbs-up';
+                        
+                        likeBtn.appendChild(likeIcon);
+                        likeBtn.appendChild(document.createTextNode(' Like'));
+                        
+                        // Comment button
+                        const commentBtn = document.createElement('button');
+                        commentBtn.className = 'btn btn-sm post-comment-btn';
+                        commentBtn.setAttribute('data-post-id', post.id);
+                        
+                        const commentIcon = document.createElement('i');
+                        commentIcon.className = 'far fa-comment';
+                        
+                        commentBtn.appendChild(commentIcon);
+                        commentBtn.appendChild(document.createTextNode(' Comment'));
+                        
+                        // Share button
+                        const shareBtn = document.createElement('button');
+                        shareBtn.className = 'btn btn-sm post-share-btn';
+                        shareBtn.setAttribute('data-post-id', post.id);
+                        
+                        const shareIcon = document.createElement('i');
+                        shareIcon.className = 'far fa-share-square';
+                        
+                        shareBtn.appendChild(shareIcon);
+                        shareBtn.appendChild(document.createTextNode(' Share'));
+                        
+                        // Add buttons to actions
+                        postActions.appendChild(likeBtn);
+                        postActions.appendChild(commentBtn);
+                        postActions.appendChild(shareBtn);
+                        
+                        // Add delete button if it's the user's own post
+                        if (post.is_own_post) {
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.className = 'btn btn-sm post-delete-btn';
+                            deleteBtn.setAttribute('data-post-id', post.id);
+                            
+                            const deleteIcon = document.createElement('i');
+                            deleteIcon.className = 'far fa-trash-alt';
+                            
+                            deleteBtn.appendChild(deleteIcon);
+                            deleteBtn.appendChild(document.createTextNode(' Delete'));
+                            
+                            postActions.appendChild(deleteBtn);
+                        }
+                        
+                        // Add admin buttons if user is admin
+                        if (isAdmin) {
+                            const removeBtn = document.createElement('button');
+                            removeBtn.className = 'btn btn-sm post-admin-remove-btn';
+                            removeBtn.setAttribute('data-post-id', post.id);
+                            
+                            const removeIcon = document.createElement('i');
+                            removeIcon.className = 'fas fa-ban';
+                            
+                            removeBtn.appendChild(removeIcon);
+                            removeBtn.appendChild(document.createTextNode(' Remove'));
+                            
+                            const flagBtn = document.createElement('button');
+                            flagBtn.className = 'btn btn-sm post-admin-flag-btn';
+                            flagBtn.setAttribute('data-post-id', post.id);
+                            
+                            const flagIcon = document.createElement('i');
+                            flagIcon.className = 'fas fa-flag';
+                            
+                            flagBtn.appendChild(flagIcon);
+                            flagBtn.appendChild(document.createTextNode(' Flag'));
+                            
+                            postActions.appendChild(removeBtn);
+                            postActions.appendChild(flagBtn);
+                        }
+                        
+                        // Assemble the post
+                        postElement.appendChild(postHeader);
+                        postElement.appendChild(postContent);
+                        postElement.appendChild(postActions);
+                        
+                        // Add the post to the container
                         postsContainer.appendChild(postElement);
                     });
                     
@@ -321,7 +426,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         
         // Function to set up event listeners for post actions
         function setupPostActionListeners() {
-            // Comment button - direct implementation
+            // Comment button
             document.querySelectorAll('.post-comment-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const postId = this.getAttribute('data-post-id');
@@ -451,10 +556,35 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             });
         }
         
+        // Helper function to load comment count
+        async function loadCommentCount(postId) {
+            try {
+                const response = await fetch(`api/get_comment_count.php?post_id=${postId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateCommentCount(postId, data.count);
+                }
+            } catch (error) {
+                console.error('Error loading comment count:', error);
+            }
+        }
+        
+        // Helper function to update comment count on button
+        function updateCommentCount(postId, count) {
+            const commentBtn = document.querySelector(`.post-comment-btn[data-post-id="${postId}"]`);
+            if (commentBtn) {
+                // Keep the icon, replace the text
+                const icon = commentBtn.querySelector('i');
+                commentBtn.innerHTML = '';
+                commentBtn.appendChild(icon);
+                commentBtn.appendChild(document.createTextNode(` Comment${count > 0 ? ` (${count})` : ''}`));
+            }
+        }
+        
         // Helper function to submit a comment
         async function submitComment(postId, comment, commentList, commentInput) {
             try {
-                console.log("Submitting comment for post:", postId);
                 const response = await fetch('api/post_comment.php', {
                     method: 'POST',
                     headers: {
@@ -473,7 +603,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log("Comment posted successfully:", data);
                     // Clear input
                     commentInput.value = '';
                     
@@ -491,11 +620,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 alert(`Error posting comment: ${error.message}`);
             }
         }
-
+        
         // Helper function to load comments
         async function loadComments(postId, commentList) {
             try {
-                console.log("Loading comments for post:", postId);
                 const response = await fetch(`api/get_comments.php?post_id=${postId}`);
                 const data = await response.json();
                 
@@ -527,9 +655,41 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 return [];
             }
         }
-
+        
         // Helper function to add a comment to the list
         function addCommentToList(commentList, comment) {
             const commentElement = document.createElement('div');
             commentElement.className = 'comment d-flex mb-2';
-            commentElement
+            
+            const authorImg = document.createElement('img');
+            authorImg.src = comment.profile_pic || 'assets/images/default-avatar.png';
+            authorImg.alt = 'Profile';
+            authorImg.className = 'profile-pic-sm me-2';
+            authorImg.style = 'width: 32px; height: 32px; border-radius: 50%; object-fit: cover;';
+            
+            const commentContent = document.createElement('div');
+            commentContent.className = 'comment-content bg-light p-2 rounded flex-grow-1';
+            
+            const authorName = document.createElement('strong');
+            authorName.textContent = comment.author_name;
+            
+            const commentText = document.createElement('p');
+            commentText.className = 'mb-0';
+            commentText.textContent = comment.content;
+            
+            const commentTime = document.createElement('small');
+            commentTime.className = 'text-muted';
+            commentTime.textContent = new Date(comment.created_at).toLocaleString();
+            
+            commentContent.appendChild(authorName);
+            commentContent.appendChild(commentText);
+            commentContent.appendChild(commentTime);
+            
+            commentElement.appendChild(authorImg);
+            commentElement.appendChild(commentContent);
+            
+            commentList.appendChild(commentElement);
+        }
+    </script>
+</body>
+</html>

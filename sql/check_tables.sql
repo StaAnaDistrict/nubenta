@@ -1,0 +1,2 @@
+SHOW CREATE TABLE posts;
+SHOW CREATE TABLE users;
