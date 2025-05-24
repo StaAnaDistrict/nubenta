@@ -194,8 +194,8 @@ class CommentSystem {
           </div>
           <div class="comment-actions mt-1">
             <small class="text-muted">${formattedDate}</small>
-            <button class="btn btn-sm text-primary reply-button" data-comment-id="${comment.id}">Reply</button>
-            ${comment.is_own_comment ? '<button class="btn btn-sm text-danger delete-comment-button" data-comment-id="' + comment.id + '">Delete</button>' : ''}
+            <button class="reply-button" data-comment-id="${comment.id}">Reply</button>
+            ${comment.is_own_comment ? '<button class="delete-comment-button" data-comment-id="' + comment.id + '">Delete</button>' : ''}
           </div>
           
           <!-- Reply form -->
@@ -249,7 +249,7 @@ class CommentSystem {
           </div>
           <div class="reply-actions mt-1">
             <small class="text-muted">${formattedDate}</small>
-            ${reply.is_own_reply ? '<button class="btn btn-sm text-danger delete-reply-button" data-reply-id="' + reply.id + '">Delete</button>' : ''}
+            ${reply.is_own_reply ? '<button class="delete-reply-button" data-reply-id="' + reply.id + '">Delete</button>' : ''}
           </div>
         </div>
       </div>

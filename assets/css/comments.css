@@ -24,6 +24,16 @@
   cursor: pointer;
 }
 
+/* Updated color for Reply button */
+.reply-button {
+  color: #000000 !important; /* Black color for Reply button */
+}
+
+/* Updated color for Delete buttons */
+.delete-comment-button, .delete-reply-button {
+  color: #6c757d !important; /* Grey color for Delete buttons */
+}
+
 .reply-button:hover, .delete-comment-button:hover, .delete-reply-button:hover {
   text-decoration: underline;
 }
@@ -49,6 +59,20 @@
 .comment-input, .reply-input {
   border-radius: 20px;
   padding: 8px 12px;
+}
+
+/* Updated Post button in comment form */
+.comment-form button[type="submit"], 
+.reply-form button[type="submit"] {
+  background-color: #000000 !important; /* Black background */
+  border-color: #000000 !important; /* Black border */
+  color: #ffffff !important; /* White text */
+}
+
+.comment-form button[type="submit"]:hover, 
+.reply-form button[type="submit"]:hover {
+  background-color: #333333 !important; /* Slightly lighter black on hover */
+  border-color: #333333 !important;
 }
 
 /* Profile pictures */
