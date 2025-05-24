@@ -34,7 +34,8 @@ try {
              posts.is_removed,
              posts.removed_reason,
              posts.is_flagged,
-             posts.flag_reason
+             posts.flag_reason,
+             users.id as author_id
       FROM posts 
       JOIN users ON posts.user_id = users.id 
       WHERE 
@@ -123,7 +124,7 @@ try {
     
     if ($json_requested) {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Database error occurred']);
+        echo json_encode(['success' => false, 'error' => 'Database error occurred: ' . $e->getMessage()]);
         exit;
     }
     

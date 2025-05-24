@@ -148,7 +148,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             const isAdmin = <?php echo (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin') ? 'true' : 'false'; ?>;
             const endpoint = isAdmin ? 'admin_newsfeed.php?format=json' : 'newsfeed.php?format=json';
             
-            console.log(`Fetching posts from ${endpoint}`);
+            // Get current user ID from PHP session
+            const currentUserId = <?php echo isset($_SESSION['user']['id']) ? $_SESSION['user']['id'] : 0; ?>;
+            
+            console.log(`Fetching posts from ${endpoint} for user ID: ${currentUserId}`);
             const response = await fetch(endpoint);
             
             // Check if response is OK
@@ -190,48 +193,33 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             </div>
                         </div>
                         <div class="post-content mt-3">
-                            ${post.content ? `<p>${post.content}</p>` : ''}
-                            ${post.media ? renderPostMedia(post.media) : ''}
+                            ${post.is_flagged ? '<div class="flagged-warning"><i class="fas fa-exclamation-triangle me-1"></i> Viewing discretion is advised.</div>' : ''}
+                            ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
+                            ${post.media && !post.is_removed ? renderPostMedia(post.media, post.is_flagged) : ''}
                         </div>
-                        
-                        <!-- Reactions container will be populated by the ReactionSystem -->
-                        <div class="post-reactions" id="reactions-container-${post.id}"></div>
-                        
-                        <!-- Post actions -->
-                        <div class="post-actions mt-3">
-                            <button class="post-action-btn post-react-btn" data-post-id="${post.id}">
+                        <div class="post-actions">
+                            <button class="btn btn-sm post-react-btn" data-post-id="${post.id}">
                                 <i class="far fa-smile"></i> React
                             </button>
-                            <button class="post-action-btn post-comment-btn" data-post-id="${post.id}">
-                                <i class="far fa-comment"></i> Comment <span class="comment-count"></span>
+                            <button class="btn btn-sm post-comment-btn" data-post-id="${post.id}">
+                                <i class="far fa-comment"></i> Comment
                             </button>
-                            <button class="post-action-btn post-share-btn" data-post-id="${post.id}">
+                            <button class="btn btn-sm post-share-btn" data-post-id="${post.id}">
                                 <i class="far fa-share-square"></i> Share
                             </button>
-                            
-                            ${isAdmin || post.user_id === userId ? `
-                                <button class="post-action-btn post-delete-btn" data-post-id="${post.id}">
-                                    <i class="fas fa-trash"></i> Delete
+                            ${post.is_own_post ? `
+                                <button class="btn btn-sm post-delete-btn" data-post-id="${post.id}">
+                                    <i class="far fa-trash-alt"></i> Delete
                                 </button>
                             ` : ''}
-                            
                             ${isAdmin ? `
-                                <button class="post-action-btn post-remove-btn" data-post-id="${post.id}">
-                                    <i class="fas fa-times-circle"></i> Remove
+                                <button class="btn btn-sm post-admin-remove-btn" data-post-id="${post.id}">
+                                    <i class="fas fa-trash"></i> Remove
                                 </button>
-                                <button class="post-action-btn post-flag-btn" data-post-id="${post.id}">
+                                <button class="btn btn-sm post-admin-flag-btn" data-post-id="${post.id}">
                                     <i class="fas fa-flag"></i> Flag
                                 </button>
                             ` : ''}
-                        </div>
-                        
-                        <!-- Comments container -->
-                        <div class="comments-container" id="comments-container-${post.id}" style="display: none;">
-                            <div class="comments-list"></div>
-                            <form class="comment-form" data-post-id="${post.id}">
-                                <textarea class="form-control comment-input" placeholder="Write a comment..." required></textarea>
-                                <button type="submit" class="btn btn-primary comment-submit-btn">Comment</button>
-                            </form>
                         </div>
                     `;
                     
@@ -400,6 +388,27 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             }
         } catch (error) {
             console.error(`Error loading comments for post ${postId}:`, error);
+        }
+    }
+    </script>
+    <script>
+    // Function to render post media
+    function renderPostMedia(mediaUrl, isFlagged = false) {
+        if (!mediaUrl) return '';
+        
+        const blurClass = isFlagged ? 'blurred-image' : '';
+        
+        if (mediaUrl.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            return `<div class="media"><img src="${mediaUrl}" alt="Post media" class="img-fluid ${blurClass}"></div>`;
+        } else if (mediaUrl.match(/\.mp4$/i)) {
+            return `<div class="media">
+                <video controls class="img-fluid ${blurClass}">
+                    <source src="${mediaUrl}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>`;
+        } else {
+            return `<div class="media"><a href="${mediaUrl}" target="_blank" class="btn btn-sm btn-outline-primary">View Attachment</a></div>`;
         }
     }
     </script>
