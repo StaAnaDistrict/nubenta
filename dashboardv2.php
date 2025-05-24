@@ -128,6 +128,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
     <!-- Load other non-reaction scripts -->
     <script src="assets/js/comments.js"></script>
+    <script src="assets/js/comment-initializer.js"></script>
     <script src="assets/js/share.js"></script>
     <script src="assets/js/activity-tracker.js"></script>
     <script src="assets/js/newsfeed-loader.js"></script>
@@ -139,6 +140,27 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         document.addEventListener('DOMContentLoaded', function() {
             // Any dashboard-specific initialization can go here
             console.log('Dashboard v2 loaded');
+            
+            // Disable any inline comment handling to prevent conflicts
+            if (window.CommentSystem && typeof window.CommentSystem.init === 'function') {
+                console.log('Using CommentSystem class for comment handling');
+                
+                // Override any conflicting functions
+                window.toggleCommentForm = function(postId) {
+                    console.log('Redirecting to CommentSystem.toggleCommentForm');
+                    if (window.CommentSystem && typeof window.CommentSystem.toggleCommentForm === 'function') {
+                        window.CommentSystem.toggleCommentForm(postId);
+                    }
+                };
+                
+                window.setupCommentFormSubmission = function() {
+                    console.log('setupCommentFormSubmission disabled - using CommentSystem');
+                };
+                
+                window.setupCommentInteractions = function() {
+                    console.log('setupCommentInteractions disabled - using CommentSystem');
+                };
+            }
         });
     </script>
     <script>
@@ -377,7 +399,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     </div>
                     
                     <!-- Comment form -->
-                    <form class="comment-form mt-3" data-post-id="${postId}">
+                    <form class="comment-form mt-3" data-post-id="${postId}" id="comment-form-${postId}">
                         <div class="input-group">
                             <input type="text" class="form-control comment-input" placeholder="Write a comment...">
                             <button type="submit" class="btn btn-primary">Post</button>
@@ -396,16 +418,38 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         
         postActions.after(commentsSection);
         
-        // Add event listener for comment form submission
-        // First, remove any existing event listeners to prevent duplicates
-        const commentForm = commentsSection.querySelector('.comment-form');
-        const newCommentForm = commentForm.cloneNode(true);
-        commentForm.parentNode.replaceChild(newCommentForm, commentForm);
+        // Load existing comments
+        loadComments(postId, commentsSection.querySelector('.comments-container'));
         
-        // Now add the event listener to the fresh form
-        newCommentForm.addEventListener('submit', async function(e) {
+        // Set up form submission with a unique ID to prevent duplicates
+        setupCommentFormSubmission(postId);
+    }
+
+    // Separate function to set up comment form submission
+    function setupCommentFormSubmission(postId) {
+        const formId = `comment-form-${postId}`;
+        const form = document.getElementById(formId);
+        
+        if (!form) {
+            console.error(`Comment form not found with ID: ${formId}`);
+            return;
+        }
+        
+        // Remove any existing event listeners by cloning and replacing
+        const newForm = form.cloneNode(true);
+        form.parentNode.replaceChild(newForm, form);
+        
+        // Add a flag to track if this form already has a listener
+        if (newForm.dataset.hasListener === 'true') {
+            console.log(`Form ${formId} already has a listener, skipping`);
+            return;
+        }
+        newForm.dataset.hasListener = 'true';
+        
+        // Add the event listener to the fresh form
+        newForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            console.log('Comment form submitted');
+            console.log(`Comment form submitted for post ${postId}`);
             
             const commentInput = this.querySelector('.comment-input');
             const commentContent = commentInput.value.trim();
@@ -439,11 +483,15 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     // Clear input
                     commentInput.value = '';
                     
-                    // Reload comments
-                    loadComments(postId, commentsSection.querySelector('.comments-container'));
-                    
-                    // Update comment count
-                    loadCommentCount(postId);
+                    // Find the comments container
+                    const commentsContainer = document.querySelector(`.comments-container[data-post-id="${postId}"]`);
+                    if (commentsContainer) {
+                        // Reload comments
+                        loadComments(postId, commentsContainer);
+                        
+                        // Update comment count
+                        loadCommentCount(postId);
+                    }
                 } else {
                     alert('Error posting comment: ' + data.error);
                 }
@@ -455,9 +503,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 submitButton.disabled = false;
             }
         });
-        
-        // Load existing comments
-        loadComments(postId, commentsSection.querySelector('.comments-container'));
     }
 
     // Function to load comments for a post
@@ -582,74 +627,153 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     function setupCommentInteractions(commentsContainer, postId) {
         // Add event listeners for reply buttons
         commentsContainer.querySelectorAll('.reply-button').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const commentId = this.dataset.commentId;
-                const replyForm = commentsContainer.querySelector(`.reply-form[data-comment-id="${commentId}"]`);
-                
-                if (replyForm) {
-                    // Toggle visibility
-                    replyForm.classList.toggle('d-none');
-                    if (!replyForm.classList.contains('d-none')) {
-                        replyForm.querySelector('.reply-input').focus();
-                    }
-                }
-            });
-        });
-        
-        // Add event listeners for reply forms
-        commentsContainer.querySelectorAll('.reply-form').forEach(form => {
-            form.addEventListener('submit', async function(e) {
+            // Clone the button to remove any existing listeners
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            
+            newBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 const commentId = this.dataset.commentId;
-                const replyInput = this.querySelector('.reply-input');
-                const replyContent = replyInput.value.trim();
+                console.log(`Reply button clicked for comment ${commentId}`);
                 
-                if (!replyContent) return;
+                // Find the reply form
+                const commentElement = commentsContainer.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                if (!commentElement) {
+                    console.error(`Comment element not found for ID: ${commentId}`);
+                    return;
+                }
                 
-                // Disable submit button
-                const submitButton = this.querySelector('button[type="submit"]');
-                submitButton.disabled = true;
+                // Check if the reply form exists
+                let replyForm = commentElement.querySelector('.reply-form');
                 
-                try {
-                    const formData = new FormData();
-                    formData.append('comment_id', commentId);
-                    formData.append('content', replyContent);
+                // If no reply form exists, create one
+                if (!replyForm) {
+                    console.log(`Creating new reply form for comment ${commentId}`);
+                    const replyFormContainer = document.createElement('div');
+                    replyFormContainer.className = 'mt-2';
+                    replyFormContainer.innerHTML = `
+                        <form class="reply-form" data-comment-id="${commentId}">
+                            <div class="input-group">
+                                <input type="text" class="form-control reply-input" placeholder="Write a reply...">
+                                <button type="submit" class="btn btn-primary">Reply</button>
+                            </div>
+                        </form>
+                    `;
                     
-                    const response = await fetch('api/post_comment_reply.php', {
-                        method: 'POST',
-                        body: formData
+                    // Insert after the comment actions
+                    const commentActions = commentElement.querySelector('.comment-actions');
+                    if (commentActions) {
+                        commentActions.after(replyFormContainer);
+                        replyForm = replyFormContainer.querySelector('.reply-form');
+                    } else {
+                        console.error(`Comment actions not found for comment ID: ${commentId}`);
+                        return;
+                    }
+                }
+                
+                // Toggle visibility
+                if (replyForm.classList.contains('d-none')) {
+                    // Hide all other reply forms first
+                    commentsContainer.querySelectorAll('.reply-form').forEach(form => {
+                        form.classList.add('d-none');
                     });
                     
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        // Clear input
-                        replyInput.value = '';
+                    // Show this reply form
+                    replyForm.classList.remove('d-none');
+                    replyForm.querySelector('.reply-input').focus();
+                } else {
+                    // Hide this reply form
+                    replyForm.classList.add('d-none');
+                }
+                
+                // Add submit event listener to the reply form if not already added
+                if (!replyForm.dataset.hasListener) {
+                    replyForm.dataset.hasListener = 'true';
+                    replyForm.addEventListener('submit', async function(e) {
+                        e.preventDefault();
+                        console.log(`Reply form submitted for comment ${commentId}`);
                         
-                        // Hide form
-                        this.classList.add('d-none');
+                        const replyInput = this.querySelector('.reply-input');
+                        const replyContent = replyInput.value.trim();
                         
-                        // Reload comments to show the new reply
-                        loadComments(postId, commentsContainer);
-                    } else {
-                        alert('Error posting reply: ' + data.error);
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('An error occurred while posting your reply.');
-                } finally {
-                    // Re-enable submit button
-                    submitButton.disabled = false;
+                        if (!replyContent) return;
+                        
+                        // Disable the submit button to prevent multiple submissions
+                        const submitButton = this.querySelector('button[type="submit"]');
+                        submitButton.disabled = true;
+                        
+                        try {
+                            console.log(`Submitting reply for comment ${commentId}: ${replyContent}`);
+                            
+                            const formData = new FormData();
+                            formData.append('comment_id', commentId);
+                            formData.append('content', replyContent);
+                            
+                            const response = await fetch('api/post_comment_reply.php', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            
+                            const data = await response.json();
+                            console.log('Reply submission response:', data);
+                            
+                            if (data.success) {
+                                // Clear input
+                                replyInput.value = '';
+                                
+                                // Hide form
+                                this.classList.add('d-none');
+                                
+                                // Reload comments to show the new reply
+                                loadComments(postId, commentsContainer);
+                            } else {
+                                alert('Error posting reply: ' + data.error);
+                            }
+                        } catch (error) {
+                            console.error('Error:', error);
+                            alert('An error occurred while posting your reply.');
+                        } finally {
+                            // Re-enable the submit button
+                            submitButton.disabled = false;
+                        }
+                    });
                 }
             });
         });
         
-        // Add event listeners for delete buttons
+        // Add event listeners for delete comment buttons
         commentsContainer.querySelectorAll('.delete-comment-button').forEach(btn => {
-            btn.addEventListener('click', async function() {
-                if (!confirm('Are you sure you want to delete this comment?')) return;
+            // Remove any existing event listeners to prevent duplicates
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            
+            // Add a flag to prevent multiple confirmations
+            if (newBtn.dataset.hasDeleteListener === 'true') {
+                return;
+            }
+            newBtn.dataset.hasDeleteListener = 'true';
+            
+            // Add a flag to track deletion state
+            let isDeleting = false;
+            
+            newBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                
+                // Prevent multiple confirmations
+                if (isDeleting) return;
+                isDeleting = true;
                 
                 const commentId = this.dataset.commentId;
+                console.log(`Delete button clicked for comment ${commentId}`);
+                
+                if (!confirm('Are you sure you want to delete this comment?')) {
+                    isDeleting = false;
+                    return;
+                }
                 
                 try {
                     const response = await fetch('api/delete_comment.php', {
@@ -667,21 +791,85 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                         const commentElement = commentsContainer.querySelector(`.comment[data-comment-id="${commentId}"]`);
                         if (commentElement) {
                             commentElement.remove();
-                        }
-                        
-                        // Update comment count
-                        loadCommentCount(postId);
-                        
-                        // If no comments left, show message
-                        if (commentsContainer.querySelectorAll('.comment').length === 0) {
-                            commentsContainer.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+                            
+                            // Update comment count
+                            loadCommentCount(postId);
+                            
+                            // If no comments left, show message
+                            if (commentsContainer.querySelectorAll('.comment').length === 0) {
+                                commentsContainer.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+                            }
                         }
                     } else {
-                        alert('Error deleting comment: ' + data.error);
+                        // Only show error if the comment wasn't actually deleted
+                        const commentElement = commentsContainer.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                        if (commentElement) {
+                            alert('Error deleting comment: ' + data.error);
+                        }
                     }
                 } catch (error) {
                     console.error('Error:', error);
                     alert('An error occurred while deleting your comment.');
+                } finally {
+                    isDeleting = false;
+                }
+            });
+        });
+        
+        // Add event listeners for delete reply buttons
+        commentsContainer.querySelectorAll('.delete-reply-button').forEach(btn => {
+            // Remove any existing event listeners to prevent duplicates
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            btn = newBtn;
+            
+            // Add a flag to track deletion state
+            let isDeleting = false;
+            
+            btn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                
+                // Prevent multiple confirmations
+                if (isDeleting) return;
+                isDeleting = true;
+                
+                const replyId = this.dataset.replyId;
+                console.log(`Delete button clicked for reply ${replyId}`);
+                
+                if (!confirm('Are you sure you want to delete this reply?')) {
+                    isDeleting = false;
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('api/delete_comment_reply.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `reply_id=${replyId}`
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Remove reply from UI
+                        const replyElement = commentsContainer.querySelector(`.reply[data-reply-id="${replyId}"]`);
+                        if (replyElement) {
+                            replyElement.remove();
+                        }
+                    } else {
+                        // Only show error if the reply wasn't actually deleted
+                        const replyElement = commentsContainer.querySelector(`.reply[data-reply-id="${replyId}"]`);
+                        if (replyElement) {
+                            alert('Error deleting reply: ' + data.error);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while deleting your reply.');
+                } finally {
+                    isDeleting = false;
                 }
             });
         });
@@ -714,10 +902,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         // Any dashboard-specific initialization can go here
         console.log('Dashboard v2 loaded');
         
-        // Initialize comment system - but only once
-        if (window.CommentSystem && !window.commentSystemInitialized) {
-          window.CommentSystem.init();
-          window.commentSystemInitialized = true;
+        // Ensure we only initialize once
+        if (window.dashboardInitialized) {
+          console.log('Dashboard already initialized, skipping');
+          return;
         }
         
         // Remove any existing event listeners to prevent duplicates
@@ -726,21 +914,146 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
           btn.parentNode.replaceChild(newBtn, btn);
         });
         
+        // Remove the setupDeleteButtons function if it exists
+        if (window.setupDeleteButtons) {
+          window.setupDeleteButtons = function() {
+            console.log('Delete buttons setup disabled - using CommentSystem instead');
+          };
+        }
+        
+        // Initialize comment system
+        if (typeof CommentSystem !== 'undefined') {
+          console.log('Initializing CommentSystem');
+          // Force recreation of CommentSystem
+          window.commentSystemInitialized = false;
+          window.CommentSystem = new CommentSystem();
+        }
+        
+        // Set initialization flag
+        window.dashboardInitialized = true;
+        
         // Add event listeners for comment buttons
         document.querySelectorAll('.post-comment-btn').forEach(btn => {
-          btn.addEventListener('click', function() {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
             const postId = this.getAttribute('data-post-id');
             console.log("Comment button clicked for post:", postId);
             
-            if (window.CommentSystem && typeof window.CommentSystem.toggleCommentForm === 'function') {
-              window.CommentSystem.toggleCommentForm(postId);
-            } else {
-              // Fallback to inline implementation
+            // Toggle comment section visibility
+            const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
+            if (postElement) {
+              const commentsSection = postElement.querySelector('.comments-section');
+              if (commentsSection) {
+                if (commentsSection.classList.contains('d-none')) {
+                  commentsSection.classList.remove('d-none');
+                } else {
+                  commentsSection.classList.add('d-none');
+                }
+                return;
+              }
+              
+              // If comments section doesn't exist, create it
               toggleCommentForm(postId);
             }
           });
         });
       });
     </script>
+    <script>
+    // Completely revised initialization code
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Dashboard v2 loaded');
+      
+      // Ensure we only initialize once
+      if (window.dashboardInitialized) {
+        console.log('Dashboard already initialized, skipping');
+        return;
+      }
+      
+      // Remove any existing event listeners to prevent duplicates
+      document.querySelectorAll('.post-comment-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+      });
+      
+      // Remove the setupDeleteButtons function if it exists
+      if (window.setupDeleteButtons) {
+        window.setupDeleteButtons = function() {
+          console.log('Delete buttons setup disabled - using CommentSystem instead');
+        };
+      }
+      
+      // Initialize comment system
+      if (typeof CommentSystem !== 'undefined') {
+        console.log('Initializing CommentSystem');
+        // Force recreation of CommentSystem
+        window.commentSystemInitialized = false;
+        window.CommentSystem = new CommentSystem();
+      }
+      
+      // Set initialization flag
+      window.dashboardInitialized = true;
+      
+      // Add event listeners for comment buttons
+      document.querySelectorAll('.post-comment-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const postId = this.getAttribute('data-post-id');
+          console.log("Comment button clicked for post:", postId);
+          
+          // Toggle comment section visibility
+          const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
+          if (postElement) {
+            const commentsSection = postElement.querySelector('.comments-section');
+            if (commentsSection) {
+              if (commentsSection.classList.contains('d-none')) {
+                commentsSection.classList.remove('d-none');
+              } else {
+                commentsSection.classList.add('d-none');
+              }
+              return;
+            }
+            
+            // If comments section doesn't exist, create it
+            toggleCommentForm(postId);
+          }
+        });
+      });
+    });
+
+    // Disable the setupCommentInteractions function
+    function setupCommentInteractions(commentsContainer, postId) {
+      console.log('Comment interactions setup disabled - using CommentSystem instead');
+      // Do nothing - let CommentSystem handle it
+    }
+    </script>
+    <script>
+    // Disable any existing comment-related functions to prevent conflicts
+    if (typeof setupCommentInteractions === 'function') {
+        window.originalSetupCommentInteractions = setupCommentInteractions;
+        setupCommentInteractions = function() {
+            console.log('Original setupCommentInteractions disabled');
+        };
+    }
+    
+    // Disable any existing delete button setup functions
+    if (typeof setupDeleteButtons === 'function') {
+        window.originalSetupDeleteButtons = setupDeleteButtons;
+        setupDeleteButtons = function() {
+            console.log('Original setupDeleteButtons disabled');
+        };
+    }
+    
+    // Ensure we only initialize once
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Dashboard v2 loaded - comment system initialization');
+    });
+    </script>
+    <!-- Add the comment debugger script before the closing body tag -->
+    <script src="assets/js/comment-debugger.js"></script>
 </body>
 </html>
