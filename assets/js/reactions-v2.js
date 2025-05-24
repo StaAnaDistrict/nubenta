@@ -24,6 +24,65 @@ if (typeof window.ReactionSystem === 'undefined') {
       
       console.log("ReactionSystem v2 initialized");
     }
+
+    // Set up event listeners for post actions
+    static setupPostActionListeners() {
+      console.log("Setting up post action listeners");
+      
+      // React buttons
+      document.querySelectorAll('.post-react-btn').forEach(btn => {
+        // Simple click handler (default twothumbs or toggle off)
+        btn.addEventListener('click', function(e) {
+          console.log("React button clicked");
+          // If clicking directly on the button (not a reaction)
+          if (e.target === btn || e.target.tagName === 'I' || e.target.tagName === 'SPAN' || e.target.tagName === 'IMG') {
+            const postId = this.getAttribute('data-post-id');
+            
+            // If already reacted, toggle off the reaction
+            if (btn.classList.contains('has-reacted')) {
+              const currentReaction = btn.getAttribute('data-user-reaction');
+              console.log("Toggling off current reaction:", currentReaction);
+              ReactionSystem.reactToPost(postId, currentReaction); // This will toggle off
+            } else {
+              // Show reaction picker on click for inactive state
+              ReactionSystem.showReactionPickerForPost(postId, this);
+            }
+          }
+        });
+        
+        // Hover handler for desktop
+        btn.addEventListener('mouseenter', function() {
+          console.log("Mouse enter on react button");
+          const postId = this.getAttribute('data-post-id');
+          ReactionSystem.showReactionPickerForPost(postId, this);
+        });
+        
+        // Long press handler for mobile
+        let pressTimer;
+        
+        btn.addEventListener('touchstart', function(e) {
+          console.log("Touch start on react button");
+          const button = this;
+          pressTimer = setTimeout(() => {
+            console.log("Long touch detected");
+            const postId = button.getAttribute('data-post-id');
+            ReactionSystem.showReactionPickerForPost(postId, button);
+          }, 500);
+        });
+        
+        btn.addEventListener('touchend', function() {
+          console.log("Touch end on react button");
+          clearTimeout(pressTimer);
+        });
+        
+        btn.addEventListener('touchmove', function() {
+          console.log("Touch move on react button");
+          clearTimeout(pressTimer);
+        });
+      });
+      
+      console.log("Post action listeners set up");
+    }
     
     // Create a global reaction picker
     static createGlobalReactionPicker() {
@@ -67,59 +126,6 @@ if (typeof window.ReactionSystem === 'undefined') {
       console.log("Global reaction picker created");
     }
     
-    // Set up event listeners for post actions
-    static setupPostActionListeners() {
-      console.log("Setting up post action listeners");
-      
-      // React buttons
-      document.querySelectorAll('.post-react-btn').forEach(btn => {
-        console.log("Found react button:", btn);
-        
-        // Simple click handler (default twothumbs)
-        btn.addEventListener('click', function(e) {
-          console.log("React button clicked");
-          // If clicking directly on the button (not a reaction)
-          if (e.target === btn || e.target.tagName === 'I' || e.target.tagName === 'SPAN') {
-            const postId = this.getAttribute('data-post-id');
-            console.log("Reacting to post with default reaction:", postId);
-            ReactionSystem.reactToPost(postId, 'twothumbs');
-          }
-        });
-        
-        // Hover handler for desktop
-        btn.addEventListener('mouseenter', function() {
-          console.log("Mouse enter on react button");
-          const postId = this.getAttribute('data-post-id');
-          ReactionSystem.showReactionPickerForPost(postId, this);
-        });
-        
-        // Long press handler for mobile
-        let pressTimer;
-        
-        btn.addEventListener('touchstart', function(e) {
-          console.log("Touch start on react button");
-          const button = this;
-          pressTimer = setTimeout(() => {
-            console.log("Long touch detected");
-            const postId = button.getAttribute('data-post-id');
-            ReactionSystem.showReactionPickerForPost(postId, button);
-          }, 500);
-        });
-        
-        btn.addEventListener('touchend', function() {
-          console.log("Touch end on react button");
-          clearTimeout(pressTimer);
-        });
-        
-        btn.addEventListener('touchmove', function() {
-          console.log("Touch move on react button");
-          clearTimeout(pressTimer);
-        });
-      });
-      
-      console.log("Post action listeners set up");
-    }
-    
     // Show reaction picker for a specific post
     static showReactionPickerForPost(postId, button) {
       console.log("Showing reaction picker for post:", postId);
@@ -148,19 +154,15 @@ if (typeof window.ReactionSystem === 'undefined') {
       
       // Position above the button
       picker.style.position = 'fixed';
-      picker.style.top = (buttonRect.top - 60) + 'px'; // Fixed height above button
+      picker.style.top = (buttonRect.top - 50) + 'px'; // Position closer to button
       
-      // Center horizontally relative to button
-      const leftPosition = buttonRect.left + (buttonRect.width / 2) - (picker.offsetWidth / 2);
+      // Align left edge of picker with left edge of button
+      picker.style.left = buttonRect.left + 'px';
       
       // Make sure it doesn't go off screen
-      const rightEdge = leftPosition + picker.offsetWidth;
+      const rightEdge = buttonRect.left + picker.offsetWidth;
       if (rightEdge > window.innerWidth) {
         picker.style.left = (window.innerWidth - picker.offsetWidth - 10) + 'px';
-      } else if (leftPosition < 10) {
-        picker.style.left = '10px';
-      } else {
-        picker.style.left = leftPosition + 'px';
       }
       
       console.log("Picker positioned at:", picker.style.top, picker.style.left);
@@ -269,7 +271,16 @@ if (typeof window.ReactionSystem === 'undefined') {
         
         // Check if user already has this reaction
         const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
+        if (!postElement) {
+          console.error(`Post element not found for post ID: ${postId}`);
+          return;
+        }
+        
         const reactBtn = postElement.querySelector('.post-react-btn');
+        if (!reactBtn) {
+          console.error(`React button not found for post ID: ${postId}`);
+          return;
+        }
         
         // Determine if we're toggling off
         let toggleOff = false;
@@ -277,6 +288,12 @@ if (typeof window.ReactionSystem === 'undefined') {
         if (reactBtn.classList.contains('has-reacted') && 
             reactBtn.getAttribute('data-user-reaction') === reactionType) {
           toggleOff = true;
+          console.log("Toggling off reaction:", reactionType);
+          
+          // Immediately update UI to show the default state
+          reactBtn.innerHTML = `<i class="far fa-smile"></i> React`;
+          reactBtn.classList.remove('has-reacted');
+          reactBtn.removeAttribute('data-user-reaction');
         }
         
         console.log("Toggle off:", toggleOff);

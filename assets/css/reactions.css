@@ -15,9 +15,9 @@
   align-items: center;
 }
 
-/* Reaction option (emoticon) */
+/* Reaction option (emoticon) - reduced size */
 .reaction-option {
-  height: 40px;
+  height: 28px; /* Reduced size */
   width: auto;
   cursor: pointer;
   transition: transform 0.2s;
