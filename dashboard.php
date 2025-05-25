@@ -1171,15 +1171,38 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <script src="assets/js/comment-debugger.js"></script>
     <!-- Remove any debug buttons that might be added directly in HTML -->
     <script>
+    // Enhanced debug button removal script
     document.addEventListener('DOMContentLoaded', function() {
-      // Remove any existing debug buttons
-      const debugButtons = document.querySelectorAll('.debug-button, #debug-reactions-btn, [id*="debug"], [class*="debug"]');
-      debugButtons.forEach(button => {
-        if (button.textContent.toLowerCase().includes('debug')) {
-          console.log('Removing debug button:', button);
-          button.remove();
-        }
-      });
+      // Function to remove debug buttons
+      function removeDebugButtons() {
+        // More comprehensive selector to catch all debug buttons
+        const debugButtons = document.querySelectorAll(
+          '.debug-button, #debug-reactions-btn, [id*="debug"], [class*="debug"], ' +
+          'button[style*="position: fixed"][style*="bottom: 10px"][style*="right: 10px"], ' +
+          'button[style*="background-color: #f44336"]'
+        );
+        
+        debugButtons.forEach(button => {
+          if (button.textContent && 
+              (button.textContent.toLowerCase().includes('debug') || 
+               button.getAttribute('id')?.toLowerCase().includes('debug') ||
+               button.getAttribute('class')?.toLowerCase().includes('debug'))) {
+            console.log('Removing debug button:', button);
+            button.remove();
+          }
+        });
+        
+        // Also look for any fixed position buttons in the bottom right
+        const fixedButtons = document.querySelectorAll('button[style*="position: fixed"]');
+        fixedButtons.forEach(button => {
+          const style = window.getComputedStyle(button);
+          if ((style.bottom.includes('px') && parseInt(style.bottom) < 50) && 
+              (style.right.includes('px') && parseInt(style.right) < 50)) {
+            console.log('Removing suspicious fixed position button:', button);
+            button.remove();
+          }
+        });
+      }
       
       // Override any methods that might add debug buttons
       if (window.SimpleReactionSystem) {
@@ -1189,27 +1212,64 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         };
       }
       
+      // Run immediately
+      removeDebugButtons();
+      
+      // Run again after a short delay to catch dynamically added buttons
+      setTimeout(removeDebugButtons, 500);
+      setTimeout(removeDebugButtons, 1000);
+      setTimeout(removeDebugButtons, 2000);
+      
       // Create a MutationObserver to remove any debug buttons that might be added dynamically
       const observer = new MutationObserver(mutations => {
+        let shouldRemove = false;
+        
         mutations.forEach(mutation => {
           if (mutation.addedNodes.length) {
             mutation.addedNodes.forEach(node => {
-              if (node.nodeType === 1 && node.textContent && node.textContent.toLowerCase().includes('debug')) {
-                // Check if it's a button or has debug in its class/id
-                if (node.tagName === 'BUTTON' || 
-                    (node.className && node.className.toLowerCase().includes('debug')) ||
-                    (node.id && node.id.toLowerCase().includes('debug'))) {
-                  console.log('Removing dynamically added debug button:', node);
-                  node.remove();
+              if (node.nodeType === 1) { // Element node
+                // Check if it's a debug button
+                if ((node.textContent && node.textContent.toLowerCase().includes('debug')) ||
+                    (node.id && node.id.toLowerCase().includes('debug')) ||
+                    (node.className && node.className.toLowerCase().includes('debug'))) {
+                  shouldRemove = true;
+                }
+                
+                // Check if it's a fixed position button in the bottom right
+                if (node.tagName === 'BUTTON' && node.style && node.style.position === 'fixed') {
+                  const style = window.getComputedStyle(node);
+                  if ((style.bottom.includes('px') && parseInt(style.bottom) < 50) && 
+                      (style.right.includes('px') && parseInt(style.right) < 50)) {
+                    shouldRemove = true;
+                  }
+                }
+                
+                // Also check for any buttons inside the added node
+                if (node.querySelectorAll) {
+                  const buttons = node.querySelectorAll('button');
+                  buttons.forEach(button => {
+                    if ((button.textContent && button.textContent.toLowerCase().includes('debug')) ||
+                        (button.id && button.id.toLowerCase().includes('debug')) ||
+                        (button.className && button.className.toLowerCase().includes('debug'))) {
+                      shouldRemove = true;
+                    }
+                  });
                 }
               }
             });
           }
         });
+        
+        if (shouldRemove) {
+          removeDebugButtons();
+        }
       });
       
-      // Start observing the document body for added nodes
-      observer.observe(document.body, { childList: true, subtree: true });
+      // Start observing the entire document
+      observer.observe(document.body, { 
+        childList: true, 
+        subtree: true 
+      });
     });
     </script>
 </body>

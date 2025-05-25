@@ -31,9 +31,15 @@ class SimpleReactionSystem {
   }
   
   init() {
-    if (this.initialized) return;
+    if (this.initialized) {
+      console.log('Simple reaction system already initialized');
+      return Promise.resolve();
+    }
     
     console.log('Initializing simple reaction system');
+    
+    // Remove any existing debug buttons first
+    this.removeDebugButtons();
     
     // Remove any existing reaction pickers
     document.querySelectorAll('.reaction-picker').forEach(picker => {
@@ -59,47 +65,21 @@ class SimpleReactionSystem {
     this.addDebugButton();
   }
   
-  // Add a debug button to check reactions
+  // Add a debug button to check reactions - COMPLETELY DISABLED
   addDebugButton() {
-    const debugBtn = document.createElement('button');
-    debugBtn.textContent = 'Debug Reactions';
-    debugBtn.style.position = 'fixed';
-    debugBtn.style.bottom = '10px';
-    debugBtn.style.right = '10px';
-    debugBtn.style.zIndex = '9999';
-    debugBtn.style.padding = '5px 10px';
-    debugBtn.style.backgroundColor = '#f44336';
-    debugBtn.style.color = 'white';
-    debugBtn.style.border = 'none';
-    debugBtn.style.borderRadius = '4px';
-    debugBtn.style.cursor = 'pointer';
-    
-    debugBtn.addEventListener('click', () => {
-      // Get all post IDs
-      const postIds = [];
-      document.querySelectorAll('[data-post-id]').forEach(el => {
-        const postId = el.getAttribute('data-post-id');
-        if (postId && !postIds.includes(postId)) {
-          postIds.push(postId);
-        }
-      });
-      
-      console.log('Found post IDs:', postIds);
-      
-      // Check reactions for each post
-      postIds.forEach(postId => {
-        fetch(`check_post_reactions.php?post_id=${postId}`)
-          .then(response => {
-            console.log(`Opened diagnostic page for post ${postId}`);
-            window.open(`check_post_reactions.php?post_id=${postId}`, '_blank');
-          })
-          .catch(error => {
-            console.error(`Error opening diagnostic page for post ${postId}:`, error);
-          });
-      });
+    // Debug button functionality completely disabled
+    console.log('Debug button creation prevented - function disabled');
+    return;
+  }
+
+  // Additional method to remove any existing debug buttons
+  removeDebugButtons() {
+    console.log('Removing any existing reaction debug buttons');
+    const debugButtons = document.querySelectorAll('.debug-reactions-btn, #debug-reactions-btn, [id*="debug-reaction"], [class*="debug-reaction"]');
+    debugButtons.forEach(button => {
+      console.log('Removing debug button:', button);
+      button.remove();
     });
-    
-    document.body.appendChild(debugBtn);
   }
   
   createReactionPicker() {
