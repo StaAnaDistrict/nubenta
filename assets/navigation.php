@@ -28,8 +28,8 @@ if ($currentUser) {
   <?php endif; ?>
 
   <nav class="navbar-vertical">
-    <ul>
-        <li><a href="dashboard.php" class="<?php echo $currentPage === 'dashboard' ? 'active' : ''; ?>">
+    <ul class="nav-list">
+        <li><a href="dashboardv2.php" class="<?php echo $currentPage === 'dashboardv2' ? 'active' : ''; ?>">
             <i class="fas fa-home"></i> Home
         </a></li>
         <li><a href="messages.php" class="<?php echo $currentPage === 'messages' ? 'active' : ''; ?>" id="messagesLink">
@@ -44,6 +44,12 @@ if ($currentUser) {
                 <?php endif; ?>
             </a>
         </li>
+        <li><a href="manage_media.php" class="<?php echo $currentPage === 'manage_media' ? 'active' : ''; ?>">
+            <i class="fas fa-photo-video"></i> My Media
+        </a></li>
+        <li><a href="manage_albums.php" class="<?php echo $currentPage === 'manage_albums' ? 'active' : ''; ?>">
+            <i class="fas fa-images"></i> My Albums
+        </a></li>
         <li><a href="testimonials.php"><i class="fas fa-star"></i> Testimonials</a></li>
         <li><a href="view_profile.php?id=<?= $user['id'] ?>"><i class="fas fa-user"></i> View Profile</a></li>
         <li><a href="edit_profile.php"><i class="fas fa-user-edit"></i> Edit Profile</a></li>

@@ -55,6 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (empty($errors)) {
     $stmt = $pdo->prepare("INSERT INTO posts (user_id, content, media, visibility, created_at) VALUES (?, ?, ?, ?, NOW())");
     $stmt->execute([$user['id'], $content, json_encode($mediaPaths), $visibility]);
+    $postId = $pdo->lastInsertId();
+    
+    // Optional: Track media in the user_media system without affecting the original flow
+    if (!empty($mediaPaths) && class_exists('MediaUploader')) {
+      require_once 'includes/MediaUploader.php';
+      $mediaUploader = new MediaUploader($pdo);
+      
+      // Make sure mediaPaths is an array
+      if (!is_array($mediaPaths)) {
+        error_log("Converting mediaPaths to array: " . json_encode($mediaPaths));
+        $mediaPaths = [$mediaPaths];
+      }
+      
+      $mediaUploader->trackPostMedia($user['id'], $mediaPaths, $postId);
+    }
+    
     header("Location: dashboard.php"); // Redirect back to dashboard or newsfeed
     exit();
   }

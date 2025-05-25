@@ -448,4 +448,5 @@ $isFollowing   = false;  // placeholder
     }
     </script>
 </body>
+<script src="assets/js/profile-tabs.js"></script>
 </html>
