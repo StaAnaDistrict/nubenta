@@ -60,19 +60,25 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             <!-- Post creation form -->
             <form action="create_post.php" method="POST" enctype="multipart/form-data" class="post-box">
                 <textarea name="content" placeholder="What's on your mind?" required></textarea>
-                <div class="post-actions">
-                    <div class="file-upload-container">
-                        <input type="file" name="media[]" id="post-media-input" multiple accept="image/*,video/mp4">
-                        <label for="post-media-input" class="btn btn-outline-secondary">
-                            <i class="fas fa-image"></i> Add Photos/Videos
-                        </label>
-                        <div id="media-preview-container" class="mt-2 d-flex flex-wrap"></div>
+                <div class="post-actions mt-2">
+                    <!-- File upload button - full width on mobile -->
+                    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-md-between w-100">
+                        <div class="mb-2 mb-md-0">
+                            <input type="file" name="media[]" id="post-media-input" multiple accept="image/*,video/mp4" class="d-none">
+                            <label for="post-media-input" class="btn btn-outline-secondary w-100 w-md-auto">
+                                <i class="fas fa-image"></i> Add Photos/Videos
+                            </label>
+                            <div id="media-preview-container" class="mt-2 d-flex flex-wrap"></div>
+                        </div>
+                        <!-- Controls row - side by side on all screens -->
+                        <div class="d-flex align-items-center">
+                            <select name="visibility" class="form-select me-2" style="width: auto;">
+                                <option value="public">Public</option>
+                                <option value="friends">Friends Only</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary">Post</button>
+                        </div>
                     </div>
-                    <select name="visibility" class="form-select">
-                        <option value="public">Public</option>
-                        <option value="friends">Friends Only</option>
-                    </select>
-                    <button type="submit" class="btn btn-primary">Post</button>
                 </div>
             </form>
 
