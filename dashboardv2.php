@@ -556,7 +556,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     
                     // Create the comment HTML
                     commentElement.innerHTML = `
-                        <div class="d-flex">
+                        <div class="d-flex comment-item">
                             <img src="${comment.profile_pic || 'assets/images/default-profile.png'}" alt="${comment.author}" class="rounded-circle me-2" width="32" height="32">
                             <div class="comment-content flex-grow-1">
                                 <div class="comment-bubble p-2 rounded">
@@ -568,40 +568,9 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                                     <button class="reply-button" data-comment-id="${comment.id}">Reply</button>
                                     ${comment.is_own_comment ? '<button class="delete-comment-button" data-comment-id="' + comment.id + '">Delete</button>' : ''}
                                 </div>
-                                
-                                <!-- Replies container -->
                                 <div class="replies-container mt-2">
-                                    ${comment.replies && comment.replies.length > 0 ? 
-                                        comment.replies.map(reply => {
-                                            const replyDate = new Date(reply.created_at);
-                                            const formattedReplyDate = replyDate.toLocaleString();
-                                            
-                                            return `
-                                                <div class="reply d-flex mt-2" data-reply-id="${reply.id}">
-                                                    <img src="${reply.profile_pic || 'assets/images/default-profile.png'}" alt="${reply.author}" class="rounded-circle me-2" width="24" height="24">
-                                                    <div class="reply-content flex-grow-1">
-                                                        <div class="reply-bubble p-2 rounded">
-                                                            <div class="fw-bold">${reply.author}</div>
-                                                            <div>${reply.content}</div>
-                                                        </div>
-                                                        <div class="reply-actions mt-1">
-                                                            <small class="text-muted">${formattedReplyDate}</small>
-                                                            ${reply.is_own_reply ? '<button class="delete-reply-button" data-reply-id="' + reply.id + '">Delete</button>' : ''}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            `;
-                                        }).join('') 
-                                        : ''}
+                                    ${comment.replies ? this.renderReplies(comment.replies) : ''}
                                 </div>
-                                
-                                <!-- Reply form -->
-                                <form class="reply-form mt-2 d-none" data-comment-id="${comment.id}">
-                                    <div class="input-group">
-                                        <input type="text" class="form-control reply-input" placeholder="Write a reply...">
-                                        <button type="submit" class="btn btn-primary btn-sm">Reply</button>
-                                    </div>
-                                </form>
                             </div>
                         </div>
                     `;

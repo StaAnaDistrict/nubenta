@@ -79,3 +79,39 @@
 .comment img, .reply img {
   object-fit: cover;
 }
+
+/* Add specific styles for reply form container */
+.reply-form-container {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px;
+  background-color: #f8f9fa;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+  z-index: 100;
+}
+
+/* Ensure reply form is properly displayed */
+.reply-form {
+  display: flex !important;
+  width: 100%;
+  align-items: center;
+}
+
+/* Style the reply input */
+.reply-input {
+  flex: 1;
+  border-radius: 20px;
+  padding: 8px 12px;
+}
+
+/* Make sure the d-none class doesn't override our styles */
+.reply-form-container:not(.d-none) {
+  display: block !important;
+}
