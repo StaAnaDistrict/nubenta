@@ -41,6 +41,36 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         // Set global variables for JavaScript modules
         window.isAdmin = <?php echo (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin') ? 'true' : 'false'; ?>;
     </script>
+    <style>
+        /* Media display styles */
+        .post-media-container {
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .post-media {
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        
+        .media img, .media video {
+            max-width: 100%;
+            border-radius: 8px;
+        }
+        
+        /* Blurred image for flagged content */
+        .blurred-image {
+            filter: blur(10px);
+        }
+        
+        /* Hover effect to unblur */
+        .blurred-image:hover {
+            filter: blur(0);
+            transition: filter 0.3s ease;
+        }
+    </style>
 </head>
 <body>
     <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button>
@@ -205,9 +235,26 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 console.log(`Loaded ${data.posts.length} posts`);
                 
                 data.posts.forEach(post => {
+                    // More detailed logging for debugging
+                    console.group(`Post ${post.id}`);
+                    console.log("Content:", post.content);
+                    console.log("Media (raw):", post.media);
+                    console.log("Media type:", typeof post.media);
+                    if (typeof post.media === 'string' && post.media.startsWith('[')) {
+                        try {
+                            console.log("Parsed media:", JSON.parse(post.media));
+                        } catch (e) {
+                            console.log("Failed to parse media as JSON");
+                        }
+                    }
+                    console.groupEnd();
+                    
                     const postElement = document.createElement('article');
                     postElement.className = 'post';
                     postElement.setAttribute('data-post-id', post.id);
+                    
+                    // Log the media data for debugging
+                    console.log(`Post ${post.id} media:`, post.media);
                     
                     // Create post HTML
                     let postHTML = `
@@ -791,22 +838,176 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <script>
     // Function to render post media
     function renderPostMedia(mediaUrl, isFlagged = false) {
+        console.log("Rendering media:", mediaUrl);
+        
         if (!mediaUrl) return '';
         
         const blurClass = isFlagged ? 'blurred-image' : '';
+        let mediaArray;
         
-        if (mediaUrl.match(/\.(jpg|jpeg|png|gif)$/i)) {
-            return `<div class="media"><img src="${mediaUrl}" alt="Post media" class="img-fluid ${blurClass}"></div>`;
-        } else if (mediaUrl.match(/\.mp4$/i)) {
-            return `<div class="media">
-                <video controls class="img-fluid ${blurClass}">
-                    <source src="${mediaUrl}" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
-            </div>`;
+        // Try to parse as JSON if it's a string
+        if (typeof mediaUrl === 'string') {
+            try {
+                // Check if it looks like JSON
+                if (mediaUrl.startsWith('[') || mediaUrl.startsWith('{')) {
+                    mediaArray = JSON.parse(mediaUrl);
+                    console.log("Parsed JSON media:", mediaArray);
+                    
+                    // Fix escaped slashes in JSON strings
+                    if (Array.isArray(mediaArray)) {
+                        mediaArray = mediaArray.map(path => path.replace(/\\\//g, '/'));
+                    }
+                } else {
+                    // Single path
+                    mediaArray = [mediaUrl];
+                }
+            } catch (e) {
+                console.log("Not valid JSON, treating as single path:", mediaUrl);
+                mediaArray = [mediaUrl];
+            }
+        } else if (Array.isArray(mediaUrl)) {
+            // Already an array
+            mediaArray = mediaUrl.map(path => typeof path === 'string' ? path.replace(/\\\//g, '/') : path);
         } else {
-            return `<div class="media"><a href="${mediaUrl}" target="_blank" class="btn btn-sm btn-outline-primary">View Attachment</a></div>`;
+            console.error("Invalid media format:", mediaUrl);
+            return '';
         }
+        
+        // If we have an empty array, return empty string
+        if (!mediaArray || mediaArray.length === 0) {
+            return '';
+        }
+        
+        console.log("Processed media array:", mediaArray);
+        
+        // For a single media item
+        if (mediaArray.length === 1) {
+            const media = mediaArray[0];
+            console.log("Processing single media item:", media);
+            
+            // Check if it's an image
+            if (media.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                return `<div class="media"><img src="${media}" alt="Post media" class="img-fluid ${blurClass}"></div>`;
+            } 
+            // Check if it's a video
+            else if (media.match(/\.mp4$/i)) {
+                return `<div class="media">
+                    <video controls class="img-fluid ${blurClass}">
+                        <source src="${media}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>`;
+            } 
+            // Unknown format
+            else {
+                return `<div class="media"><a href="${media}" target="_blank" class="btn btn-sm btn-outline-primary">View Attachment</a></div>`;
+            }
+        }
+        
+        // For multiple media items
+        let mediaHTML = '<div class="post-media-container">';
+        
+        // Different layouts based on number of media items
+        if (mediaArray.length === 2) {
+            // Two media items - side by side
+            mediaHTML += '<div class="row g-2">';
+            for (let i = 0; i < mediaArray.length; i++) {
+                const media = mediaArray[i];
+                mediaHTML += '<div class="col-6">';
+                
+                if (media.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                    mediaHTML += `<img src="${media}" alt="Post media" class="img-fluid post-media ${blurClass}">`;
+                } else if (media.match(/\.mp4$/i)) {
+                    mediaHTML += `
+                        <video controls class="img-fluid post-media ${blurClass}">
+                            <source src="${media}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>`;
+                } else {
+                    mediaHTML += `<a href="${media}" target="_blank" class="btn btn-sm btn-outline-primary">View Attachment</a>`;
+                }
+                
+                mediaHTML += '</div>';
+            }
+            mediaHTML += '</div>';
+        } else if (mediaArray.length === 3) {
+            // Three media items - 1 large, 2 small
+            mediaHTML += '<div class="row g-2">';
+            
+            // First item takes full width
+            mediaHTML += '<div class="col-12 mb-2">';
+            if (mediaArray[0].match(/\.(jpg|jpeg|png|gif)$/i)) {
+                mediaHTML += `<img src="${mediaArray[0]}" alt="Post media" class="img-fluid post-media ${blurClass}">`;
+            } else if (mediaArray[0].match(/\.mp4$/i)) {
+                mediaHTML += `
+                    <video controls class="img-fluid post-media ${blurClass}">
+                        <source src="${mediaArray[0]}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>`;
+            }
+            mediaHTML += '</div>';
+            
+            // Next 2 items side by side
+            for (let i = 1; i < 3; i++) {
+                if (i < mediaArray.length) {
+                    mediaHTML += '<div class="col-6">';
+                    if (mediaArray[i].match(/\.(jpg|jpeg|png|gif)$/i)) {
+                        mediaHTML += `<img src="${mediaArray[i]}" alt="Post media" class="img-fluid post-media ${blurClass}">`;
+                    } else if (mediaArray[i].match(/\.mp4$/i)) {
+                        mediaHTML += `
+                            <video controls class="img-fluid post-media ${blurClass}">
+                                <source src="${mediaArray[i]}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>`;
+                    }
+                    mediaHTML += '</div>';
+                }
+            }
+            mediaHTML += '</div>';
+        } else {
+            // 4+ media items - grid layout with "more" overlay
+            mediaHTML += '<div class="row g-2">';
+            
+            // Show first 4 items
+            for (let i = 0; i < Math.min(4, mediaArray.length); i++) {
+                mediaHTML += '<div class="col-6 mb-2">';
+                
+                if (i === 3 && mediaArray.length > 4) {
+                    // Last visible item with overlay showing count of remaining items
+                    mediaHTML += '<div class="position-relative">';
+                    if (mediaArray[i].match(/\.(jpg|jpeg|png|gif)$/i)) {
+                        mediaHTML += `<img src="${mediaArray[i]}" alt="Post media" class="img-fluid post-media ${blurClass}">`;
+                    } else if (mediaArray[i].match(/\.mp4$/i)) {
+                        mediaHTML += `
+                            <video controls class="img-fluid post-media ${blurClass}">
+                                <source src="${mediaArray[i]}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>`;
+                    }
+                    mediaHTML += `
+                        <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50 text-white">
+                            <span class="h4">+${mediaArray.length - 4} more</span>
+                        </div>
+                        </div>`;
+                } else {
+                    if (mediaArray[i].match(/\.(jpg|jpeg|png|gif)$/i)) {
+                        mediaHTML += `<img src="${mediaArray[i]}" alt="Post media" class="img-fluid post-media ${blurClass}">`;
+                    } else if (mediaArray[i].match(/\.mp4$/i)) {
+                        mediaHTML += `
+                            <video controls class="img-fluid post-media ${blurClass}">
+                                <source src="${mediaArray[i]}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>`;
+                    }
+                }
+                
+                mediaHTML += '</div>';
+            }
+            mediaHTML += '</div>';
+        }
+        
+        mediaHTML += '</div>';
+        return mediaHTML;
     }
     </script>
     <script>

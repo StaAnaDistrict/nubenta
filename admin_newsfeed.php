@@ -40,7 +40,11 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
         // Fix media path - don't add uploads/post_media/ if it's already a complete path
         $mediaPath = null;
         if ($post['media']) {
-            if (strpos($post['media'], 'uploads/') === 0) {
+            // Check if it's a JSON string
+            if (substr($post['media'], 0, 1) === '[') {
+                // It's already a JSON array, use as is
+                $mediaPath = $post['media'];
+            } else if (strpos($post['media'], 'uploads/') === 0) {
                 // Already has uploads/ prefix, use as is
                 $mediaPath = $post['media'];
             } else {
@@ -48,7 +52,7 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
                 $mediaPath = 'uploads/post_media/' . $post['media'];
             }
         }
-        
+
         $formatted_posts[] = [
             'id' => $post['id'],
             'user_id' => $post['user_id'],
@@ -81,6 +85,78 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="assets/css/admin_newsfeed.css">
+  <style>
+    /* Add this to your existing styles */
+    .media-count-badge {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+    
+    .media {
+      position: relative;
+      margin-top: 10px;
+    }
+    
+    .media img, .media video {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+    
+    /* Blurred image for flagged content */
+    .blurred-image {
+      filter: blur(10px);
+    }
+    
+    /* Hover effect to unblur */
+    .blurred-image:hover {
+      filter: blur(0);
+      transition: filter 0.3s ease;
+    }
+    
+    /* Carousel styles */
+    .carousel-container {
+      position: relative;
+      width: 100%;
+    }
+    
+    .carousel-item {
+      display: none;
+    }
+    
+    .carousel-item.active {
+      display: block;
+    }
+    
+    .carousel-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    
+    .carousel-prev {
+      left: 10px;
+    }
+    
+    .carousel-next {
+      right: 10px;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -101,7 +177,14 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
     <?php if (count($posts) > 0): ?>
       <div class="posts-container">
         <?php foreach ($posts as $post): ?>
-          <div class="post" data-post-id="<?= $post['id'] ?>">
+          <?php 
+          // Store media JSON as a data attribute if it's a JSON array
+          $mediaDataAttr = '';
+          if (!empty($post['media']) && substr($post['media'], 0, 1) === '[') {
+            $mediaDataAttr = ' data-media-json="' . htmlspecialchars($post['media']) . '"';
+          }
+          ?>
+          <div class="post" data-post-id="<?= $post['id'] ?>"<?= $mediaDataAttr ?>>
             <div class="post-header">
               <div class="author">
                 <?= htmlspecialchars($post['name']) ?>
@@ -125,13 +208,44 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
               
               <?php if ($post['media']): ?>
                 <div class="media">
-                  <?php if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $post['media'])): ?>
-                    <img src="<?= htmlspecialchars($post['media']) ?>" alt="media">
-                  <?php elseif (preg_match('/\.mp4$/i', $post['media'])): ?>
-                    <video controls>
-                      <source src="<?= htmlspecialchars($post['media']) ?>" type="video/mp4">
+                  <?php 
+                  // Check if media is a JSON string
+                  $mediaArray = [];
+                  if (substr($post['media'], 0, 1) === '[') {
+                    // Try to parse as JSON
+                    try {
+                      $mediaArray = json_decode($post['media'], true);
+                      // If successful, use the first item for display
+                      if (is_array($mediaArray) && count($mediaArray) > 0) {
+                        $mediaPath = $mediaArray[0];
+                        // Remove escaped slashes if present
+                        $mediaPath = str_replace('\\/', '/', $mediaPath);
+                      } else {
+                        $mediaPath = $post['media'];
+                      }
+                    } catch (Exception $e) {
+                      $mediaPath = $post['media'];
+                    }
+                  } else {
+                    $mediaPath = $post['media'];
+                  }
+                  
+                  // Display media based on type
+                  if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $mediaPath)): ?>
+                    <img src="<?= htmlspecialchars($mediaPath) ?>" alt="media" class="<?= isset($post['is_flagged']) && $post['is_flagged'] ? 'blurred-image' : '' ?>">
+                    <?php if (is_array($mediaArray) && count($mediaArray) > 1): ?>
+                      <div class="media-count-badge">+<?= count($mediaArray) - 1 ?> more</div>
+                    <?php endif; ?>
+                  <?php elseif (preg_match('/\.mp4$/i', $mediaPath)): ?>
+                    <video controls class="<?= isset($post['is_flagged']) && $post['is_flagged'] ? 'blurred-image' : '' ?>">
+                      <source src="<?= htmlspecialchars($mediaPath) ?>" type="video/mp4">
                       Your browser does not support the video tag.
                     </video>
+                    <?php if (is_array($mediaArray) && count($mediaArray) > 1): ?>
+                      <div class="media-count-badge">+<?= count($mediaArray) - 1 ?> more</div>
+                    <?php endif; ?>
+                  <?php else: ?>
+                    <a href="<?= htmlspecialchars($mediaPath) ?>" target="_blank" class="btn btn-sm btn-outline-primary">View Attachment</a>
                   <?php endif; ?>
                 </div>
               <?php endif; ?>
@@ -296,6 +410,63 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
           carouselContainer.innerHTML = '';
           
           if (mediaContainer) {
+            // First, check if there's a data attribute with JSON media
+            const mediaJson = post.getAttribute('data-media-json');
+            
+            if (mediaJson) {
+              try {
+                // Try to parse the JSON media
+                const mediaArray = JSON.parse(mediaJson.replace(/\\\//g, '/'));
+                
+                if (Array.isArray(mediaArray) && mediaArray.length > 0) {
+                  document.getElementById('postMedia').style.display = 'block';
+                  
+                  mediaArray.forEach(mediaPath => {
+                    const carouselItem = document.createElement('div');
+                    carouselItem.className = 'carousel-item';
+                    
+                    if (mediaPath.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                      const img = document.createElement('img');
+                      img.src = mediaPath;
+                      img.alt = 'Media';
+                      img.className = 'img-fluid';
+                      carouselItem.appendChild(img);
+                    } else if (mediaPath.match(/\.mp4$/i)) {
+                      const video = document.createElement('video');
+                      video.controls = true;
+                      video.className = 'img-fluid';
+                      const source = document.createElement('source');
+                      source.src = mediaPath;
+                      source.type = 'video/mp4';
+                      video.appendChild(source);
+                      carouselItem.appendChild(video);
+                    }
+                    
+                    carouselContainer.appendChild(carouselItem);
+                  });
+                  
+                  // Show carousel navigation only if multiple items
+                  const carouselNavs = document.querySelectorAll('.carousel-nav');
+                  carouselNavs.forEach(nav => {
+                    nav.style.display = mediaArray.length > 1 ? 'flex' : 'none';
+                  });
+                  
+                  // Make first item active
+                  if (carouselContainer.firstChild) {
+                    carouselContainer.firstChild.classList.add('active');
+                  }
+                  
+                  // Show modal
+                  document.getElementById('viewDetailsModal').style.display = 'flex';
+                  return;
+                }
+              } catch (e) {
+                console.error('Error parsing media JSON:', e);
+                // Fall back to the regular media handling
+              }
+            }
+            
+            // Regular media handling (for backward compatibility)
             const mediaElements = mediaContainer.querySelectorAll('img, video');
             
             if (mediaElements.length > 0) {
@@ -358,20 +529,40 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
         });
       });
 
-      // Carousel navigation
+      // Add carousel navigation functionality
       document.querySelector('.carousel-prev').addEventListener('click', function() {
-        const activeItem = document.querySelector('.carousel-item.active');
-        if (activeItem && activeItem.previousElementSibling) {
-          activeItem.classList.remove('active');
-          activeItem.previousElementSibling.classList.add('active');
+        const items = document.querySelectorAll('.carousel-item');
+        if (items.length <= 1) return;
+        
+        let activeIndex = -1;
+        items.forEach((item, index) => {
+          if (item.classList.contains('active')) {
+            activeIndex = index;
+          }
+        });
+        
+        if (activeIndex > -1) {
+          items[activeIndex].classList.remove('active');
+          const newIndex = (activeIndex - 1 + items.length) % items.length;
+          items[newIndex].classList.add('active');
         }
       });
 
       document.querySelector('.carousel-next').addEventListener('click', function() {
-        const activeItem = document.querySelector('.carousel-item.active');
-        if (activeItem && activeItem.nextElementSibling) {
-          activeItem.classList.remove('active');
-          activeItem.nextElementSibling.classList.add('active');
+        const items = document.querySelectorAll('.carousel-item');
+        if (items.length <= 1) return;
+        
+        let activeIndex = -1;
+        items.forEach((item, index) => {
+          if (item.classList.contains('active')) {
+            activeIndex = index;
+          }
+        });
+        
+        if (activeIndex > -1) {
+          items[activeIndex].classList.remove('active');
+          const newIndex = (activeIndex + 1) % items.length;
+          items[newIndex].classList.add('active');
         }
       });
 

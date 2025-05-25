@@ -88,7 +88,11 @@ try {
         // Fix media path - don't add uploads/post_media/ if it's already a complete path
         $mediaPath = null;
         if (!empty($post['media'])) {
-            if (strpos($post['media'], 'uploads/') === 0 || strpos($post['media'], 'http') === 0) {
+            // Check if it's a JSON string
+            if (substr($post['media'], 0, 1) === '[') {
+                // It's already a JSON array, use as is
+                $mediaPath = $post['media'];
+            } else if (strpos($post['media'], 'uploads/') === 0 || strpos($post['media'], 'http') === 0) {
                 // Already has uploads/ prefix or is a full URL, use as is
                 $mediaPath = $post['media'];
             } else {
