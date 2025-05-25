@@ -379,49 +379,56 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             return;
         }
         
-        // Create comments section if it doesn't exist
+        // Create comments section
         commentsSection = document.createElement('div');
         commentsSection.className = 'comments-section mt-3';
         
-        commentsSection.innerHTML = `
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="card-subtitle mb-3 text-muted">Comments</h6>
-                    
-                    <!-- Comments container -->
-                    <div class="comments-container" data-post-id="${postId}">
-                        <div class="text-center">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <span class="ms-2">Loading comments...</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Comment form -->
-                    <form class="comment-form mt-3" data-post-id="${postId}" id="comment-form-${postId}">
-                        <div class="input-group">
-                            <input type="text" class="form-control comment-input" placeholder="Write a comment...">
-                            <button type="submit" class="btn btn-primary">Post</button>
-                        </div>
-                    </form>
+        // Create comments container FIRST
+        const commentsContainer = document.createElement('div');
+        commentsContainer.className = 'comments-container mb-3';
+        commentsContainer.dataset.postId = postId;
+        
+        // Add loading indicator
+        commentsContainer.innerHTML = `
+            <div class="text-center p-2">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Loading comments...</span>
                 </div>
+                <span class="ms-2">Loading comments...</span>
             </div>
         `;
         
-        // Add after post actions
+        // Create comment form LAST
+        const commentForm = document.createElement('form');
+        commentForm.className = 'comment-form mb-3';
+        commentForm.dataset.postId = postId;
+        commentForm.id = `comment-form-${postId}`;
+        
+        commentForm.innerHTML = `
+            <div class="input-group">
+                <input type="text" class="form-control comment-input" placeholder="Write a comment...">
+                <button type="submit" class="btn btn-primary">Post</button>
+            </div>
+        `;
+        
+        // Add elements in the CORRECT ORDER:
+        // 1. Comments container (shows existing comments)
+        // 2. Comment form (at the bottom)
+        commentsSection.appendChild(commentsContainer);
+        commentsSection.appendChild(commentForm);
+        
+        // Add to post
         const postActions = postElement.querySelector('.post-actions');
-        if (!postActions) {
-            console.error(`Post actions element not found for post ID: ${postId}`);
-            return;
+        if (postActions) {
+            postActions.after(commentsSection);
+        } else {
+            postElement.appendChild(commentsSection);
         }
         
-        postActions.after(commentsSection);
-        
         // Load existing comments
-        loadComments(postId, commentsSection.querySelector('.comments-container'));
+        loadComments(postId);
         
-        // Set up form submission with a unique ID to prevent duplicates
+        // Set up form submission
         setupCommentFormSubmission(postId);
     }
 
@@ -506,27 +513,19 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     }
 
     // Function to load comments for a post
-    async function loadComments(postId, commentsContainer) {
+    async function loadComments(postId, commentsContainer = null) {
         try {
             console.log(`Loading comments for post ${postId}`);
             
+            // If no container is provided, find it
             if (!commentsContainer) {
                 commentsContainer = document.querySelector(`.comments-container[data-post-id="${postId}"]`);
-                if (!commentsContainer) {
-                    console.error(`Comments container not found for post ID: ${postId}`);
-                    return;
-                }
             }
             
-            // Show loading indicator
-            commentsContainer.innerHTML = `
-                <div class="text-center">
-                    <div class="spinner-border spinner-border-sm text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <span class="ms-2">Loading comments...</span>
-                </div>
-            `;
+            if (!commentsContainer) {
+                console.error(`Comments container not found for post ${postId}`);
+                return;
+            }
             
             const response = await fetch(`api/get_comments.php?post_id=${postId}`);
             
@@ -605,7 +604,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 const commentId = this.dataset.commentId;
                 console.log(`Reply button clicked for comment ${commentId}`);
                 
-                // Find the reply form
+                // Find the comment element
                 const commentElement = commentsContainer.querySelector(`.comment[data-comment-id="${commentId}"]`);
                 if (!commentElement) {
                     console.error(`Comment element not found for ID: ${commentId}`);
@@ -732,113 +731,52 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             newBtn.addEventListener('click', async function(e) {
                 e.preventDefault();
                 
-                // Prevent multiple confirmations
-                if (isDeleting) return;
-                isDeleting = true;
+                if (isDeleting) return; // Prevent multiple clicks
                 
                 const commentId = this.dataset.commentId;
                 console.log(`Delete button clicked for comment ${commentId}`);
                 
-                if (!confirm('Are you sure you want to delete this comment?')) {
-                    isDeleting = false;
-                    return;
-                }
-                
-                try {
-                    const response = await fetch('api/delete_comment.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: `comment_id=${commentId}`
-                    });
+                if (confirm('Are you sure you want to delete this comment?')) {
+                    isDeleting = true;
+                    this.disabled = true;
                     
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        // Remove comment from UI
-                        const commentElement = commentsContainer.querySelector(`.comment[data-comment-id="${commentId}"]`);
-                        if (commentElement) {
-                            commentElement.remove();
+                    try {
+                        console.log(`Deleting comment ${commentId}`);
+                        
+                        const response = await fetch('api/delete_comment.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: `comment_id=${commentId}`
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        console.log('Delete comment response:', data);
+                        
+                        if (data.success) {
+                            // Remove the comment from the UI
+                            const commentElement = commentsContainer.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                            if (commentElement) {
+                                commentElement.remove();
+                            }
                             
                             // Update comment count
                             loadCommentCount(postId);
-                            
-                            // If no comments left, show message
-                            if (commentsContainer.querySelectorAll('.comment').length === 0) {
-                                commentsContainer.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
-                            }
-                        }
-                    } else {
-                        // Only show error if the comment wasn't actually deleted
-                        const commentElement = commentsContainer.querySelector(`.comment[data-comment-id="${commentId}"]`);
-                        if (commentElement) {
+                        } else {
                             alert('Error deleting comment: ' + data.error);
                         }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('An error occurred while deleting your comment.');
+                    } finally {
+                        isDeleting = false;
+                        this.disabled = false;
                     }
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('An error occurred while deleting your comment.');
-                } finally {
-                    isDeleting = false;
-                }
-            });
-        });
-        
-        // Add event listeners for delete reply buttons
-        commentsContainer.querySelectorAll('.delete-reply-button').forEach(btn => {
-            // Remove any existing event listeners to prevent duplicates
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            btn = newBtn;
-            
-            // Add a flag to track deletion state
-            let isDeleting = false;
-            
-            btn.addEventListener('click', async function(e) {
-                e.preventDefault();
-                
-                // Prevent multiple confirmations
-                if (isDeleting) return;
-                isDeleting = true;
-                
-                const replyId = this.dataset.replyId;
-                console.log(`Delete button clicked for reply ${replyId}`);
-                
-                if (!confirm('Are you sure you want to delete this reply?')) {
-                    isDeleting = false;
-                    return;
-                }
-                
-                try {
-                    const response = await fetch('api/delete_comment_reply.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: `reply_id=${replyId}`
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        // Remove reply from UI
-                        const replyElement = commentsContainer.querySelector(`.reply[data-reply-id="${replyId}"]`);
-                        if (replyElement) {
-                            replyElement.remove();
-                        }
-                    } else {
-                        // Only show error if the reply wasn't actually deleted
-                        const replyElement = commentsContainer.querySelector(`.reply[data-reply-id="${replyId}"]`);
-                        if (replyElement) {
-                            alert('Error deleting reply: ' + data.error);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('An error occurred while deleting your reply.');
-                } finally {
-                    isDeleting = false;
                 }
             });
         });
@@ -1024,5 +962,48 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     </script>
     <!-- Add the comment debugger script before the closing body tag -->
     <script src="assets/js/comment-debugger.js"></script>
+    <!-- Remove any debug buttons that might be added directly in HTML -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Remove any existing debug buttons
+      const debugButtons = document.querySelectorAll('.debug-button, #debug-reactions-btn, [id*="debug"], [class*="debug"]');
+      debugButtons.forEach(button => {
+        if (button.textContent.toLowerCase().includes('debug')) {
+          console.log('Removing debug button:', button);
+          button.remove();
+        }
+      });
+      
+      // Override any methods that might add debug buttons
+      if (window.SimpleReactionSystem) {
+        window.SimpleReactionSystem.addDebugButton = function() {
+          console.log('Debug button creation prevented');
+          return;
+        };
+      }
+      
+      // Create a MutationObserver to remove any debug buttons that might be added dynamically
+      const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+          if (mutation.addedNodes.length) {
+            mutation.addedNodes.forEach(node => {
+              if (node.nodeType === 1 && node.textContent && node.textContent.toLowerCase().includes('debug')) {
+                // Check if it's a button or has debug in its class/id
+                if (node.tagName === 'BUTTON' || 
+                    (node.className && node.className.toLowerCase().includes('debug')) ||
+                    (node.id && node.id.toLowerCase().includes('debug'))) {
+                  console.log('Removing dynamically added debug button:', node);
+                  node.remove();
+                }
+              }
+            });
+          }
+        });
+      });
+      
+      // Start observing the document body for added nodes
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    </script>
 </body>
 </html>
