@@ -409,20 +409,10 @@ try {
         </main>
 
         <!-- Right Sidebar -->
-        <aside class="right-sidebar">
-            <div class="sidebar-section">
-                <h4>📢 Ads</h4>
-                <p>(Coming Soon)</p>
-            </div>
-            <div class="sidebar-section">
-                <h4>🕑 Activity Feed</h4>
-                <p>(Coming Soon)</p>
-            </div>
-            <div class="sidebar-section">
-                <h4>🟢 Online Friends</h4>
-                <p>(Coming Soon)</p>
-            </div>
-        </aside>
+        <?php
+        // Include the modular right sidebar
+        include 'assets/add_ons.php';
+        ?>
     </div>
 
     <!-- Create Album Modal -->

@@ -740,12 +740,10 @@ $user = $_SESSION['user'];
         </main>
 
         <!-- Right Sidebar -->
-        <aside class="right-sidebar">
-            <div class="sidebar-section">
-                <h4>📢 Ads</h4>
-                <p>(Coming Soon)</p>
-            </div>
-        </aside>
+        <?php
+        // Include the modular right sidebar
+        include 'assets/add_ons.php';
+        ?>
     </div>
 
     <!-- Add this modal HTML before the closing body tag -->

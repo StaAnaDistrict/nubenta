@@ -307,20 +307,10 @@ $friends = $friends_stmt->fetchAll();
         </main>
 
         <!-- Right Sidebar -->
-        <aside class="right-sidebar">
-            <div class="sidebar-section">
-                <h4>📢 Ads</h4>
-                <p>(Coming Soon)</p>
-            </div>
-            <div class="sidebar-section">
-                <h4>🕑 Activity Feed</h4>
-                <p>(Coming Soon)</p>
-            </div>
-            <div class="sidebar-section">
-                <h4>🟢 Online Friends</h4>
-                <p>(Coming Soon)</p>
-            </div>
-        </aside>
+        <?php
+        // Include the modular right sidebar
+        include 'assets/add_ons.php';
+        ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

@@ -127,21 +127,15 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             </section>
         </main>
 
-        <!-- Right Sidebar -->
-        <aside class="right-sidebar">
-            <div class="sidebar-section">
-                <h4>📢 Ads</h4>
-                <p>(Coming Soon)</p>
-            </div>
-            <div class="sidebar-section">
-                <h4>🕑 Activity Feed</h4>
-                <p>(Coming Soon)</p>
-            </div>
-            <div class="sidebar-section">
-                <h4>🟢 Online Friends</h4>
-                <p>(Coming Soon)</p>
-            </div>
-        </aside>
+        <!-- Right Sidebar - Using the modular add_ons.php -->
+        <?php
+        // You can customize the sidebar by setting these variables
+        // $topElementTitle = "Custom Ads Title";
+        // $showAdditionalContent = true;
+        
+        // Include the modular right sidebar
+        include 'assets/add_ons.php';
+        ?>
     </div>
 
     <!-- Include JavaScript files -->

@@ -255,13 +255,13 @@ $pageTitle = "Manage Media";
                                     </div>
                                 </div>
                                 <div class="card-body">
-                                    <p class="card-text small text-muted">
-                                        <i class="fas <?php echo $item['media_type'] === 'image' ? 'fa-image' : 'fa-video'; ?> me-1"></i>
-                                        <?php echo ucfirst($item['media_type']); ?> • 
-                                        <?php echo date('M j, Y', strtotime($item['created_at'])); ?>
-                                    </p>
-                                    <p class="card-text small">
-                                        <span class="badge bg-<?php echo $item['privacy'] === 'public' ? 'success' : 'warning'; ?>">
+                                    <p class="card-text small text-muted d-flex justify-content-between align-items-center">
+                                        <span>
+                                            <i class="fas <?php echo $item['media_type'] === 'image' ? 'fa-image' : 'fa-video'; ?> me-1"></i>
+                                            <?php echo ucfirst($item['media_type']); ?> • 
+                                            <?php echo date('M j, Y', strtotime($item['created_at'])); ?>
+                                        </span>
+                                        <span class="badge bg-<?php echo $item['privacy'] === 'public' ? 'dark' : 'secondary'; ?>">
                                             <i class="fas <?php echo $item['privacy'] === 'public' ? 'fa-globe' : 'fa-lock'; ?> me-1"></i>
                                             <?php echo ucfirst($item['privacy']); ?>
                                         </span>
@@ -356,20 +356,10 @@ $pageTitle = "Manage Media";
         </main>
 
         <!-- Right Sidebar -->
-        <aside class="right-sidebar">
-            <div class="sidebar-section">
-                <h4>📢 Ads</h4>
-                <p>(Coming Soon)</p>
-            </div>
-            <div class="sidebar-section">
-                <h4>🕑 Activity Feed</h4>
-                <p>(Coming Soon)</p>
-            </div>
-            <div class="sidebar-section">
-                <h4>🟢 Online Friends</h4>
-                <p>(Coming Soon)</p>
-            </div>
-        </aside>
+        <?php
+        // Include the modular right sidebar
+        include 'assets/add_ons.php';
+        ?>
     </div>
 
     <!-- Include JavaScript files -->
