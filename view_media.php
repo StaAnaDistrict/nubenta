@@ -127,6 +127,52 @@ $pageTitle = $media ? "Viewing Media" : "Media Not Found";
         .comments-section {
             margin-top: 30px;
         }
+        
+        /* Custom button styling for blackish theme */
+        .btn-primary {
+            background-color: #2c2c2c;
+            border-color: #333;
+            color: #fff;
+        }
+        
+        .btn-primary:hover {
+            background-color: #404040;
+            border-color: #444;
+            color: #fff;
+        }
+        
+        .btn-outline-primary {
+            color: #2c2c2c;
+            border-color: #333;
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: #2c2c2c;
+            border-color: #333;
+            color: #fff;
+        }
+        
+        .btn-dark, .btn-outline-dark {
+            background-color: #2c2c2c;
+            border-color: #333;
+            color: #fff;
+        }
+        
+        .btn-dark:hover, .btn-outline-dark:hover {
+            background-color: #404040;
+            border-color: #444;
+            color: #fff;
+        }
+        
+        .btn-outline-dark {
+            background-color: transparent;
+            color: #2c2c2c;
+        }
+        
+        .btn-outline-dark:hover {
+            background-color: #2c2c2c;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -160,11 +206,11 @@ $pageTitle = $media ? "Viewing Media" : "Media Not Found";
                             <?php echo $media['media_type'] === 'image' ? 'Image' : 'Video'; ?> Viewer
                         </h5>
                         <div>
-                            <a href="manage_media.php" class="btn btn-sm btn-outline-secondary">
+                            <a href="manage_media.php" class="btn btn-sm btn-outline-dark">
                                 <i class="fas fa-th me-1"></i> Back to Gallery
                             </a>
                             <?php if ($media['post_id']): ?>
-                                <a href="view_post.php?id=<?php echo $media['post_id']; ?>" class="btn btn-sm btn-outline-primary ms-2">
+                                <a href="view_post.php?id=<?php echo $media['post_id']; ?>" class="btn btn-sm btn-outline-dark ms-2">
                                     <i class="fas fa-link me-1"></i> View Post
                                 </a>
                             <?php endif; ?>
@@ -202,7 +248,7 @@ $pageTitle = $media ? "Viewing Media" : "Media Not Found";
                                 <div>
                                     <form method="POST" action="manage_media.php" onsubmit="return confirm('Are you sure you want to delete this media?');" class="d-inline">
                                         <input type="hidden" name="media_id" value="<?php echo $media['id']; ?>">
-                                        <button type="submit" name="delete_media" class="btn btn-sm btn-danger">
+                                        <button type="submit" name="delete_media" class="btn btn-sm btn-outline-dark">
                                             <i class="fas fa-trash-alt me-1"></i> Delete
                                         </button>
                                     </form>
@@ -227,7 +273,7 @@ $pageTitle = $media ? "Viewing Media" : "Media Not Found";
                         <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                         <h4>Media Not Found</h4>
                         <p>The requested media item could not be found or you don't have permission to view it.</p>
-                        <a href="manage_media.php" class="btn btn-primary mt-3">Back to Media Gallery</a>
+                        <a href="manage_media.php" class="btn btn-dark mt-3">Back to Media Gallery</a>
                     </div>
                 </div>
             <?php endif; ?>

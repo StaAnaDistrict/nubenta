@@ -92,9 +92,9 @@ $pageTitle = "Manage Media";
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Manage Your Media</h5>
                     <div class="btn-group">
-                        <a href="manage_media.php" class="btn btn-sm <?php echo !$mediaType ? 'btn-primary' : 'btn-outline-primary'; ?>">All</a>
-                        <a href="manage_media.php?type=image" class="btn btn-sm <?php echo $mediaType === 'image' ? 'btn-primary' : 'btn-outline-primary'; ?>">Images</a>
-                        <a href="manage_media.php?type=video" class="btn btn-sm <?php echo $mediaType === 'video' ? 'btn-primary' : 'btn-outline-primary'; ?>">Videos</a>
+                        <a href="manage_media.php" class="btn btn-sm <?php echo !$mediaType ? 'btn-dark' : 'btn-outline-dark'; ?>">All</a>
+                        <a href="manage_media.php?type=image" class="btn btn-sm <?php echo $mediaType === 'image' ? 'btn-dark' : 'btn-outline-dark'; ?>">Images</a>
+                        <a href="manage_media.php?type=video" class="btn btn-sm <?php echo $mediaType === 'video' ? 'btn-dark' : 'btn-outline-dark'; ?>">Videos</a>
                     </div>
                 </div>
                 <div class="card-body">
@@ -110,7 +110,7 @@ $pageTitle = "Manage Media";
                         <div class="text-center p-4 text-muted">
                             <i class="fas fa-photo-video fa-3x mb-3"></i>
                             <p>No media found. Start sharing photos and videos in your posts!</p>
-                            <a href="dashboardv2.php" class="btn btn-primary">Go to Dashboard</a>
+                            <a href="dashboardv2.php" class="btn btn-dark">Go to Dashboard</a>
                         </div>
                     <?php else: ?>
                         <div class="row g-3">
