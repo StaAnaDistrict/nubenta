@@ -14,13 +14,11 @@ class MediaUploader {
     public function __construct($pdo) {
         $this->pdo = $pdo;
         
-        // Create upload directory if it doesn't exist
-        if (!is_dir($this->uploadDir)) {
-            mkdir($this->uploadDir, 0777, true);
-        }
-        
-        // Ensure required tables exist
+        // Ensure tables exist
         $this->ensureTablesExist();
+        
+        // Ensure privacy column exists
+        $this->ensureMediaPrivacyColumn();
     }
     
     /**
@@ -241,35 +239,31 @@ class MediaUploader {
     }
 
     /**
-     * Get media for a specific user filtered by media type
+     * Get user media by type with pagination
+     * 
      * @param int $userId User ID
-     * @param string $mediaType Media type to filter by (image, video, audio)
-     * @param int $limit Maximum number of items to return
+     * @param string|null $mediaType Media type filter (image, video, audio)
+     * @param int $limit Number of items per page
      * @param int $offset Offset for pagination
      * @return array Array of media items
      */
     public function getUserMediaByType($userId, $mediaType = null, $limit = 20, $offset = 0) {
         try {
             $params = [$userId];
-            $typeFilter = '';
+            $sql = "SELECT * FROM user_media WHERE user_id = ?";
             
             if ($mediaType) {
-                $typeFilter = "AND media_type = ?";
-                $params[] = $mediaType;
+                $sql .= " AND media_type LIKE ?";
+                $params[] = $mediaType . '%';
             }
             
+            $sql .= " ORDER BY created_at DESC LIMIT ? OFFSET ?";
             $params[] = $limit;
             $params[] = $offset;
             
-            $stmt = $this->pdo->prepare("
-                SELECT * FROM user_media
-                WHERE user_id = ?
-                $typeFilter
-                ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
-            ");
-            
+            $stmt = $this->pdo->prepare($sql);
             $stmt->execute($params);
+            
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("Error getting user media by type: " . $e->getMessage());
@@ -278,30 +272,27 @@ class MediaUploader {
     }
 
     /**
-     * Get media count for a specific user
+     * Get count of user media
+     * 
      * @param int $userId User ID
-     * @param string $mediaType Media type to filter by (optional)
+     * @param string|null $mediaType Media type filter (image, video, audio)
      * @return int Count of media items
      */
     public function getUserMediaCount($userId, $mediaType = null) {
         try {
             $params = [$userId];
-            $typeFilter = '';
+            $sql = "SELECT COUNT(*) as total FROM user_media WHERE user_id = ?";
             
             if ($mediaType) {
-                $typeFilter = "AND media_type = ?";
-                $params[] = $mediaType;
+                $sql .= " AND media_type LIKE ?";
+                $params[] = $mediaType . '%';
             }
             
-            $stmt = $this->pdo->prepare("
-                SELECT COUNT(*) as count FROM user_media
-                WHERE user_id = ?
-                $typeFilter
-            ");
-            
+            $stmt = $this->pdo->prepare($sql);
             $stmt->execute($params);
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return (int)$result['count'];
+            
+            return (int)$result['total'];
         } catch (PDOException $e) {
             error_log("Error getting user media count: " . $e->getMessage());
             return 0;
@@ -330,45 +321,55 @@ class MediaUploader {
     }
 
     /**
-     * Delete media item
+     * Delete media
+     * 
      * @param int $mediaId Media ID
-     * @param int $userId User ID (for security check)
-     * @return bool Success status
+     * @param int $userId User ID (for permission check)
+     * @return bool Success or failure
      */
     public function deleteMedia($mediaId, $userId) {
         try {
-            // First get the media item to check ownership and get file path
-            $stmt = $this->pdo->prepare("
-                SELECT * FROM user_media
-                WHERE id = ? AND user_id = ?
-            ");
-            
-            $stmt->execute([$mediaId, $userId]);
-            $media = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Check if media belongs to user
+            $checkStmt = $this->pdo->prepare("SELECT media_url FROM user_media WHERE id = ? AND user_id = ?");
+            $checkStmt->execute([$mediaId, $userId]);
+            $media = $checkStmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$media) {
-                return false; // Media not found or not owned by user
+                return false;
             }
             
-            // Delete the file from storage
-            if (file_exists($media['media_url'])) {
-                unlink($media['media_url']);
-            }
+            // Begin transaction
+            $this->pdo->beginTransaction();
             
-            // Delete thumbnail if exists
-            if (!empty($media['thumbnail_url']) && file_exists($media['thumbnail_url'])) {
-                unlink($media['thumbnail_url']);
-            }
-            
-            // Delete from database
-            $stmt = $this->pdo->prepare("
-                DELETE FROM user_media
-                WHERE id = ?
+            // Remove from album_media if table exists
+            $tableCheckStmt = $this->pdo->prepare("
+                SELECT COUNT(*) as table_exists 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'album_media'
             ");
+            $tableCheckStmt->execute();
+            $tableExists = $tableCheckStmt->fetch(PDO::FETCH_ASSOC)['table_exists'] > 0;
             
+            if ($tableExists) {
+                $stmt = $this->pdo->prepare("DELETE FROM album_media WHERE media_id = ?");
+                $stmt->execute([$mediaId]);
+            }
+            
+            // Delete from user_media
+            $stmt = $this->pdo->prepare("DELETE FROM user_media WHERE id = ?");
             $stmt->execute([$mediaId]);
+            
+            // Delete physical file if it exists and is in the uploads directory
+            $mediaUrl = $media['media_url'];
+            if (file_exists($mediaUrl) && strpos($mediaUrl, 'uploads/') === 0) {
+                unlink($mediaUrl);
+            }
+            
+            $this->pdo->commit();
             return true;
         } catch (PDOException $e) {
+            $this->pdo->rollBack();
             error_log("Error deleting media: " . $e->getMessage());
             return false;
         }
@@ -1231,6 +1232,7 @@ class MediaUploader {
                       `thumbnail_url` varchar(255) DEFAULT NULL,
                       `file_size_bytes` int(11) DEFAULT NULL,
                       `post_id` int(11) DEFAULT NULL,
+                      `privacy` varchar(10) NOT NULL DEFAULT 'public',
                       `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
                       PRIMARY KEY (`id`),
                       KEY `user_id` (`user_id`),
@@ -1249,7 +1251,7 @@ class MediaUploader {
                       `album_name` varchar(255) NOT NULL,
                       `description` text DEFAULT NULL,
                       `cover_image_id` int(11) DEFAULT NULL,
-                      `privacy` enum('public','friends','private') NOT NULL DEFAULT 'public',
+                      `privacy` varchar(10) NOT NULL DEFAULT 'public',
                       `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
                       `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
                       PRIMARY KEY (`id`),
@@ -1287,6 +1289,59 @@ class MediaUploader {
             return true;
         } catch (PDOException $e) {
             error_log("Error ensuring tables exist: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Ensure the user_media table has a privacy column
+     */
+    public function ensureMediaPrivacyColumn() {
+        try {
+            // Check if privacy column exists
+            $stmt = $this->pdo->prepare("SHOW COLUMNS FROM user_media LIKE 'privacy'");
+            $stmt->execute();
+            $column = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$column) {
+                // Add privacy column if it doesn't exist
+                $this->pdo->exec("
+                    ALTER TABLE user_media 
+                    ADD COLUMN privacy VARCHAR(10) NOT NULL DEFAULT 'public'
+                ");
+            }
+            return true;
+        } catch (PDOException $e) {
+            error_log("Error ensuring media privacy column: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Update media privacy setting
+     * 
+     * @param int $mediaId Media ID
+     * @param int $userId User ID (for permission check)
+     * @param string $privacy Privacy setting (public, friends, private)
+     * @return bool Success or failure
+     */
+    public function updateMediaPrivacy($mediaId, $userId, $privacy) {
+        try {
+            // Check if media belongs to user
+            $checkStmt = $this->pdo->prepare("SELECT id FROM user_media WHERE id = ? AND user_id = ?");
+            $checkStmt->execute([$mediaId, $userId]);
+            
+            if (!$checkStmt->fetch()) {
+                return false;
+            }
+            
+            // Update privacy
+            $updateStmt = $this->pdo->prepare("UPDATE user_media SET privacy = ? WHERE id = ?");
+            $updateStmt->execute([$privacy, $mediaId]);
+            
+            return true;
+        } catch (PDOException $e) {
+            error_log("Error updating media privacy: " . $e->getMessage());
             return false;
         }
     }

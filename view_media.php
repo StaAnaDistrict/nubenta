@@ -15,15 +15,52 @@ $mediaUploader = new MediaUploader($pdo);
 // Get media ID from URL
 $mediaId = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
+// Handle privacy update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_privacy'])) {
+    $mediaId = isset($_POST['media_id']) ? intval($_POST['media_id']) : 0;
+    $privacy = isset($_POST['privacy']) ? $_POST['privacy'] : 'public';
+    
+    if ($mediaId > 0) {
+        // Check if media belongs to user
+        $checkStmt = $pdo->prepare("SELECT user_id FROM user_media WHERE id = ?");
+        $checkStmt->execute([$mediaId]);
+        $mediaOwner = $checkStmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($mediaOwner && $mediaOwner['user_id'] == $user['id']) {
+            // Update privacy setting
+            $updateStmt = $pdo->prepare("UPDATE user_media SET privacy = ? WHERE id = ?");
+            $updateStmt->execute([$privacy, $mediaId]);
+            
+            $_SESSION['flash_message'] = [
+                'type' => 'success',
+                'message' => 'Privacy settings updated successfully'
+            ];
+            
+            // Redirect to refresh the page
+            header("Location: view_media.php?id=" . $mediaId);
+            exit();
+        } else {
+            $_SESSION['flash_message'] = [
+                'type' => 'danger',
+                'message' => 'You do not have permission to update this media'
+            ];
+        }
+    }
+}
+
 // Get media details
 $media = null;
 if ($mediaId > 0) {
+    // Update query to include privacy field
     $stmt = $pdo->prepare("SELECT * FROM user_media WHERE id = ?");
     $stmt->execute([$mediaId]);
     $media = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // If media not found or doesn't belong to user, redirect
-    if (!$media || ($media['user_id'] != $user['id'] && $user['role'] !== 'admin')) {
+    // If media not found or doesn't belong to user and is private, redirect
+    if (!$media || 
+        ($media['user_id'] != $user['id'] && $user['role'] !== 'admin' && 
+         (($media['privacy'] ?? 'public') === 'private' || 
+          (($media['privacy'] ?? 'public') === 'friends' && !isFriend($pdo, $user['id'], $media['user_id']))))) {
         $_SESSION['flash_message'] = [
             'type' => 'danger',
             'message' => 'Media not found or you do not have permission to view it'
@@ -31,6 +68,19 @@ if ($mediaId > 0) {
         header("Location: manage_media.php");
         exit();
     }
+}
+
+// Function to check if users are friends
+function isFriend($pdo, $userId1, $userId2) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as is_friend
+        FROM friend_requests
+        WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
+        AND status = 'accepted'
+    ");
+    $stmt->execute([$userId1, $userId2, $userId2, $userId1]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $result['is_friend'] > 0;
 }
 
 // Get previous and next media IDs for navigation
@@ -203,11 +253,14 @@ $pageTitle = $media ? "Viewing Media" : "Media Not Found";
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            <?php echo $media['media_type'] === 'image' ? 'Image' : 'Video'; ?> Viewer
+                            <?php echo htmlspecialchars($media['caption'] ?? ''); ?>
                         </h5>
                         <div>
-                            <a href="manage_media.php" class="btn btn-sm btn-outline-dark">
-                                <i class="fas fa-th me-1"></i> Back to Gallery
+                            <a href="manage_albums.php" class="btn btn-sm btn-outline-dark">
+                                <i class="fas fa-images me-1"></i> Back to Albums
+                            </a>
+                            <a href="manage_media.php" class="btn btn-sm btn-outline-dark ms-2">
+                                <i class="fas fa-photo-video me-1"></i> Back to Gallery
                             </a>
                             <?php if ($media['post_id']): ?>
                                 <a href="view_post.php?id=<?php echo $media['post_id']; ?>" class="btn btn-sm btn-outline-dark ms-2">
@@ -245,7 +298,33 @@ $pageTitle = $media ? "Viewing Media" : "Media Not Found";
                                 <div>
                                     <span class="text-muted">Uploaded: <?php echo date('F j, Y, g:i a', strtotime($media['created_at'])); ?></span>
                                 </div>
-                                <div>
+                                <div class="d-flex">
+                                    <?php if ($media['user_id'] === $user['id']): ?>
+                                        <!-- Privacy settings dropdown -->
+                                        <div class="dropdown me-2">
+                                            <form method="POST" id="updatePrivacyForm">
+                                                <input type="hidden" name="media_id" value="<?php echo $media['id']; ?>">
+                                                <div class="input-group">
+                                                    <select class="form-select form-select-sm" name="privacy" id="privacySelect" onchange="document.getElementById('updatePrivacyForm').submit();">
+                                                        <option value="public" <?php echo ($media['privacy'] ?? 'public') === 'public' ? 'selected' : ''; ?>>Public</option>
+                                                        <option value="friends" <?php echo ($media['privacy'] ?? 'public') === 'friends' ? 'selected' : ''; ?>>Friends Only</option>
+                                                        <option value="private" <?php echo ($media['privacy'] ?? 'public') === 'private' ? 'selected' : ''; ?>>Private</option>
+                                                    </select>
+                                                    <button type="submit" name="update_privacy" class="btn btn-sm btn-outline-dark">
+                                                        <i class="fas fa-save me-1"></i> Save
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    <?php else: ?>
+                                        <!-- Show privacy status for non-owners -->
+                                        <span class="badge bg-secondary me-2">
+                                            <i class="fas fa-<?php echo ($media['privacy'] ?? 'public') === 'public' ? 'globe' : (($media['privacy'] ?? 'public') === 'friends' ? 'user-friends' : 'lock'); ?>"></i>
+                                            <?php echo ucfirst($media['privacy'] ?? 'public'); ?>
+                                        </span>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Delete button (existing) -->
                                     <form method="POST" action="manage_media.php" onsubmit="return confirm('Are you sure you want to delete this media?');" class="d-inline">
                                         <input type="hidden" name="media_id" value="<?php echo $media['id']; ?>">
                                         <button type="submit" name="delete_media" class="btn btn-sm btn-outline-dark">
