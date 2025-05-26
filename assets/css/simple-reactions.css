@@ -124,3 +124,41 @@
   color: #333;
   font-weight: bold;
 }
+
+/* Remove debug button styles - make more specific and forceful */
+.debug-reactions-btn,
+#debug-reactions-btn,
+[id*="debug-reaction"],
+[class*="debug-reaction"],
+.debug-button,
+button[class*="debug"],
+button[id*="debug"],
+div[class*="debug"],
+div[id*="debug"],
+[data-debug="true"],
+button:contains("Debug") {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Target the specific button shown in the screenshot */
+button[class*="debug"],
+button:contains("Debug"),
+button:contains("debug"),
+button[style*="position: fixed"][style*="bottom"][style*="right"],
+.debug-reactions-btn,
+#debug-reactions-btn {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

@@ -1,0 +1,150 @@
+.media-container {
+            position: relative;
+            max-height: 70vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .media-container img, 
+        .media-container video {
+            max-height: 70vh;
+            max-width: 100%;
+            object-fit: contain;
+        }
+        
+        .media-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2rem;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        .media-nav:hover {
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+        }
+        
+        .media-nav.prev {
+            left: 10px;
+        }
+        
+        .media-nav.next {
+            right: 10px;
+        }
+        
+        .reaction-picker {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 100;
+            margin-bottom: 5px;
+        }
+        
+        .reaction-option {
+            display: inline-block;
+            margin: 0 5px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .reaction-option:hover {
+            transform: scale(1.2);
+        }
+        
+        .reaction-option img {
+            width: 30px;
+            height: 30px;
+        }
+        
+        .media-info {
+            margin-bottom: 20px;
+        }
+        
+        .comments-section {
+            margin-top: 30px;
+        }
+        
+        /* Custom button styling for blackish theme */
+        .btn-primary {
+            background-color: #2c2c2c;
+            border-color: #333;
+            color: #fff;
+        }
+        
+        .btn-primary:hover {
+            background-color: #404040;
+            border-color: #444;
+            color: #fff;
+        }
+        
+        .btn-outline-primary {
+            color: #2c2c2c;
+            border-color: #333;
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: #2c2c2c;
+            border-color: #333;
+            color: #fff;
+        }
+        
+        .btn-dark, .btn-outline-dark {
+            background-color: #2c2c2c;
+            border-color: #333;
+            color: #fff;
+        }
+        
+        .btn-dark:hover, .btn-outline-dark:hover {
+            background-color: #404040;
+            border-color: #444;
+            color: #fff;
+        }
+        
+        .btn-outline-dark {
+            background-color: transparent;
+            color: #2c2c2c;
+        }
+        
+        .btn-outline-dark:hover {
+            background-color: #2c2c2c;
+            color: #fff;
+        }
+        
+        /* Ensure reaction picker is visible and properly positioned */
+        #simple-reaction-picker {
+            z-index: 9999 !important;
+            display: none;
+            position: absolute;
+            background: #242526;
+            border: 1px solid #3E4042;
+            border-radius: 30px;
+            padding: 8px 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .reaction-option {
+            transition: transform 0.15s ease-out;
+            cursor: pointer;
+        }
+
+        .reaction-option:hover {
+            transform: scale(1.3);
+        }
