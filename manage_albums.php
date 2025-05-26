@@ -239,6 +239,7 @@ try {
     <title>Manage Albums</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/dashboard_style.css">
     <style>
         .album-card {
             transition: transform 0.2s;
@@ -249,274 +250,243 @@ try {
     </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h1 class="mb-4">Manage Albums</h1>
-        
-        <?php if (isset($_GET['debug']) && $_GET['debug'] === '1'): ?>
-        <div class="card mb-4">
-            <div class="card-header bg-dark text-white">
-                Debug Information
-            </div>
-            <div class="card-body">
-                <h5>All Albums in Database:</h5>
-                <pre><?php echo json_encode($debugInfo['all_db_albums'], JSON_PRETTY_PRINT); ?></pre>
-                
-                <h5>Default Album ID: <?php echo $debugInfo['default_album_id']; ?></h5>
-                
-                <h5>Other Albums (raw):</h5>
-                <pre><?php echo json_encode($otherAlbums, JSON_PRETTY_PRINT); ?></pre>
-                
-                <h5>Albums Array (after processing):</h5>
-                <pre><?php 
-                    $debugAlbums = [];
-                    foreach ($albums as $album) {
-                        $debugAlbums[] = [
-                            'id' => $album['id'],
-                            'album_name' => $album['album_name']
-                        ];
-                    }
-                    echo json_encode($debugAlbums, JSON_PRETTY_PRINT); 
-                ?></pre>
+    <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button>
 
-                <h5>Albums Array IDs:</h5>
-                <pre><?php echo json_encode(array_column($albums, 'id'), JSON_PRETTY_PRINT); ?></pre>
-                
-                <h5>formatAlbumForDisplay Function:</h5>
-                <pre><?php 
-                    if (function_exists('formatAlbumForDisplay')) {
-                        $func = new ReflectionFunction('formatAlbumForDisplay');
-                        $filename = $func->getFileName();
-                        $start_line = $func->getStartLine();
-                        $end_line = $func->getEndLine();
-                        $length = $end_line - $start_line;
-                        
-                        $file = file($filename);
-                        $code = implode("", array_slice($file, $start_line - 1, $length));
-                        echo htmlspecialchars($code);
-                    } else {
-                        echo "Function not found";
-                    }
-                ?></pre>
-                
-                <h5>Check for Duplicate IDs:</h5>
-                <pre><?php
-                    $allIds = array_column($albums, 'id');
-                    $duplicateIds = array_diff_assoc($allIds, array_unique($allIds));
-                    echo "Duplicate IDs: " . json_encode($duplicateIds) . "\n";
-                    
-                    // Check if album 8 exists in the array
-                    echo "Album 8 exists in array: " . (in_array(8, $allIds) ? "Yes" : "No") . "\n";
-                    
-                    // Check the raw data for album 8
-                    $album8Exists = false;
-                    foreach ($otherAlbums as $album) {
-                        if ($album['id'] == 8) {
-                            $album8Exists = true;
-                            break;
-                        }
-                    }
-                    echo "Album 8 exists in raw data: " . ($album8Exists ? "Yes" : "No");
-                ?></pre>
+    <div class="dashboard-grid">
+        <!-- Left Sidebar - Navigation -->
+        <aside class="left-sidebar">
+            <h1>Nubenta</h1>
+            <?php
+            $currentUser = $user;
+            $currentPage = 'manage_albums';
+            include 'assets/navigation.php';
+            ?>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <h1 class="mb-4">Manage Albums</h1>
+            
+            <?php if (isset($_GET['debug']) && $_GET['debug'] === '1'): ?>
+            <div class="card mb-4">
+                <div class="card-header bg-dark text-white">
+                    Debug Information
+                </div>
+                <div class="card-body">
+                    <!-- Debug information here -->
+                </div>
             </div>
-        </div>
-        <?php endif; ?>
-        
-        <?php if ($error): ?>
-            <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
-        <?php endif; ?>
-        
-        <?php if ($success): ?>
-            <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
-        <?php endif; ?>
-        
-        <div class="row mb-4">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Create New Album</h5>
-                        <form action="manage_albums.php" method="post">
-                            <div class="mb-3">
-                                <label for="album_name" class="form-label">Album Name</label>
-                                <input type="text" class="form-control" id="album_name" name="album_name" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="description" class="form-label">Description</label>
-                                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label for="privacy" class="form-label">Privacy</label>
-                                <select class="form-select" id="privacy" name="privacy">
-                                    <option value="public">Public</option>
-                                    <option value="private">Private</option>
-                                </select>
-                            </div>
-                            
-                            <?php if (!empty($userMedia)): ?>
+            <?php endif; ?>
+            
+            <?php if ($error): ?>
+                <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
+            
+            <?php if ($success): ?>
+                <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+            <?php endif; ?>
+            
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Create New Album</h5>
+                            <form method="post" action="">
                                 <div class="mb-3">
-                                    <label class="form-label">Select Media (optional)</label>
-                                    <div class="row g-2" style="max-height: 200px; overflow-y: auto;">
-                                        <?php foreach ($userMedia as $media): ?>
-                                            <div class="col-4 col-md-3">
-                                                <div class="card h-100 media-item" data-media-id="<?php echo $media['id']; ?>">
-                                                    <?php if (strpos($media['media_type'] ?? '', 'image') !== false): ?>
-                                                        <img src="<?php echo htmlspecialchars($media['media_url']); ?>" class="card-img-top" alt="Media" style="height: 80px; object-fit: cover;">
-                                                    <?php else: ?>
-                                                        <div class="d-flex align-items-center justify-content-center h-100 bg-light">
-                                                            <i class="fas fa-file-video fa-2x text-muted"></i>
-                                                        </div>
-                                                    <?php endif; ?>
-                                                    <div class="card-footer p-1">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input media-checkbox" type="checkbox" value="<?php echo $media['id']; ?>" id="media_<?php echo $media['id']; ?>">
-                                                            <label class="form-check-label small" for="media_<?php echo $media['id']; ?>">
-                                                                Select
-                                                            </label>
+                                    <label for="album_name" class="form-label">Album Name</label>
+                                    <input type="text" class="form-control" id="album_name" name="album_name" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="description" class="form-label">Description (optional)</label>
+                                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Privacy</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="privacy" id="privacy_public" value="public" checked>
+                                        <label class="form-check-label" for="privacy_public">
+                                            Public
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="privacy" id="privacy_private" value="private">
+                                        <label class="form-check-label" for="privacy_private">
+                                            Private
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <?php if (!empty($userMedia)): ?>
+                                    <div class="mb-3">
+                                        <label class="form-label">Select Media (optional)</label>
+                                        <div class="row g-2" style="max-height: 200px; overflow-y: auto;">
+                                            <?php foreach ($userMedia as $media): ?>
+                                                <div class="col-4 col-md-3">
+                                                    <div class="card h-100 media-item" data-media-id="<?php echo $media['id']; ?>">
+                                                        <?php if (strpos($media['media_type'] ?? '', 'image') !== false): ?>
+                                                            <img src="<?php echo htmlspecialchars($media['media_url']); ?>" class="card-img-top" alt="Media" style="height: 80px; object-fit: cover;">
+                                                        <?php else: ?>
+                                                            <div class="d-flex align-items-center justify-content-center h-100 bg-light">
+                                                                <i class="fas fa-file-video fa-2x text-muted"></i>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                        <div class="card-footer p-1">
+                                                            <div class="form-check">
+                                                                <input class="form-check-input media-checkbox" type="checkbox" value="<?php echo $media['id']; ?>" id="media_<?php echo $media['id']; ?>">
+                                                                <label class="form-check-label small" for="media_<?php echo $media['id']; ?>">
+                                                                    Select
+                                                                </label>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        <?php endforeach; ?>
+                                            <?php endforeach; ?>
+                                        </div>
+                                        <input type="hidden" name="media_ids" id="selected_media_ids" value="">
                                     </div>
-                                    <input type="hidden" name="media_ids" id="selected_media_ids" value="">
-                                </div>
-                            <?php endif; ?>
-                            
-                            <button type="submit" name="create_album" class="btn btn-primary">Create Album</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Albums</h5>
-                        <div class="list-group">
-                            <?php 
-                            // Track album IDs to prevent duplicates
-                            $displayedAlbumIds = [];
-                            
-                            // Display all albums in the sidebar
-                            foreach ($albums as $album): 
-                                // Skip if already displayed
-                                if (in_array($album['id'], $displayedAlbumIds)) {
-                                    continue;
-                                }
+                                <?php endif; ?>
                                 
-                                // Add to displayed list
-                                $displayedAlbumIds[] = $album['id'];
-                                
-                                // Get the album name (use the original name for non-default albums)
-                                $albumName = ($album['id'] == $defaultAlbumId) ? 'Default Gallery' : $album['album_name'];
-                            ?>
-                                <a href="view_album.php?id=<?php echo $album['id']; ?>" class="list-group-item list-group-item-action">
-                                    <?php echo htmlspecialchars($albumName); ?>
-                                </a>
-                            <?php endforeach; ?>
+                                <button type="submit" name="create_album" class="btn btn-primary">Create Album</button>
+                            </form>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        
-        <div class="row row-cols-1 row-cols-md-3 g-4">
-            <?php 
-            // Track album IDs to prevent duplicates
-            $displayedAlbumIds = [];
-            
-            // Debug the albums array before display
-            if (isset($_GET['debug']) && $_GET['debug'] === '1') {
-                echo "<pre>Albums before display: " . json_encode(array_column($albums, 'id')) . "</pre>";
-            }
-            
-            // Display all albums as cards
-            foreach ($albums as $album): 
-                // Skip if already displayed
-                if (in_array($album['id'], $displayedAlbumIds)) {
-                    if (isset($_GET['debug']) && $_GET['debug'] === '1') {
-                        echo "<p>Skipping duplicate album ID: " . $album['id'] . "</p>";
-                    }
-                    continue;
-                }
-                
-                // Add to displayed list
-                $displayedAlbumIds[] = $album['id'];
-                
-                // Special handling for default gallery
-                $isDefaultGallery = ($album['id'] == $defaultAlbumId);
-                $albumName = $isDefaultGallery ? 'Default Gallery' : $album['album_name'];
-            ?>
-                <div class="col">
-                    <div class="card h-100 album-card">
-                        <div class="position-relative" style="height: 150px; background-color: #f8f9fa;">
-                            <?php if (!empty($album['cover_image_url'])): ?>
-                                <a href="view_album.php?id=<?php echo $album['id']; ?>">
-                                    <img src="<?php echo htmlspecialchars($album['cover_image_url']); ?>" 
-                                         class="card-img-top" alt="Album Cover" 
-                                         style="height: 150px; object-fit: cover;">
-                                </a>
-                            <?php else: ?>
-                                <div class="d-flex align-items-center justify-content-center h-100">
-                                    <i class="fas fa-images fa-3x text-muted"></i>
-                                </div>
-                            <?php endif; ?>
-                            <div class="position-absolute top-0 end-0 p-2">
-                                <span class="badge bg-dark">
-                                    <i class="fas fa-photo-film"></i> <?php echo $album['media_count']; ?>
-                                </span>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Albums</h5>
+                            <div class="list-group">
+                                <?php 
+                                // Track album IDs to prevent duplicates
+                                $displayedAlbumIds = [];
+                                
+                                // Display all albums in the sidebar
+                                foreach ($albums as $album): 
+                                    // Skip if already displayed
+                                    if (in_array($album['id'], $displayedAlbumIds)) {
+                                        continue;
+                                    }
+                                    
+                                    // Add to displayed list
+                                    $displayedAlbumIds[] = $album['id'];
+                                    
+                                    // Get the album name (use the original name for non-default albums)
+                                    $albumName = ($album['id'] == $defaultAlbumId) ? 'Default Gallery' : $album['album_name'];
+                                ?>
+                                    <a href="view_album.php?id=<?php echo $album['id']; ?>" class="list-group-item list-group-item-action">
+                                        <?php echo htmlspecialchars($albumName); ?>
+                                    </a>
+                                <?php endforeach; ?>
                             </div>
                         </div>
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <a href="view_album.php?id=<?php echo $album['id']; ?>" class="text-decoration-none text-dark">
-                                    <?php echo htmlspecialchars($albumName); ?>
-                                </a>
-                            </h5>
-                            <?php if (!empty($album['description'])): ?>
-                                <p class="card-text small text-muted">
-                                    <?php echo nl2br(htmlspecialchars(substr($album['description'], 0, 100))); ?>
-                                    <?php echo (strlen($album['description']) > 100) ? '...' : ''; ?>
-                                </p>
-                            <?php endif; ?>
-                            
-                            <?php if ($isDefaultGallery): ?>
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="defaultGalleryPrivacy" 
-                                               <?php echo ($album['privacy'] === 'public') ? 'checked' : ''; ?>
-                                               data-album-id="<?php echo $album['id']; ?>">
-                                        <label class="form-check-label" for="defaultGalleryPrivacy">
-                                            <?php echo ($album['privacy'] === 'public') ? 'Public' : 'Private'; ?>
-                                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                <?php 
+                // Track album IDs to prevent duplicates
+                $displayedAlbumIds = [];
+                
+                // Display all albums as cards
+                foreach ($albums as $album): 
+                    // Skip if already displayed
+                    if (in_array($album['id'], $displayedAlbumIds)) {
+                        continue;
+                    }
+                    
+                    // Add to displayed list
+                    $displayedAlbumIds[] = $album['id'];
+                    
+                    // Special handling for default gallery
+                    $isDefaultGallery = ($album['id'] == $defaultAlbumId);
+                    $albumName = $isDefaultGallery ? 'Default Gallery' : $album['album_name'];
+                ?>
+                    <div class="col">
+                        <div class="card h-100 album-card">
+                            <div class="position-relative" style="height: 150px; background-color: #f8f9fa;">
+                                <?php if (!empty($album['cover_image_url'])): ?>
+                                    <a href="view_album.php?id=<?php echo $album['id']; ?>">
+                                        <img src="<?php echo htmlspecialchars($album['cover_image_url']); ?>" 
+                                             class="card-img-top" alt="Album Cover" 
+                                             style="height: 150px; object-fit: cover;">
+                                    </a>
+                                <?php else: ?>
+                                    <div class="d-flex align-items-center justify-content-center h-100">
+                                        <i class="fas fa-images fa-3x text-muted"></i>
                                     </div>
-                                    <div>
-                                        <a href="#" class="text-decoration-none small make-default-public-link">
-                                            Make default gallery always public
-                                        </a>
-                                    </div>
+                                <?php endif; ?>
+                                <div class="position-absolute top-0 end-0 p-2">
+                                    <span class="badge bg-dark">
+                                        <i class="fas fa-photo-film"></i> <?php echo $album['media_count']; ?>
+                                    </span>
                                 </div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="card-footer d-flex justify-content-between align-items-center">
-                            <small class="text-muted">
-                                <i class="fas fa-<?php echo $album['privacy_icon']; ?> me-1"></i> 
-                                <?php echo $album['privacy_label']; ?>
-                            </small>
-                            <div>
-                                <a href="view_album.php?id=<?php echo $album['id']; ?>" class="btn btn-sm btn-outline-dark">
-                                    <i class="fas fa-eye"></i> View
-                                </a>
-                                <?php if (!$isDefaultGallery): // Don't allow deleting the default album ?>
-                                    <button type="button" class="btn btn-sm btn-outline-dark delete-album-btn" 
-                                            data-album-id="<?php echo $album['id']; ?>">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <a href="view_album.php?id=<?php echo $album['id']; ?>" class="text-decoration-none text-dark">
+                                        <?php echo htmlspecialchars($albumName); ?>
+                                    </a>
+                                </h5>
+                                <?php if (!empty($album['description'])): ?>
+                                    <p class="card-text small text-muted">
+                                        <?php echo nl2br(htmlspecialchars(substr($album['description'], 0, 100))); ?>
+                                        <?php echo (strlen($album['description']) > 100) ? '...' : ''; ?>
+                                    </p>
+                                <?php endif; ?>
+                                
+                                <?php if ($isDefaultGallery): ?>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="defaultGalleryPrivacy" 
+                                                   <?php echo ($album['privacy'] === 'public') ? 'checked' : ''; ?>
+                                                   data-album-id="<?php echo $album['id']; ?>">
+                                            <label class="form-check-label" for="defaultGalleryPrivacy">
+                                                <?php echo ($album['privacy'] === 'public') ? 'Public' : 'Private'; ?>
+                                            </label>
+                                        </div>
+                                        <div>
+                                            <a href="#" class="text-decoration-none small make-default-public-link">
+                                                Make default gallery always public
+                                            </a>
+                                        </div>
+                                    </div>
                                 <?php endif; ?>
                             </div>
+                            <div class="card-footer d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    <i class="fas fa-<?php echo $album['privacy_icon']; ?> me-1"></i> 
+                                    <?php echo $album['privacy_label']; ?>
+                                </small>
+                                <div>
+                                    <a href="view_album.php?id=<?php echo $album['id']; ?>" class="btn btn-sm btn-outline-dark">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                    <?php if (!$isDefaultGallery): // Don't allow deleting the default album ?>
+                                        <button type="button" class="btn btn-sm btn-outline-dark delete-album-btn" 
+                                                data-album-id="<?php echo $album['id']; ?>">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
+                <?php endforeach; ?>
+            </div>
+        </main>
+
+        <!-- Right Sidebar - Using the modular add_ons.php -->
+        <?php
+        // You can customize the sidebar by setting these variables
+        // $topElementTitle = "Custom Ads Title";
+        // $showAdditionalContent = true;
+        
+        // Include the modular right sidebar
+        include 'assets/add_ons.php';
+        ?>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
@@ -537,54 +507,40 @@ try {
                     selectedMediaIdsInput.value = selectedIds.join(',');
                 }
                 
-                // Add click event to media items (for better UX)
-                mediaItems.forEach(item => {
-                    item.addEventListener('click', function(e) {
-                        // Don't toggle if the checkbox itself was clicked
-                        if (e.target.type === 'checkbox' || e.target.classList.contains('form-check-label')) {
-                            return;
-                        }
-                        
-                        const checkbox = this.querySelector('.media-checkbox');
-                        if (checkbox) {
-                            checkbox.checked = !checkbox.checked;
-                            
-                            // Toggle selected class
-                            if (checkbox.checked) {
-                                this.classList.add('selected');
-                            } else {
-                                this.classList.remove('selected');
-                            }
-                            
-                            // Update hidden input
-                            updateSelectedMediaIds();
-                        }
-                    });
-                });
-                
-                // Add change event to checkboxes
+                // Add event listeners to checkboxes
                 mediaCheckboxes.forEach(checkbox => {
                     checkbox.addEventListener('change', function() {
                         const mediaItem = this.closest('.media-item');
-                        
-                        // Toggle selected class
                         if (this.checked) {
                             mediaItem.classList.add('selected');
                         } else {
                             mediaItem.classList.remove('selected');
                         }
-                        
-                        // Update hidden input
                         updateSelectedMediaIds();
+                    });
+                });
+                
+                // Add event listeners to media items
+                mediaItems.forEach(item => {
+                    item.addEventListener('click', function(e) {
+                        // Don't toggle if clicking on the checkbox itself
+                        if (e.target.type !== 'checkbox') {
+                            const checkbox = this.querySelector('.media-checkbox');
+                            checkbox.checked = !checkbox.checked;
+                            
+                            // Trigger change event
+                            const event = new Event('change');
+                            checkbox.dispatchEvent(event);
+                        }
                     });
                 });
             }
             
-            // Handle album deletion
-            document.querySelectorAll('.delete-album-btn').forEach(button => {
-                button.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    
+            // Album deletion
+            const deleteButtons = document.querySelectorAll('.delete-album-btn');
+            
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function() {
                     const albumId = this.getAttribute('data-album-id');
                     
                     if (confirm('Are you sure you want to delete this album? This action cannot be undone.')) {
@@ -614,21 +570,15 @@ try {
                 });
             });
             
-            // Handle default gallery privacy toggle
+            // Default gallery privacy toggle
             const defaultGalleryPrivacyToggle = document.getElementById('defaultGalleryPrivacy');
+            
             if (defaultGalleryPrivacyToggle) {
                 defaultGalleryPrivacyToggle.addEventListener('change', function() {
                     const albumId = this.getAttribute('data-album-id');
                     const isPublic = this.checked;
                     
-                    // Update the label
-                    const label = this.nextElementSibling;
-                    if (label) {
-                        label.textContent = isPublic ? 'Public' : 'Private';
-                    }
-                    
-                    // Send request to update album privacy
-                    fetch('api/update_album_privacy.php', {
+                    fetch('api/album_management.php?action=update_privacy', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -640,28 +590,30 @@ try {
                     })
                     .then(response => response.json())
                     .then(data => {
-                        if (!data.success) {
-                            console.error('Error updating privacy:', data.message);
-                            // Revert the toggle if there was an error
-                            this.checked = !this.checked;
+                        if (data.success) {
+                            // Update label
+                            const label = this.nextElementSibling;
                             if (label) {
-                                label.textContent = this.checked ? 'Public' : 'Private';
+                                label.textContent = isPublic ? 'Public' : 'Private';
                             }
+                        } else {
+                            alert('Error: ' + (data.message || 'Failed to update privacy'));
+                            // Revert toggle
+                            this.checked = !this.checked;
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        // Revert the toggle if there was an error
+                        alert('An error occurred while updating privacy');
+                        // Revert toggle
                         this.checked = !this.checked;
-                        if (label) {
-                            label.textContent = this.checked ? 'Public' : 'Private';
-                        }
                     });
                 });
             }
             
             // Make default gallery always public
             const makeDefaultPublicLink = document.querySelector('.make-default-public-link');
+            
             if (makeDefaultPublicLink) {
                 makeDefaultPublicLink.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -697,6 +649,15 @@ try {
                     }
                 });
             }
+            
+            // Toggle sidebar on mobile
+            function toggleSidebar() {
+                const sidebar = document.querySelector('.left-sidebar');
+                sidebar.classList.toggle('show');
+            }
+            
+            // Make toggleSidebar function global
+            window.toggleSidebar = toggleSidebar;
         });
     </script>
     <style>
