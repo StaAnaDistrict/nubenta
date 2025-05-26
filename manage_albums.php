@@ -5,6 +5,8 @@ error_reporting(E_ALL);
 
 session_start();
 require_once 'db.php';
+require_once 'includes/MediaUploader.php';
+require_once 'includes/album_helpers.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user'])) {
@@ -13,16 +15,22 @@ if (!isset($_SESSION['user'])) {
 }
 
 $user = $_SESSION['user'];
+$error = null;
+$success = null;
 
-// Check if MediaUploader class exists and include it if needed
-if (!class_exists('MediaUploader') && file_exists('includes/MediaUploader.php')) {
-    require_once 'includes/MediaUploader.php';
+// Initialize MediaUploader
+$mediaUploader = new MediaUploader($pdo);
+
+// Clean up duplicate default albums (run this every time)
+$cleanupResult = $mediaUploader->cleanupDuplicateDefaultAlbums($user['id']);
+if (!$cleanupResult['success']) {
+    error_log("Error cleaning up duplicate albums: " . $cleanupResult['message']);
 }
 
-// Initialize MediaUploader if available
-$mediaUploader = null;
-if (class_exists('MediaUploader')) {
-    $mediaUploader = new MediaUploader($pdo);
+// Ensure default album exists
+$defaultAlbumResult = $mediaUploader->ensureDefaultAlbum($user['id']);
+if (!$defaultAlbumResult['success']) {
+    error_log("Error ensuring default album: " . $defaultAlbumResult['message']);
 }
 
 // Handle album creation
@@ -30,65 +38,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_album'])) {
     $albumName = trim($_POST['album_name']);
     $description = trim($_POST['description'] ?? '');
     $privacy = $_POST['privacy'] ?? 'public';
+    $mediaIds = isset($_POST['media_ids']) && !empty($_POST['media_ids']) 
+        ? explode(',', $_POST['media_ids']) 
+        : [];
     
     if (empty($albumName)) {
         $error = "Album name is required";
     } else {
-        try {
-            $pdo->beginTransaction();
-            
-            // Create the album
-            $stmt = $pdo->prepare("
-                INSERT INTO user_media_albums 
-                (user_id, album_name, description, privacy, created_at) 
-                VALUES (?, ?, ?, ?, NOW())
-            ");
-            $stmt->execute([$user['id'], $albumName, $description, $privacy]);
-            $albumId = $pdo->lastInsertId();
-            
-            // Add selected media to album if any
-            if (isset($_POST['media_ids']) && !empty($_POST['media_ids'])) {
-                $mediaIds = explode(',', $_POST['media_ids']);
-                
-                if (!empty($mediaIds)) {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO album_media 
-                        (album_id, media_id, created_at) 
-                        VALUES (?, ?, NOW())
-                    ");
-                    
-                    foreach ($mediaIds as $mediaId) {
-                        if (!empty($mediaId)) {
-                            $stmt->execute([$albumId, $mediaId]);
-                        }
-                    }
-                    
-                    // Set first media as cover image
-                    if (!empty($mediaIds[0])) {
-                        $stmt = $pdo->prepare("
-                            UPDATE user_media_albums 
-                            SET cover_image_id = ? 
-                            WHERE id = ?
-                        ");
-                        $stmt->execute([$mediaIds[0], $albumId]);
-                    }
-                }
-            }
-            
-            $pdo->commit();
-            $success = "Album created successfully";
+        $result = $mediaUploader->createAlbum($user['id'], $albumName, $description, $privacy, $mediaIds);
+        
+        if ($result['success']) {
+            $success = $result['message'];
             
             // Redirect to the album page
             if (file_exists('view_album.php')) {
-                header("Location: view_album.php?id=" . $albumId);
+                header("Location: view_album.php?id=" . $result['album_id']);
                 exit();
             } else {
                 header("Location: manage_albums.php?success=Album created successfully");
                 exit();
             }
-        } catch (PDOException $e) {
-            $pdo->rollBack();
-            $error = "Failed to create album: " . $e->getMessage();
+        } else {
+            $error = $result['message'];
         }
     }
 }
@@ -97,162 +68,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_album'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_album'])) {
     $albumId = intval($_POST['album_id']);
     
-    try {
-        // First check if the album belongs to the user
-        $stmt = $pdo->prepare("SELECT id, album_name FROM user_media_albums WHERE id = ? AND user_id = ?");
-        $stmt->execute([$albumId, $user['id']]);
-        $albumToDelete = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($albumToDelete) {
-            // Delete album media associations
-            $stmt = $pdo->prepare("DELETE FROM album_media WHERE album_id = ?");
-            $stmt->execute([$albumId]);
-            
-            // Delete the album
-            $stmt = $pdo->prepare("DELETE FROM user_media_albums WHERE id = ? AND user_id = ?");
-            $stmt->execute([$albumId, $user['id']]);
-            
-            $success = "Album deleted successfully";
-        } else {
-            $error = "Album not found or you don't have permission to delete it";
-        }
-    } catch (PDOException $e) {
-        $error = "Failed to delete album: " . $e->getMessage();
+    $result = $mediaUploader->deleteAlbum($albumId, $user['id']);
+    
+    if ($result['success']) {
+        $success = $result['message'];
+    } else {
+        $error = $result['message'];
     }
 }
 
-// Clean up duplicate default albums (run this every time)
-try {
-    // Begin transaction
-    $pdo->beginTransaction();
-    
-    // 1. Find all default albums for this user
-    $stmt = $pdo->prepare("
-        SELECT id FROM user_media_albums 
-        WHERE user_id = ? AND (id = 1 OR album_name = 'Default Gallery')
-        ORDER BY id ASC
-    ");
-    $stmt->execute([$user['id']]);
-    $defaultAlbums = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    if (count($defaultAlbums) > 1) {
-        // Keep the first one (lowest ID)
-        $keepId = $defaultAlbums[0];
-        
-        // Delete the duplicate albums
-        $deleteStmt = $pdo->prepare("
-            DELETE FROM user_media_albums 
-            WHERE user_id = ? AND id != ? AND (id = 1 OR album_name = 'Default Gallery')
-        ");
-        $deleteStmt->execute([$user['id'], $keepId]);
-        
-        // Make sure the album we're keeping has the right name and description
-        $updateStmt = $pdo->prepare("
-            UPDATE user_media_albums 
-            SET album_name = 'Default Gallery',
-                description = 'Your default media gallery containing all your uploaded photos and videos'
-            WHERE id = ?
-        ");
-        $updateStmt->execute([$keepId]);
-    }
-    
-    // Commit transaction
-    $pdo->commit();
-    
-} catch (PDOException $e) {
-    // Rollback transaction on error
-    $pdo->rollBack();
-    error_log("Error cleaning up duplicate default albums: " . $e->getMessage());
-}
+// Get current page for pagination
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$perPage = 12; // Number of albums per page
 
-// Get user albums
-try {
-    // First check if default album exists
-    $checkStmt = $pdo->prepare("
-        SELECT id FROM user_media_albums 
-        WHERE user_id = ? AND id = 1
-    ");
-    $checkStmt->execute([$user['id']]);
-    $defaultAlbumExists = $checkStmt->fetch(PDO::FETCH_ASSOC);
-    
-    // If default album doesn't exist, create it
-    if (!$defaultAlbumExists) {
-        $stmt = $pdo->prepare("
-            INSERT INTO user_media_albums 
-            (id, user_id, album_name, description, privacy, created_at) 
-            VALUES (1, ?, 'Default Gallery', 'Your default media gallery containing all your uploaded photos and videos', 'private', NOW())
-        ");
-        $stmt->execute([$user['id']]);
-        
-        // Get latest media for cover image
-        $mediaStmt = $pdo->prepare("
-            SELECT id FROM user_media 
-            WHERE user_id = ? AND media_type LIKE 'image%'
-            ORDER BY created_at DESC 
-            LIMIT 1
-        ");
-        $mediaStmt->execute([$user['id']]);
-        $latestMedia = $mediaStmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($latestMedia) {
-            // Set as cover image
-            $updateStmt = $pdo->prepare("
-                UPDATE user_media_albums 
-                SET cover_image_id = ? 
-                WHERE id = 1 AND user_id = ?
-            ");
-            $updateStmt->execute([$latestMedia['id'], $user['id']]);
-        }
-    }
-    
-    // Now get all albums including the default one
-    $stmt = $pdo->prepare("
-        SELECT a.*, 
-               CASE 
-                   WHEN a.id = 1 THEN (SELECT COUNT(*) FROM user_media WHERE user_id = ?)
-                   ELSE (SELECT COUNT(*) FROM album_media WHERE album_id = a.id) 
-               END AS media_count,
-               m.media_url AS cover_image_url,
-               CASE WHEN a.id = 1 THEN 'Default Gallery' ELSE a.album_name END AS album_name,
-               CASE WHEN a.id = 1 THEN 'Your default media gallery containing all your uploaded photos and videos' ELSE a.description END AS description
-        FROM user_media_albums a
-        LEFT JOIN user_media m ON a.cover_image_id = m.id
-        WHERE a.user_id = ?
-        ORDER BY CASE WHEN a.id = 1 THEN 0 ELSE 1 END, a.created_at DESC
-    ");
-    $stmt->execute([$user['id'], $user['id']]);
-    $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // If default album has no cover image, try to set one
-    if (!empty($albums)) {
-        foreach ($albums as &$album) {
-            if ($album['id'] == 1 && empty($album['cover_image_url'])) {
-                $mediaStmt = $pdo->prepare("
-                    SELECT id, media_url FROM user_media 
-                    WHERE user_id = ? AND media_type LIKE 'image%'
-                    ORDER BY created_at DESC 
-                    LIMIT 1
-                ");
-                $mediaStmt->execute([$user['id']]);
-                $latestMedia = $mediaStmt->fetch(PDO::FETCH_ASSOC);
-                
-                if ($latestMedia) {
-                    $album['cover_image_url'] = $latestMedia['media_url'];
-                    
-                    // Update the album cover
-                    $updateStmt = $pdo->prepare("
-                        UPDATE user_media_albums 
-                        SET cover_image_id = ? 
-                        WHERE id = 1 AND user_id = ?
-                    ");
-                    $updateStmt->execute([$latestMedia['id'], $user['id']]);
-                }
-            }
-        }
-    }
-} catch (PDOException $e) {
-    $error = "Error loading albums: " . $e->getMessage();
-    $albums = [];
+// Get user albums with pagination
+$albumsData = $mediaUploader->getUserAlbums($user['id'], $page, $perPage);
+$albums = $albumsData['albums'];
+$pagination = $albumsData['pagination'];
+
+// Format albums for display
+foreach ($albums as &$album) {
+    $album = formatAlbumForDisplay($album);
 }
 
 // Get user media for creating a new album
@@ -282,6 +118,67 @@ try {
     <link rel="stylesheet" href="assets/css/reactions.css">
     <link rel="stylesheet" href="assets/css/simple-reactions.css">
     <link rel="stylesheet" href="assets/css/comments.css">
+    <style>
+        /* Custom colors to replace blue */
+        :root {
+            --bs-primary: #212529;
+            --bs-primary-rgb: 33, 37, 41;
+            --bs-primary-text-emphasis: #212529;
+            --bs-primary-bg-subtle: #e9ecef;
+            --bs-primary-border-subtle: #ced4da;
+        }
+        
+        /* Override form switch colors */
+        .form-check-input:checked {
+            background-color: #212529;
+            border-color: #212529;
+        }
+        
+        .form-switch .form-check-input:focus {
+            border-color: #212529;
+            box-shadow: 0 0 0 0.25rem rgba(33, 37, 41, 0.25);
+        }
+        
+        /* Override link colors */
+        a {
+            color: #212529;
+        }
+        
+        a:hover {
+            color: #495057;
+        }
+        
+        /* Override button colors */
+        .btn-primary {
+            background-color: #212529;
+            border-color: #212529;
+        }
+        
+        .btn-primary:hover {
+            background-color: #495057;
+            border-color: #495057;
+        }
+        
+        .btn-outline-primary {
+            color: #212529;
+            border-color: #212529;
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: #212529;
+            border-color: #212529;
+        }
+        
+        /* Override border colors */
+        .border-primary {
+            border-color: #212529 !important;
+        }
+        
+        /* Media item selection */
+        .media-item.selected {
+            border: 2px solid #212529;
+        }
+    </style>
     <script>
         // Set global variables for JavaScript modules
         window.isAdmin = <?php echo (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin') ? 'true' : 'false'; ?>;
@@ -303,18 +200,18 @@ try {
 
         <!-- Main Content -->
         <main class="main-content">
-            <?php if (isset($error)): ?>
-                <div class="alert alert-danger"><?php echo $error; ?></div>
-            <?php endif; ?>
-            
-            <?php if (isset($success)): ?>
-                <div class="alert alert-success"><?php echo $success; ?></div>
+            <?php if (isset($_SESSION['flash_message'])): ?>
+                <div class="alert alert-<?php echo $_SESSION['flash_message']['type']; ?> alert-dismissible fade show" role="alert">
+                    <?php echo $_SESSION['flash_message']['message']; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php unset($_SESSION['flash_message']); ?>
             <?php endif; ?>
             
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h3>My Albums</h3>
+                <h2>My Albums</h2>
                 <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#createAlbumModal">
-                    <i class="fas fa-plus"></i> Create Album
+                    <i class="fas fa-plus"></i> Create New Album
                 </button>
             </div>
             
@@ -330,81 +227,82 @@ try {
                 <div class="row row-cols-1 row-cols-md-3 g-4">
                     <?php foreach ($albums as $album): ?>
                         <div class="col">
-                            <div class="card h-100">
+                            <div class="card h-100 album-card">
                                 <div class="position-relative" style="height: 150px; background-color: #f8f9fa;">
                                     <?php if (!empty($album['cover_image_url'])): ?>
                                         <a href="view_album.php?id=<?php echo $album['id']; ?>">
-                                            <img src="<?php echo htmlspecialchars($album['cover_image_url']); ?>" class="card-img-top" alt="Album cover" style="height: 150px; object-fit: cover;">
+                                            <img src="<?php echo htmlspecialchars($album['cover_image_url']); ?>" 
+                                                 class="card-img-top" alt="Album Cover" 
+                                                 style="height: 150px; object-fit: cover;">
                                         </a>
                                     <?php else: ?>
-                                        <!-- Default thumbnail for albums with no cover -->
-                                        <a href="view_album.php?id=<?php echo $album['id']; ?>" class="text-decoration-none">
-                                            <div class="d-flex align-items-center justify-content-center h-100 bg-light">
-                                                <i class="fas fa-images fa-3x text-muted"></i>
-                                            </div>
-                                        </a>
+                                        <div class="d-flex align-items-center justify-content-center h-100">
+                                            <i class="fas fa-images fa-3x text-muted"></i>
+                                        </div>
                                     <?php endif; ?>
-                                    
-                                    <div class="position-absolute bottom-0 start-0 p-2">
+                                    <div class="position-absolute top-0 end-0 p-2">
                                         <span class="badge bg-dark">
-                                            <i class="fas fa-photo-video me-1"></i> <?php echo $album['media_count']; ?> items
+                                            <i class="fas fa-photo-film"></i> <?php echo $album['media_count']; ?>
                                         </span>
                                     </div>
                                 </div>
                                 <div class="card-body">
-                                    <h5 class="card-title"><?php echo htmlspecialchars($album['album_name']); ?></h5>
-                                    <p class="card-text small">
-                                        <?php echo !empty($album['description']) ? htmlspecialchars(substr($album['description'], 0, 100)) . (strlen($album['description']) > 100 ? '...' : '') : 'No description'; ?>
-                                    </p>
+                                    <h5 class="card-title">
+                                        <a href="view_album.php?id=<?php echo $album['id']; ?>" class="text-decoration-none text-dark">
+                                            <?php echo htmlspecialchars($album['album_name']); ?>
+                                        </a>
+                                    </h5>
+                                    <?php if (!empty($album['description'])): ?>
+                                        <p class="card-text small text-muted">
+                                            <?php echo nl2br(htmlspecialchars(substr($album['description'], 0, 100))); ?>
+                                            <?php echo (strlen($album['description']) > 100) ? '...' : ''; ?>
+                                        </p>
+                                    <?php endif; ?>
+                                    
+                                    <?php if ($album['id'] == 1): ?>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="defaultGalleryPrivacy" 
+                                                       <?php echo ($album['privacy'] === 'public') ? 'checked' : ''; ?>
+                                                       data-album-id="<?php echo $album['id']; ?>">
+                                                <label class="form-check-label" for="defaultGalleryPrivacy">
+                                                    <?php echo ($album['privacy'] === 'public') ? 'Public' : 'Private'; ?>
+                                                </label>
+                                            </div>
+                                            <div>
+                                                <a href="#" class="text-decoration-none small make-default-public-link">
+                                                    Make default gallery always public
+                                                </a>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
-                                <div class="card-footer bg-transparent d-flex justify-content-between">
+                                <div class="card-footer d-flex justify-content-between align-items-center">
                                     <small class="text-muted">
-                                        <i class="fas fa-<?php echo $album['privacy'] === 'public' ? 'globe' : ($album['privacy'] === 'friends' ? 'user-friends' : 'lock'); ?>"></i>
-                                        <?php echo ucfirst($album['privacy']); ?>
+                                        <i class="fas fa-<?php echo $album['privacy_icon']; ?> me-1"></i> 
+                                        <?php echo $album['privacy_label']; ?>
                                     </small>
                                     <div>
                                         <a href="view_album.php?id=<?php echo $album['id']; ?>" class="btn btn-sm btn-outline-dark">
                                             <i class="fas fa-eye"></i> View
                                         </a>
-                                        <!-- Allow deletion of all albums, including Default Gallery -->
-                                        <button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#deleteAlbumModal<?php echo $album['id']; ?>">
+                                        <button type="button" class="btn btn-sm btn-outline-dark delete-album-btn" 
+                                                data-album-id="<?php echo $album['id']; ?>">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Delete Album Modal -->
-                        <div class="modal fade" id="deleteAlbumModal<?php echo $album['id']; ?>" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">Delete Album</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <p>Are you sure you want to delete the album "<?php echo htmlspecialchars($album['album_name']); ?>"?</p>
-                                        <?php if ($album['album_name'] == 'Default Gallery'): ?>
-                                            <div class="alert alert-warning">
-                                                <i class="fas fa-exclamation-triangle me-2"></i> This is a default album. Deleting it may cause issues with your media organization.
-                                            </div>
-                                        <?php else: ?>
-                                            <p class="text-danger">This will remove the album but not the media files themselves.</p>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                        <form method="POST">
-                                            <input type="hidden" name="album_id" value="<?php echo $album['id']; ?>">
-                                            <button type="submit" name="delete_album" class="btn btn-dark">Delete</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     <?php endforeach; ?>
                 </div>
+                
+                <!-- Pagination -->
+                <?php if ($pagination['total_pages'] > 1): ?>
+                    <div class="mt-4">
+                        <?php echo generatePaginationHtml($pagination); ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </main>
 
@@ -430,15 +328,15 @@ try {
                             <input type="text" class="form-control" id="album_name" name="album_name" required>
                         </div>
                         <div class="mb-3">
-                            <label for="description" class="form-label">Description (optional)</label>
+                            <label for="description" class="form-label">Description</label>
                             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                         </div>
                         <div class="mb-3">
                             <label for="privacy" class="form-label">Privacy</label>
                             <select class="form-select" id="privacy" name="privacy">
-                                <option value="public">Public</option>
+                                <option value="public">Public (Everyone)</option>
                                 <option value="friends">Friends Only</option>
-                                <option value="private">Private</option>
+                                <option value="private">Private (Only Me)</option>
                             </select>
                         </div>
                         
@@ -483,50 +381,8 @@ try {
 
     <!-- Include JavaScript files -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/album-management.js"></script>
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Handle media selection for album creation
-        const mediaCheckboxes = document.querySelectorAll('.media-checkbox');
-        const selectedMediaIdsInput = document.getElementById('selected_media_ids');
-        
-        if (mediaCheckboxes.length > 0 && selectedMediaIdsInput) {
-            // Update selected media IDs when checkboxes change
-            mediaCheckboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    const selectedIds = Array.from(mediaCheckboxes)
-                        .filter(cb => cb.checked)
-                        .map(cb => cb.value);
-                    
-                    selectedMediaIdsInput.value = selectedIds.join(',');
-                    
-                    // Highlight selected items
-                    const mediaItem = this.closest('.media-item');
-                    if (mediaItem) {
-                        if (this.checked) {
-                            mediaItem.classList.add('border-dark');
-                        } else {
-                            mediaItem.classList.remove('border-dark');
-                        }
-                    }
-                });
-            });
-            
-            // Allow clicking on the card to toggle checkbox
-            document.querySelectorAll('.media-item').forEach(item => {
-                item.addEventListener('click', function(e) {
-                    // Don't toggle if the checkbox itself was clicked
-                    if (e.target.type !== 'checkbox' && !e.target.classList.contains('form-check-label')) {
-                        const checkbox = this.querySelector('.media-checkbox');
-                        if (checkbox) {
-                            checkbox.checked = !checkbox.checked;
-                            checkbox.dispatchEvent(new Event('change'));
-                        }
-                    }
-                });
-            });
-        }
-    });
-
     // Function to toggle sidebar on mobile
     function toggleSidebar() {
         document.querySelector('.left-sidebar').classList.toggle('show');
@@ -543,7 +399,7 @@ try {
         border-color: #ddd;
     }
     .media-item.border-dark {
-        border-color: #2c2c2c !important;
+        border-color: #212529 !important;
     }
     </style>
 </body>

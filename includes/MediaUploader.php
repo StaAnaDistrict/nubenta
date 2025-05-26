@@ -582,43 +582,70 @@ class MediaUploader {
     }
     
     /**
-     * Get user albums
+     * Get user albums with pagination
      * @param int $userId User ID
-     * @param int $limit Limit number of albums
-     * @param int $offset Offset for pagination
-     * @return array Array of albums
+     * @param int $page Page number (1-based)
+     * @param int $perPage Items per page
+     * @return array Albums and pagination info
      */
-    public function getUserAlbums($userId, $limit = 20, $offset = 0) {
+    public function getUserAlbums($userId, $page = 1, $perPage = 12) {
         try {
-            // Check if user_media_albums table exists
-            $tableCheckStmt = $this->pdo->prepare("
-                SELECT COUNT(*) as table_exists 
-                FROM information_schema.tables 
-                WHERE table_schema = DATABASE() 
-                AND table_name = 'user_media_albums'
+            // Calculate offset
+            $offset = ($page - 1) * $perPage;
+            
+            // Get total count
+            $countStmt = $this->pdo->prepare("
+                SELECT COUNT(*) as total
+                FROM user_media_albums
+                WHERE user_id = ?
             ");
-            $tableCheckStmt->execute();
-            $tableExists = $tableCheckStmt->fetch(PDO::FETCH_ASSOC)['table_exists'] > 0;
+            $countStmt->execute([$userId]);
+            $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
             
-            if (!$tableExists) {
-                return []; // Table doesn't exist
-            }
-            
+            // Get albums with pagination
             $stmt = $this->pdo->prepare("
                 SELECT a.*, 
-                       (SELECT COUNT(*) FROM album_media WHERE album_id = a.id) as media_count,
-                       (SELECT media_url FROM user_media WHERE id = a.cover_image_id) as cover_image_url
+                       CASE 
+                           WHEN a.id = 1 THEN (SELECT COUNT(*) FROM user_media WHERE user_id = ?)
+                           ELSE (SELECT COUNT(*) FROM album_media WHERE album_id = a.id) 
+                       END AS media_count,
+                       m.media_url AS cover_image_url,
+                       CASE WHEN a.id = 1 THEN 'Default Gallery' ELSE a.album_name END AS album_name,
+                       CASE WHEN a.id = 1 THEN 'Your default media gallery containing all your uploaded photos and videos' ELSE a.description END AS description
                 FROM user_media_albums a
+                LEFT JOIN user_media m ON a.cover_image_id = m.id
                 WHERE a.user_id = ?
-                ORDER BY a.created_at DESC
+                ORDER BY CASE WHEN a.id = 1 THEN 0 ELSE 1 END, a.created_at DESC
                 LIMIT ? OFFSET ?
             ");
+            $stmt->execute([$userId, $userId, $perPage, $offset]);
+            $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            $stmt->execute([$userId, $limit, $offset]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Calculate pagination info
+            $totalPages = ceil($totalCount / $perPage);
+            
+            return [
+                'albums' => $albums,
+                'pagination' => [
+                    'total' => $totalCount,
+                    'per_page' => $perPage,
+                    'current_page' => $page,
+                    'total_pages' => $totalPages,
+                    'has_more' => $page < $totalPages
+                ]
+            ];
         } catch (PDOException $e) {
             error_log("Error getting user albums: " . $e->getMessage());
-            return [];
+            return [
+                'albums' => [],
+                'pagination' => [
+                    'total' => 0,
+                    'per_page' => $perPage,
+                    'current_page' => $page,
+                    'total_pages' => 0,
+                    'has_more' => false
+                ]
+            ];
         }
     }
     
@@ -859,59 +886,46 @@ class MediaUploader {
      * Delete an album
      * @param int $albumId Album ID
      * @param int $userId User ID (for security check)
-     * @return bool Success status
+     * @return array Result with status and message
      */
     public function deleteAlbum($albumId, $userId) {
         try {
-            // Check if album exists and belongs to user
-            $stmt = $this->pdo->prepare("
-                SELECT * FROM user_media_albums
-                WHERE id = ? AND user_id = ?
-            ");
-            
+            // First check if the album belongs to the user
+            $stmt = $this->pdo->prepare("SELECT id, album_name FROM user_media_albums WHERE id = ? AND user_id = ?");
             $stmt->execute([$albumId, $userId]);
-            $album = $stmt->fetch(PDO::FETCH_ASSOC);
+            $albumToDelete = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if (!$album) {
-                return false; // Album not found or not owned by user
+            if (!$albumToDelete) {
+                return [
+                    'success' => false,
+                    'message' => 'Album not found or you don\'t have permission to delete it'
+                ];
             }
             
             $this->pdo->beginTransaction();
             
-            // Check if album_media table exists
-            $tableCheckStmt = $this->pdo->prepare("
-                SELECT COUNT(*) as table_exists 
-                FROM information_schema.tables 
-                WHERE table_schema = DATABASE() 
-                AND table_name = 'album_media'
-            ");
-            $tableCheckStmt->execute();
-            $tableExists = $tableCheckStmt->fetch(PDO::FETCH_ASSOC)['table_exists'] > 0;
+            // Delete album media associations
+            $stmt = $this->pdo->prepare("DELETE FROM album_media WHERE album_id = ?");
+            $stmt->execute([$albumId]);
             
-            if ($tableExists) {
-                // Delete album media associations
-                $stmt = $this->pdo->prepare("
-                    DELETE FROM album_media
-                    WHERE album_id = ?
-                ");
-                
-                $stmt->execute([$albumId]);
-            }
-            
-            // Delete album
-            $stmt = $this->pdo->prepare("
-                DELETE FROM user_media_albums
-                WHERE id = ? AND user_id = ?
-            ");
-            
+            // Delete the album
+            $stmt = $this->pdo->prepare("DELETE FROM user_media_albums WHERE id = ? AND user_id = ?");
             $stmt->execute([$albumId, $userId]);
             
             $this->pdo->commit();
-            return true;
+            
+            return [
+                'success' => true,
+                'message' => 'Album deleted successfully'
+            ];
         } catch (PDOException $e) {
             $this->pdo->rollBack();
             error_log("Error deleting album: " . $e->getMessage());
-            return false;
+            
+            return [
+                'success' => false,
+                'message' => 'Failed to delete album: ' . $e->getMessage()
+            ];
         }
     }
 
@@ -1343,6 +1357,149 @@ class MediaUploader {
         } catch (PDOException $e) {
             error_log("Error updating media privacy: " . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Clean up duplicate default albums for a user
+     * @param int $userId User ID
+     * @return array Result with success status and message
+     */
+    public function cleanupDuplicateDefaultAlbums($userId) {
+        try {
+            // Begin transaction
+            $this->pdo->beginTransaction();
+            
+            // Find all default albums for this user
+            $stmt = $this->pdo->prepare("
+                SELECT id FROM user_media_albums 
+                WHERE user_id = ? AND (id = 1 OR album_name = 'Default Gallery')
+                ORDER BY id ASC
+            ");
+            $stmt->execute([$userId]);
+            $defaultAlbums = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            
+            if (count($defaultAlbums) > 1) {
+                // Keep the first one (lowest ID)
+                $keepId = $defaultAlbums[0];
+                
+                // Get all media from other default albums
+                $placeholders = implode(',', array_fill(0, count(array_slice($defaultAlbums, 1)), '?'));
+                $mediaStmt = $this->pdo->prepare("
+                    SELECT DISTINCT media_id FROM album_media
+                    WHERE album_id IN ($placeholders)
+                ");
+                $mediaStmt->execute(array_slice($defaultAlbums, 1));
+                $mediaIds = $mediaStmt->fetchAll(PDO::FETCH_COLUMN);
+                
+                // Move any unique media to the album we're keeping
+                if (!empty($mediaIds)) {
+                    foreach ($mediaIds as $mediaId) {
+                        // Check if this media is already in the album we're keeping
+                        $checkStmt = $this->pdo->prepare("
+                            SELECT 1 FROM album_media 
+                            WHERE album_id = ? AND media_id = ?
+                        ");
+                        $checkStmt->execute([$keepId, $mediaId]);
+                        
+                        if (!$checkStmt->fetch()) {
+                            // Add to the album we're keeping
+                            $insertStmt = $this->pdo->prepare("
+                                INSERT INTO album_media (album_id, media_id, created_at)
+                                VALUES (?, ?, NOW())
+                            ");
+                            $insertStmt->execute([$keepId, $mediaId]);
+                        }
+                    }
+                }
+                
+                // Delete the duplicate albums
+                $deleteStmt = $this->pdo->prepare("
+                    DELETE FROM user_media_albums 
+                    WHERE user_id = ? AND id != ? AND (id = 1 OR album_name = 'Default Gallery')
+                ");
+                $deleteStmt->execute([$userId, $keepId]);
+                
+                // Make sure the album we're keeping has ID = 1
+                if ($keepId != 1) {
+                    // This is complex - we need to update all references
+                    // For simplicity, let's just rename it to ensure it's recognized as the default
+                    $updateStmt = $this->pdo->prepare("
+                        UPDATE user_media_albums 
+                        SET album_name = 'Default Gallery',
+                            description = 'Your default media gallery containing all your uploaded photos and videos',
+                            privacy = 'private'
+                        WHERE id = ?
+                    ");
+                    $updateStmt->execute([$keepId]);
+                }
+                
+                $this->pdo->commit();
+                return [
+                    'success' => true,
+                    'message' => 'Duplicate default albums cleaned up successfully'
+                ];
+            } else {
+                // No duplicates found
+                $this->pdo->commit();
+                return [
+                    'success' => true,
+                    'message' => 'No duplicate default albums found'
+                ];
+            }
+        } catch (PDOException $e) {
+            $this->pdo->rollBack();
+            error_log("Error cleaning up duplicate albums: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Database error: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Ensure default album exists for a user
+     * @param int $userId User ID
+     * @return array Result with success status and message
+     */
+    public function ensureDefaultAlbum($userId) {
+        try {
+            // Check if default album exists
+            $stmt = $this->pdo->prepare("
+                SELECT id FROM user_media_albums 
+                WHERE user_id = ? AND (id = 1 OR album_name = 'Default Gallery')
+                LIMIT 1
+            ");
+            $stmt->execute([$userId]);
+            $defaultAlbum = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$defaultAlbum) {
+                // Create default album
+                $stmt = $this->pdo->prepare("
+                    INSERT INTO user_media_albums
+                    (user_id, album_name, description, privacy, created_at)
+                    VALUES (?, 'Default Gallery', 'Your default media gallery containing all your uploaded photos and videos', 'private', NOW())
+                ");
+                $stmt->execute([$userId]);
+                
+                return [
+                    'success' => true,
+                    'message' => 'Default album created successfully',
+                    'album_id' => $this->pdo->lastInsertId()
+                ];
+            }
+            
+            return [
+                'success' => true,
+                'message' => 'Default album already exists',
+                'album_id' => $defaultAlbum['id']
+            ];
+        } catch (PDOException $e) {
+            error_log("Error ensuring default album: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Database error: ' . $e->getMessage()
+            ];
         }
     }
 }
