@@ -45,21 +45,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_album'])) {
     if (empty($albumName)) {
         $error = "Album name is required";
     } else {
-        $result = $mediaUploader->createAlbum($user['id'], $albumName, $description, $privacy, $mediaIds);
+        // Call the correct method: createMediaAlbum instead of createAlbum
+        $albumId = $mediaUploader->createMediaAlbum($user['id'], $albumName, $description, $mediaIds, $privacy);
         
-        if ($result['success']) {
-            $success = $result['message'];
+        if ($albumId) {
+            $success = "Album created successfully";
+            
+            // Update album_id in user_media table for selected media
+            if (!empty($mediaIds)) {
+                try {
+                    $placeholders = implode(',', array_fill(0, count($mediaIds), '?'));
+                    $params = array_merge([$albumId], $mediaIds);
+                    
+                    $stmt = $pdo->prepare("
+                        UPDATE user_media 
+                        SET album_id = ? 
+                        WHERE id IN ($placeholders)
+                    ");
+                    $stmt->execute($params);
+                } catch (PDOException $e) {
+                    error_log("Error updating album_id in user_media: " . $e->getMessage());
+                }
+            }
             
             // Redirect to the album page
             if (file_exists('view_album.php')) {
-                header("Location: view_album.php?id=" . $result['album_id']);
+                header("Location: view_album.php?id=" . $albumId);
                 exit();
             } else {
                 header("Location: manage_albums.php?success=Album created successfully");
                 exit();
             }
         } else {
-            $error = $result['message'];
+            $error = "Failed to create album";
         }
     }
 }
@@ -383,10 +401,59 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/album-management.js"></script>
     <script>
-    // Function to toggle sidebar on mobile
-    function toggleSidebar() {
-        document.querySelector('.left-sidebar').classList.toggle('show');
-    }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Function to toggle sidebar on mobile
+        function toggleSidebar() {
+            document.querySelector('.left-sidebar').classList.toggle('show');
+        }
+        
+        // Handle media selection for album creation
+        const mediaCheckboxes = document.querySelectorAll('.media-checkbox');
+        const selectedMediaIdsInput = document.getElementById('selected_media_ids');
+        
+        // Update selected media IDs when checkboxes change
+        function updateSelectedMediaIds() {
+            const selectedIds = Array.from(mediaCheckboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.value);
+            
+            selectedMediaIdsInput.value = selectedIds.join(',');
+        }
+        
+        // Add event listeners to checkboxes
+        mediaCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateSelectedMediaIds();
+                
+                // Toggle selected class on parent card
+                const mediaItem = this.closest('.media-item');
+                if (this.checked) {
+                    mediaItem.classList.add('border-dark');
+                } else {
+                    mediaItem.classList.remove('border-dark');
+                }
+            });
+        });
+        
+        // Add click handler to media items (for better UX)
+        document.querySelectorAll('.media-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                // Don't toggle if the checkbox itself was clicked
+                if (e.target.type === 'checkbox') return;
+                
+                const checkbox = this.querySelector('.media-checkbox');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+        });
+        
+        // Ensure form updates selected media IDs before submission
+        document.querySelector('form').addEventListener('submit', function() {
+            updateSelectedMediaIds();
+        });
+    });
     </script>
 
     <style>
