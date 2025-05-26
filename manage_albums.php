@@ -236,7 +236,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Albums</title>
+    <title>Manage Gallery</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="assets/css/dashboard_style.css">
@@ -246,6 +246,17 @@ try {
         }
         .album-card:hover {
             transform: scale(1.05);
+        }
+        .media-item {
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .media-item:hover {
+            border-color: #ddd;
+        }
+        .media-item.selected {
+            border-color: #212529 !important;
         }
     </style>
 </head>
@@ -265,7 +276,12 @@ try {
 
         <!-- Main Content -->
         <main class="main-content">
-            <h1 class="mb-4">Manage Albums</h1>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Manage Gallery</h1>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAlbumModal">
+                    <i class="fas fa-plus me-2"></i> Create New Album
+                </button>
+            </div>
             
             <?php if (isset($_GET['debug']) && $_GET['debug'] === '1'): ?>
             <div class="card mb-4">
@@ -286,105 +302,7 @@ try {
                 <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
             <?php endif; ?>
             
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Create New Album</h5>
-                            <form method="post" action="">
-                                <div class="mb-3">
-                                    <label for="album_name" class="form-label">Album Name</label>
-                                    <input type="text" class="form-control" id="album_name" name="album_name" required>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label for="description" class="form-label">Description (optional)</label>
-                                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label class="form-label">Privacy</label>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="privacy" id="privacy_public" value="public" checked>
-                                        <label class="form-check-label" for="privacy_public">
-                                            Public
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="privacy" id="privacy_private" value="private">
-                                        <label class="form-check-label" for="privacy_private">
-                                            Private
-                                        </label>
-                                    </div>
-                                </div>
-                                
-                                <?php if (!empty($userMedia)): ?>
-                                    <div class="mb-3">
-                                        <label class="form-label">Select Media (optional)</label>
-                                        <div class="row g-2" style="max-height: 200px; overflow-y: auto;">
-                                            <?php foreach ($userMedia as $media): ?>
-                                                <div class="col-4 col-md-3">
-                                                    <div class="card h-100 media-item" data-media-id="<?php echo $media['id']; ?>">
-                                                        <?php if (strpos($media['media_type'] ?? '', 'image') !== false): ?>
-                                                            <img src="<?php echo htmlspecialchars($media['media_url']); ?>" class="card-img-top" alt="Media" style="height: 80px; object-fit: cover;">
-                                                        <?php else: ?>
-                                                            <div class="d-flex align-items-center justify-content-center h-100 bg-light">
-                                                                <i class="fas fa-file-video fa-2x text-muted"></i>
-                                                            </div>
-                                                        <?php endif; ?>
-                                                        <div class="card-footer p-1">
-                                                            <div class="form-check">
-                                                                <input class="form-check-input media-checkbox" type="checkbox" value="<?php echo $media['id']; ?>" id="media_<?php echo $media['id']; ?>">
-                                                                <label class="form-check-label small" for="media_<?php echo $media['id']; ?>">
-                                                                    Select
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                        <input type="hidden" name="media_ids" id="selected_media_ids" value="">
-                                    </div>
-                                <?php endif; ?>
-                                
-                                <button type="submit" name="create_album" class="btn btn-primary">Create Album</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Albums</h5>
-                            <div class="list-group">
-                                <?php 
-                                // Track album IDs to prevent duplicates
-                                $displayedAlbumIds = [];
-                                
-                                // Display all albums in the sidebar
-                                foreach ($albums as $album): 
-                                    // Skip if already displayed
-                                    if (in_array($album['id'], $displayedAlbumIds)) {
-                                        continue;
-                                    }
-                                    
-                                    // Add to displayed list
-                                    $displayedAlbumIds[] = $album['id'];
-                                    
-                                    // Get the album name (use the original name for non-default albums)
-                                    $albumName = ($album['id'] == $defaultAlbumId) ? 'Default Gallery' : $album['album_name'];
-                                ?>
-                                    <a href="view_album.php?id=<?php echo $album['id']; ?>" class="list-group-item list-group-item-action">
-                                        <?php echo htmlspecialchars($albumName); ?>
-                                    </a>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
+            <!-- Album Cards -->
             <div class="row row-cols-1 row-cols-md-3 g-4">
                 <?php 
                 // Track album IDs to prevent duplicates
@@ -488,6 +406,82 @@ try {
         include 'assets/add_ons.php';
         ?>
     </div>
+
+    <!-- Create Album Modal -->
+    <div class="modal fade" id="createAlbumModal" tabindex="-1" aria-labelledby="createAlbumModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createAlbumModalLabel">Create New Album</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="album_name" class="form-label">Album Name</label>
+                            <input type="text" class="form-control" id="album_name" name="album_name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description (optional)</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Privacy</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="privacy" id="privacy_public" value="public" checked>
+                                <label class="form-check-label" for="privacy_public">
+                                    Public
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="privacy" id="privacy_private" value="private">
+                                <label class="form-check-label" for="privacy_private">
+                                    Private
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <?php if (!empty($userMedia)): ?>
+                            <div class="mb-3">
+                                <label class="form-label">Select Media (optional)</label>
+                                <div class="row g-2" style="max-height: 300px; overflow-y: auto;">
+                                    <?php foreach ($userMedia as $media): ?>
+                                        <div class="col-4 col-md-3">
+                                            <div class="card h-100 media-item" data-media-id="<?php echo $media['id']; ?>">
+                                                <?php if (strpos($media['media_type'] ?? '', 'image') !== false): ?>
+                                                    <img src="<?php echo htmlspecialchars($media['media_url']); ?>" class="card-img-top" alt="Media" style="height: 80px; object-fit: cover;">
+                                                <?php else: ?>
+                                                    <div class="d-flex align-items-center justify-content-center h-100 bg-light">
+                                                        <i class="fas fa-file-video fa-2x text-muted"></i>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <div class="card-footer p-1">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input media-checkbox" type="checkbox" value="<?php echo $media['id']; ?>" id="media_<?php echo $media['id']; ?>">
+                                                        <label class="form-check-label small" for="media_<?php echo $media['id']; ?>">
+                                                            Select
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <input type="hidden" name="media_ids" id="selected_media_ids" value="">
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="create_album" class="btn btn-primary">Create Album</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
     <script>
@@ -660,18 +654,5 @@ try {
             window.toggleSidebar = toggleSidebar;
         });
     </script>
-    <style>
-        .media-item {
-            cursor: pointer;
-            transition: all 0.2s;
-            border: 2px solid transparent;
-        }
-        .media-item:hover {
-            border-color: #ddd;
-        }
-        .media-item.selected {
-            border-color: #212529 !important;
-        }
-    </style>
 </body>
 </html>
