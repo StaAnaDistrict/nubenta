@@ -258,6 +258,24 @@ try {
         .media-item.selected {
             border-color: #212529 !important;
         }
+        /* Override Bootstrap's blue colors */
+        .btn-primary {
+            background-color: #212529;
+            border-color: #212529;
+        }
+        .btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+            background-color: #343a40 !important;
+            border-color: #343a40 !important;
+        }
+        /* Override form switch color */
+        .form-check-input:checked {
+            background-color: #212529;
+            border-color: #212529;
+        }
+        .form-check-input:focus {
+            border-color: #495057;
+            box-shadow: 0 0 0 0.25rem rgba(33, 37, 41, 0.25);
+        }
     </style>
 </head>
 <body>
@@ -320,7 +338,7 @@ try {
                     
                     // Special handling for default gallery
                     $isDefaultGallery = ($album['id'] == $defaultAlbumId);
-                    $albumName = $isDefaultGallery ? 'Default Gallery' : $album['album_name'];
+                    $albumName = $isDefaultGallery ? 'My Gallery' : $album['album_name'];
                 ?>
                     <div class="col">
                         <div class="card h-100 album-card">
@@ -354,33 +372,26 @@ try {
                                         <?php echo (strlen($album['description']) > 100) ? '...' : ''; ?>
                                     </p>
                                 <?php endif; ?>
-                                
-                                <?php if ($isDefaultGallery): ?>
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="defaultGalleryPrivacy" 
-                                                   <?php echo ($album['privacy'] === 'public') ? 'checked' : ''; ?>
-                                                   data-album-id="<?php echo $album['id']; ?>">
-                                            <label class="form-check-label" for="defaultGalleryPrivacy">
-                                                <?php echo ($album['privacy'] === 'public') ? 'Public' : 'Private'; ?>
-                                            </label>
-                                        </div>
-                                        <div>
-                                            <a href="#" class="text-decoration-none small make-default-public-link">
-                                                Make default gallery always public
-                                            </a>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
                             </div>
                             <div class="card-footer d-flex justify-content-between align-items-center">
+                                <?php if ($isDefaultGallery): ?>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="defaultGalleryPrivacy" 
+                                           <?php echo ($album['privacy'] === 'public') ? 'checked' : ''; ?>
+                                           data-album-id="<?php echo $album['id']; ?>">
+                                    <label class="form-check-label" for="defaultGalleryPrivacy">
+                                        <?php echo ($album['privacy'] === 'public') ? 'Public' : 'Private'; ?>
+                                    </label>
+                                </div>
+                                <?php else: ?>
                                 <small class="text-muted">
                                     <i class="fas fa-<?php echo $album['privacy_icon']; ?> me-1"></i> 
                                     <?php echo $album['privacy_label']; ?>
                                 </small>
+                                <?php endif; ?>
                                 <div>
                                     <a href="view_album.php?id=<?php echo $album['id']; ?>" class="btn btn-sm btn-outline-dark">
-                                        <i class="fas fa-eye"></i> View
+                                        <i class="fas fa-eye"></i>
                                     </a>
                                     <?php if (!$isDefaultGallery): // Don't allow deleting the default album ?>
                                         <button type="button" class="btn btn-sm btn-outline-dark delete-album-btn" 
@@ -585,7 +596,7 @@ try {
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            // Update label
+                            // Update label next to toggle
                             const label = this.nextElementSibling;
                             if (label) {
                                 label.textContent = isPublic ? 'Public' : 'Private';
@@ -605,44 +616,44 @@ try {
                 });
             }
             
-            // Make default gallery always public
-            const makeDefaultPublicLink = document.querySelector('.make-default-public-link');
-            
-            if (makeDefaultPublicLink) {
-                makeDefaultPublicLink.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    
-                    if (confirm('Do you want to make your default gallery always public? This setting will apply to all future uploads.')) {
-                        fetch('api/set_default_gallery_public.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            }
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                alert('Default gallery will now always be public.');
-                                // Update UI
-                                const toggle = document.getElementById('defaultGalleryPrivacy');
-                                if (toggle) {
-                                    toggle.checked = true;
-                                    const label = toggle.nextElementSibling;
-                                    if (label) {
-                                        label.textContent = 'Public';
-                                    }
-                                }
-                            } else {
-                                alert('Error: ' + (data.message || 'Unknown error'));
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('An error occurred. Please try again.');
-                        });
-                    }
-                });
-            }
+            // Remove the "Make default gallery always public" code since we removed that link
+            // const makeDefaultPublicLink = document.querySelector('.make-default-public-link');
+            // 
+            // if (makeDefaultPublicLink) {
+            //     makeDefaultPublicLink.addEventListener('click', function(e) {
+            //         e.preventDefault();
+            //         
+            //         if (confirm('Do you want to make your gallery always public? This setting will apply to all future uploads.')) {
+            //             fetch('api/set_default_gallery_public.php', {
+            //                 method: 'POST',
+            //                 headers: {
+            //                     'Content-Type': 'application/json',
+            //                 }
+            //             })
+            //             .then(response => response.json())
+            //             .then(data => {
+            //                 if (data.success) {
+            //                     alert('Your gallery will now always be public.');
+            //                     // Update UI
+            //                     const toggle = document.getElementById('defaultGalleryPrivacy');
+            //                     if (toggle) {
+            //                         toggle.checked = true;
+            //                         const label = toggle.nextElementSibling;
+            //                         if (label) {
+            //                             label.textContent = 'Public';
+            //                         }
+            //                     }
+            //                 } else {
+            //                     alert('Error: ' + (data.message || 'Unknown error'));
+            //                 }
+            //             })
+            //             .catch(error => {
+            //                 console.error('Error:', error);
+            //                 alert('An error occurred. Please try again.');
+            //             });
+            //         }
+            //     });
+            // }
             
             // Toggle sidebar on mobile
             function toggleSidebar() {

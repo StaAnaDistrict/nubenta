@@ -78,29 +78,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_album'])) {
     }
 }
 
-// Include header
-include 'includes/header.php';
+// Set page title
+$pageTitle = "Edit Album: " . htmlspecialchars($album['album_name']);
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo $pageTitle; ?> - Nubenta</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/dashboard_style.css">
+    <style>
+        .cover-image-item {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .cover-image-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .cover-image-radio {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button>
 
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
+    <div class="dashboard-grid">
+        <!-- Left Sidebar - Navigation -->
+        <aside class="left-sidebar">
+            <h1>Nubenta</h1>
+            <?php
+            $currentUser = $user;
+            $currentPage = 'manage_albums';
+            include 'assets/navigation.php';
+            ?>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <?php if (isset($_SESSION['flash_message'])): ?>
+                <div class="alert alert-<?php echo $_SESSION['flash_message']['type']; ?> alert-dismissible fade show" role="alert">
+                    <?php echo $_SESSION['flash_message']['message']; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php unset($_SESSION['flash_message']); ?>
+            <?php endif; ?>
+            
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Edit Album: <?php echo htmlspecialchars($album['album_name']); ?></h5>
-                    <a href="view_album.php?id=<?php echo $albumId; ?>" class="btn btn-sm btn-outline-primary">
+                    <a href="view_album.php?id=<?php echo $albumId; ?>" class="btn btn-sm btn-outline-dark">
                         <i class="fas fa-arrow-left me-1"></i> Back to Album
                     </a>
                 </div>
                 <div class="card-body">
-                    <?php if (isset($_SESSION['flash_message'])): ?>
-                        <div class="alert alert-<?php echo $_SESSION['flash_message']['type']; ?> alert-dismissible fade show" role="alert">
-                            <?php echo $_SESSION['flash_message']['message']; ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                        <?php unset($_SESSION['flash_message']); ?>
-                    <?php endif; ?>
-                    
                     <form method="POST">
                         <div class="mb-3">
                             <label for="album_name" class="form-label">Album Name</label>
@@ -150,35 +187,46 @@ include 'includes/header.php';
                     </form>
                 </div>
             </div>
-        </div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <?php
+        // Include the modular right sidebar
+        include 'assets/add_ons.php';
+        ?>
     </div>
-</div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Handle cover image selection
-    const coverImageItems = document.querySelectorAll('.cover-image-item');
-    const coverImageRadios = document.querySelectorAll('.cover-image-radio');
-    
-    coverImageItems.forEach(item => {
-        item.addEventListener('click', function(e) {
-            // Don't toggle if the radio itself was clicked
-            if (e.target.type === 'radio') return;
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle cover image selection
+            const coverImageItems = document.querySelectorAll('.cover-image-item');
+            const coverImageRadios = document.querySelectorAll('.cover-image-radio');
             
-            const mediaId = this.getAttribute('data-media-id');
-            const radio = document.querySelector(`#cover_${mediaId}`);
-            
-            // Select radio
-            radio.checked = true;
-            
-            // Update UI
             coverImageItems.forEach(item => {
-                item.classList.remove('border-primary', 'border-2');
+                item.addEventListener('click', function(e) {
+                    // Don't toggle if the radio itself was clicked
+                    if (e.target.type === 'radio') return;
+                    
+                    const mediaId = this.getAttribute('data-media-id');
+                    const radio = document.querySelector(`#cover_${mediaId}`);
+                    
+                    // Select radio
+                    radio.checked = true;
+                    
+                    // Update UI
+                    coverImageItems.forEach(item => {
+                        item.classList.remove('border-primary', 'border-2');
+                    });
+                    this.classList.add('border-primary', 'border-2');
+                });
             });
-            this.classList.add('border-primary', 'border-2');
+            
+            // Function to toggle sidebar on mobile
+            function toggleSidebar() {
+                document.querySelector('.left-sidebar').classList.toggle('show');
+            }
         });
-    });
-});
-</script>
-
-<?php include 'includes/footer.php'; ?>
+    </script>
+</body>
+</html>
