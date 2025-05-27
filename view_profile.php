@@ -214,6 +214,10 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="assets/css/viewprofile.css" rel="stylesheet">
+    <!-- Dashboard.php CSS files for reactions and comments -->
+    <link rel="stylesheet" href="assets/css/reactions.css">
+    <link rel="stylesheet" href="assets/css/simple-reactions.css">
+    <link rel="stylesheet" href="assets/css/comments.css">
 
     <?php if (!empty($u['custom_theme'])): ?>
         <?= $u['custom_theme'] ?>
@@ -642,6 +646,24 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    <!-- EXACT SAME JavaScript files as dashboard.php -->
+    <script src="assets/js/utils.js"></script>
+    <script src="assets/js/media-handler.js"></script>
+
+    <!-- Global flag to track reaction system initialization -->
+    <script>
+        window.reactionSystemInitialized = false;
+    </script>
+
+    <!-- Load only simple-reactions.js (SAME as dashboard.php) -->
+    <script src="assets/js/simple-reactions.js"></script>
+
+    <!-- Load other non-reaction scripts (SAME as dashboard.php) -->
+    <script src="assets/js/comments.js"></script>
+    <script src="assets/js/comment-initializer.js"></script>
+    <script src="assets/js/share.js"></script>
+    <script src="assets/js/activity-tracker.js"></script>
+
     <!-- Custom JavaScript Handler -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -759,21 +781,21 @@ try {
         }
     }
 
-    // Function to render a user post
+    // Function to render a user post (constrained to section width)
     function renderUserPost(post, currentUserId) {
         const isOwnPost = post.user_id == currentUserId;
 
         return `
-            <article class="post mb-4" data-post-id="${post.id}" id="profile-post-${post.id}">
-                <div class="card">
-                    <div class="card-body">
+            <article class="post mb-3" data-post-id="${post.id}" id="profile-post-${post.id}">
+                <div class="card" style="max-width: 100%;">
+                    <div class="card-body p-3">
                         <div class="post-header d-flex align-items-center mb-3">
                             <img src="${post.profile_pic || 'assets/images/default-profile.png'}"
                                  alt="Profile" class="rounded-circle me-3"
-                                 style="width: 50px; height: 50px; object-fit: cover;">
+                                 style="width: 40px; height: 40px; object-fit: cover;">
                             <div>
-                                <h6 class="mb-0" style="color: #2c3e50;">${post.author}</h6>
-                                <small class="text-muted">
+                                <h6 class="mb-0" style="color: #2c3e50; font-size: 0.9rem;">${post.author}</h6>
+                                <small class="text-muted" style="font-size: 0.8rem;">
                                     <i class="far fa-clock me-1"></i> ${new Date(post.created_at).toLocaleString()}
                                     ${post.visibility === 'friends' ? '<span class="ms-2"><i class="fas fa-user-friends"></i> Friends only</span>' : ''}
                                 </small>
@@ -781,23 +803,23 @@ try {
                         </div>
 
                         <div class="post-content">
-                            ${post.is_flagged ? '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-1"></i> Viewing discretion is advised.</div>' : ''}
-                            ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
-                            ${post.media && !post.is_removed ? renderPostMedia(post.media, post.is_flagged, post.id) : ''}
+                            ${post.is_flagged ? '<div class="alert alert-warning py-2"><i class="fas fa-exclamation-triangle me-1"></i> Viewing discretion is advised.</div>' : ''}
+                            ${post.is_removed ? `<p class="text-danger mb-2"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p class="mb-2">${post.content}</p>`}
+                            ${post.media && !post.is_removed ? renderPostMediaConstrained(post.media, post.is_flagged, post.id) : ''}
                         </div>
 
                         <div class="post-actions d-flex mt-3">
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}">
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}" style="font-size: 0.8rem;">
                                 <i class="far fa-smile me-1"></i> React
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}" style="font-size: 0.8rem;">
                                 <i class="far fa-comment me-1"></i> Comment <span class="comment-count-badge"></span>
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}">
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}" style="font-size: 0.8rem;">
                                 <i class="far fa-share-square me-1"></i> Share
                             </button>
                             ${isOwnPost ? `
-                                <button class="btn btn-sm btn-outline-danger me-2 post-delete-btn" data-post-id="${post.id}">
+                                <button class="btn btn-sm btn-outline-danger me-2 post-delete-btn" data-post-id="${post.id}" style="font-size: 0.8rem;">
                                     <i class="far fa-trash-alt me-1"></i> Delete
                                 </button>
                             ` : ''}
@@ -806,6 +828,75 @@ try {
                 </div>
             </article>
         `;
+    }
+
+    // Function to render post media constrained to section width
+    function renderPostMediaConstrained(media, isBlurred, postId) {
+        if (!media) return '';
+
+        const blurClass = isBlurred ? 'blurred-image' : '';
+        let mediaArray;
+
+        try {
+            mediaArray = typeof media === 'string' ? JSON.parse(media) : media;
+        } catch (e) {
+            mediaArray = [media];
+        }
+
+        if (!Array.isArray(mediaArray)) {
+            mediaArray = [mediaArray];
+        }
+
+        // For single media item - constrained size
+        if (mediaArray.length === 1) {
+            const mediaItem = mediaArray[0];
+            if (mediaItem.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                return `<div class="media mt-2">
+                    <img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
+                         style="cursor: pointer; max-height: 250px; width: 100%; object-fit: cover; border-radius: 6px;">
+                </div>`;
+            } else if (mediaItem.match(/\.mp4$/i)) {
+                return `<div class="media mt-2">
+                    <video controls class="img-fluid ${blurClass}"
+                           style="max-height: 250px; width: 100%; border-radius: 6px;">
+                        <source src="${mediaItem}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>`;
+            }
+        }
+
+        // For multiple media items - smaller grid
+        let mediaHTML = '<div class="post-media-container mt-2"><div class="row g-1">';
+        mediaArray.slice(0, 4).forEach((mediaItem, index) => {
+            const colClass = mediaArray.length === 1 ? 'col-12' :
+                           mediaArray.length === 2 ? 'col-6' :
+                           index === 0 ? 'col-12' : 'col-6';
+
+            mediaHTML += `<div class="${colClass}">`;
+            if (mediaItem.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                mediaHTML += `<img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
+                                   style="cursor: pointer; height: 120px; width: 100%; object-fit: cover; border-radius: 6px;">`;
+            } else if (mediaItem.match(/\.mp4$/i)) {
+                mediaHTML += `<video controls class="img-fluid ${blurClass}"
+                                     style="height: 120px; width: 100%; object-fit: cover; border-radius: 6px;">
+                                  <source src="${mediaItem}" type="video/mp4">
+                              </video>`;
+            }
+            mediaHTML += '</div>';
+        });
+
+        if (mediaArray.length > 4) {
+            mediaHTML += `<div class="col-6 position-relative">
+                <div class="d-flex align-items-center justify-content-center bg-dark text-white"
+                     style="height: 120px; border-radius: 6px; cursor: pointer;">
+                    <span class="h6">+${mediaArray.length - 4} more</span>
+                </div>
+            </div>`;
+        }
+
+        mediaHTML += '</div></div>';
+        return mediaHTML;
     }
 
     // Function to render post media (reuse from dashboard)
@@ -877,9 +968,11 @@ try {
         return mediaHTML;
     }
 
-    // Function to initialize post interactions
+    // Function to initialize post interactions (connected to dashboard systems)
     function initializePostInteractions() {
-        // Load comment counts
+        console.log('Initializing post interactions for Contents section');
+
+        // Load comment counts for all posts
         document.querySelectorAll('.post[data-post-id]').forEach(post => {
             const postId = post.getAttribute('data-post-id');
             if (postId) {
@@ -887,35 +980,81 @@ try {
             }
         });
 
-        // Set up comment button listeners
+        // EXACT SAME event listeners as dashboard.php setupPostActionListeners()
+        // First, remove any existing event listeners to prevent duplicates
+        document.querySelectorAll('.post-comment-btn').forEach(btn => {
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+        });
+
+        // Now add fresh event listeners
         document.querySelectorAll('.post-comment-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const postId = this.getAttribute('data-post-id');
-                toggleCommentForm(postId);
+                console.log("Comment button clicked for post:", postId);
+
+                if (window.CommentSystem && typeof window.CommentSystem.toggleCommentForm === 'function') {
+                    window.CommentSystem.toggleCommentForm(postId);
+                } else {
+                    // Fallback to inline implementation
+                    toggleCommentForm(postId);
+                }
             });
         });
 
-        // Initialize reaction system if available
+        // React button - handled by ReactionSystem
+        // The ReactionSystem will attach its own event listeners
+
+        // Set up share button listeners
+        document.querySelectorAll('.post-share-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const postId = this.getAttribute('data-post-id');
+
+                if (window.ShareSystem && window.ShareSystem.sharePost) {
+                    console.log('Using dashboard ShareSystem for post:', postId);
+                    window.ShareSystem.sharePost(postId);
+                } else {
+                    console.log('Dashboard ShareSystem not available');
+                    alert('Share functionality will be available soon!');
+                }
+            });
+        });
+
+        // Initialize reaction system for the newly loaded posts (EXACT SAME as dashboard.php)
         if (window.ReactionSystem) {
-            setTimeout(() => {
+            console.log("Loading reactions for visible posts");
+            try {
                 window.ReactionSystem.loadReactionsForVisiblePosts();
-            }, 500);
+            } catch (error) {
+                console.error("Error loading reactions for visible posts:", error);
+            }
         }
     }
 
-    // Function to load comment count (simplified version)
+    // EXACT SAME loadCommentCount function as dashboard.php
     async function loadCommentCount(postId) {
         try {
+            console.log(`Loading comment count for post ${postId}`);
             const response = await fetch(`api/get_comment_count.php?post_id=${postId}`);
-            if (!response.ok) return;
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
 
             const data = await response.json();
+
             if (data.success) {
+                const count = data.count;
                 const commentBtn = document.querySelector(`.post-comment-btn[data-post-id="${postId}"]`);
+
                 if (commentBtn) {
                     const countBadge = commentBtn.querySelector('.comment-count-badge');
                     if (countBadge) {
-                        countBadge.textContent = data.count > 0 ? `(${data.count})` : '';
+                        if (count > 0) {
+                            countBadge.textContent = `(${count})`;
+                        } else {
+                            countBadge.textContent = '';
+                        }
                     }
                 }
             }
@@ -924,43 +1063,341 @@ try {
         }
     }
 
-    // Function to toggle comment form (simplified version)
+    // EXACT SAME toggleCommentForm function as dashboard.php (adapted for view_profile.php)
     function toggleCommentForm(postId) {
+        // Find the post element - use profile-specific selector
         const postElement = document.querySelector(`#profile-post-${postId}`);
-        if (!postElement) return;
 
+        if (!postElement) {
+            console.error(`Post element not found for ID: ${postId}`);
+            return;
+        }
+
+        // Check if comments section already exists
         let commentsSection = postElement.querySelector('.comments-section');
 
         if (commentsSection) {
-            commentsSection.classList.toggle('d-none');
+            // Toggle visibility
+            if (commentsSection.classList.contains('d-none')) {
+                commentsSection.classList.remove('d-none');
+            } else {
+                commentsSection.classList.add('d-none');
+            }
             return;
         }
 
         // Create comments section
         commentsSection = document.createElement('div');
         commentsSection.className = 'comments-section mt-3';
-        commentsSection.innerHTML = `
-            <div class="comments-container mb-3" data-post-id="${postId}">
-                <div class="text-center p-2">
-                    <div class="spinner-border spinner-border-sm" role="status">
-                        <span class="visually-hidden">Loading comments...</span>
-                    </div>
-                    <span class="ms-2">Loading comments...</span>
+
+        // Create comments container FIRST
+        const commentsContainer = document.createElement('div');
+        commentsContainer.className = 'comments-container mb-3';
+        commentsContainer.dataset.postId = postId;
+
+        // Add loading indicator
+        commentsContainer.innerHTML = `
+            <div class="text-center p-2">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">Loading comments...</span>
                 </div>
+                <span class="ms-2">Loading comments...</span>
             </div>
-            <form class="comment-form" data-post-id="${postId}">
-                <div class="input-group">
-                    <input type="text" class="form-control comment-input" placeholder="Write a comment...">
-                    <button type="submit" class="btn btn-primary">Post</button>
-                </div>
-            </form>
         `;
 
-        postElement.querySelector('.card-body').appendChild(commentsSection);
+        // Create comment form LAST
+        const commentForm = document.createElement('form');
+        commentForm.className = 'comment-form mb-3';
+        commentForm.dataset.postId = postId;
+        commentForm.id = `comment-form-${postId}`;
 
-        // Load existing comments and set up form submission
-        // (This would need the full comment system implementation)
-        console.log('Comment form created for post:', postId);
+        commentForm.innerHTML = `
+            <div class="input-group">
+                <input type="text" class="form-control comment-input" placeholder="Write a comment...">
+                <button type="submit" class="btn btn-primary">Post</button>
+            </div>
+        `;
+
+        // Add elements in the CORRECT ORDER:
+        // 1. Comments container (shows existing comments)
+        // 2. Comment form (at the bottom)
+        commentsSection.appendChild(commentsContainer);
+        commentsSection.appendChild(commentForm);
+
+        // Add to post
+        const postActions = postElement.querySelector('.post-actions');
+        if (postActions) {
+            postActions.after(commentsSection);
+        } else {
+            postElement.appendChild(commentsSection);
+        }
+
+        // Load existing comments
+        loadComments(postId);
+
+        // Set up form submission
+        setupCommentFormSubmission(postId);
+    }
+
+    // EXACT SAME setupCommentFormSubmission function as dashboard.php
+    function setupCommentFormSubmission(postId) {
+        const formId = `comment-form-${postId}`;
+        const form = document.getElementById(formId);
+
+        if (!form) {
+            console.error(`Comment form not found with ID: ${formId}`);
+            return;
+        }
+
+        // Remove any existing event listeners by cloning and replacing
+        const newForm = form.cloneNode(true);
+        form.parentNode.replaceChild(newForm, form);
+
+        // Add a flag to track if this form already has a listener
+        if (newForm.dataset.hasListener === 'true') {
+            console.log(`Form ${formId} already has a listener, skipping`);
+            return;
+        }
+        newForm.dataset.hasListener = 'true';
+
+        // Add the event listener to the fresh form
+        newForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            console.log(`Comment form submitted for post ${postId}`);
+
+            const commentInput = this.querySelector('.comment-input');
+            const commentContent = commentInput.value.trim();
+
+            if (!commentContent) return;
+
+            // Disable the submit button to prevent multiple submissions
+            const submitButton = this.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+
+            try {
+                console.log(`Submitting comment for post ${postId}: ${commentContent}`);
+
+                const formData = new FormData();
+                formData.append('post_id', postId);
+                formData.append('content', commentContent);
+
+                const response = await fetch('api/post_comment.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Comment submission response:', data);
+
+                if (data.success) {
+                    // Clear input
+                    commentInput.value = '';
+
+                    // Find the comments container
+                    const commentsContainer = document.querySelector(`.comments-container[data-post-id="${postId}"]`);
+                    if (commentsContainer) {
+                        // Reload comments
+                        loadComments(postId, commentsContainer);
+
+                        // Update comment count
+                        loadCommentCount(postId);
+                    }
+                } else {
+                    alert('Error posting comment: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while posting your comment.');
+            } finally {
+                // Re-enable the submit button
+                submitButton.disabled = false;
+            }
+        });
+    }
+
+    // EXACT SAME loadComments function as dashboard.php
+    async function loadComments(postId, commentsContainer = null) {
+        try {
+            console.log(`Loading comments for post ${postId}`);
+
+            // If no container is provided, find it
+            if (!commentsContainer) {
+                commentsContainer = document.querySelector(`.comments-container[data-post-id="${postId}"]`);
+            }
+
+            if (!commentsContainer) {
+                console.error(`Comments container not found for post ${postId}`);
+                return;
+            }
+
+            const response = await fetch(`api/get_comments.php?post_id=${postId}`);
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const data = await response.json();
+            console.log('Comments data:', data);
+
+            if (data.success && data.comments) {
+                commentsContainer.innerHTML = '';
+
+                if (data.comments.length === 0) {
+                    commentsContainer.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+                    return;
+                }
+
+                data.comments.forEach(comment => {
+                    const commentElement = document.createElement('div');
+                    commentElement.className = 'comment mb-3';
+                    commentElement.dataset.commentId = comment.id;
+
+                    // Format the date
+                    const commentDate = new Date(comment.created_at);
+                    const formattedDate = commentDate.toLocaleString();
+
+                    // Create the comment HTML with clickable profile elements
+                    commentElement.innerHTML = `
+                        <div class="d-flex comment-item">
+                            <a href="view_profile.php?id=${comment.user_id}" class="text-decoration-none">
+                                <img src="${comment.profile_pic || 'assets/images/default-profile.png'}" alt="${comment.author}"
+                                     class="rounded-circle me-2" width="32" height="32" style="cursor: pointer;"
+                                     title="View ${comment.author}'s profile">
+                            </a>
+                            <div class="comment-content flex-grow-1">
+                                <div class="comment-bubble p-2 rounded">
+                                    <a href="view_profile.php?id=${comment.user_id}" class="text-decoration-none">
+                                        <div class="fw-bold" style="cursor: pointer; color: #2c3e50;" title="View ${comment.author}'s profile">${comment.author}</div>
+                                    </a>
+                                    <div>${comment.content}</div>
+                                </div>
+                                <div class="comment-actions mt-1">
+                                    <small class="text-muted">${formattedDate}</small>
+                                    <button class="reply-button" data-comment-id="${comment.id}">Reply</button>
+                                    ${comment.is_own_comment ? '<button class="delete-comment-button" data-comment-id="' + comment.id + '">Delete</button>' : ''}
+                                </div>
+                                <div class="replies-container mt-2">
+                                    ${comment.replies ? this.renderReplies(comment.replies) : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    commentsContainer.appendChild(commentElement);
+                });
+
+                // Add event listeners for reply buttons and forms
+                setupCommentInteractions(commentsContainer, postId);
+            } else {
+                commentsContainer.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+            }
+        } catch (error) {
+            console.error('Error loading comments:', error);
+            if (commentsContainer) {
+                commentsContainer.innerHTML = '<p class="text-danger">Error loading comments. Please try again.</p>';
+            }
+        }
+    }
+
+    // EXACT SAME setupCommentInteractions function as dashboard.php
+    function setupCommentInteractions(commentsContainer, postId) {
+        // This function would handle reply buttons and other comment interactions
+        // For now, we'll keep it simple to match the basic functionality
+        console.log(`Setting up comment interactions for post ${postId}`);
+    }
+
+    // Fallback reaction picker when dashboard system isn't available
+    function showSimpleReactionPicker(postId, button) {
+        const reactions = [
+            { type: 'love', emoji: '❤️', name: 'Love' },
+            { type: 'like', emoji: '👍', name: 'Like' },
+            { type: 'laugh', emoji: '😂', name: 'Laugh' },
+            { type: 'wow', emoji: '😮', name: 'Wow' },
+            { type: 'sad', emoji: '😢', name: 'Sad' },
+            { type: 'angry', emoji: '😠', name: 'Angry' }
+        ];
+
+        // Create simple reaction picker
+        const picker = document.createElement('div');
+        picker.className = 'simple-reaction-picker';
+        picker.style.cssText = `
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: flex;
+            gap: 5px;
+        `;
+
+        reactions.forEach(reaction => {
+            const btn = document.createElement('button');
+            btn.innerHTML = reaction.emoji;
+            btn.title = reaction.name;
+            btn.style.cssText = `
+                border: none;
+                background: none;
+                font-size: 20px;
+                padding: 5px;
+                border-radius: 4px;
+                cursor: pointer;
+            `;
+            btn.addEventListener('click', () => {
+                submitReaction(postId, reaction.type);
+                picker.remove();
+            });
+            picker.appendChild(btn);
+        });
+
+        // Position picker near button
+        const rect = button.getBoundingClientRect();
+        picker.style.left = rect.left + 'px';
+        picker.style.top = (rect.top - 60) + 'px';
+
+        document.body.appendChild(picker);
+
+        // Remove picker when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', function removePicker(e) {
+                if (!picker.contains(e.target)) {
+                    picker.remove();
+                    document.removeEventListener('click', removePicker);
+                }
+            });
+        }, 100);
+    }
+
+    // Submit reaction using dashboard API
+    async function submitReaction(postId, reactionType) {
+        try {
+            const response = await fetch('api/post_reaction.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    post_id: postId,
+                    reaction_type: reactionType
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                console.log('Reaction submitted successfully');
+                // Reload reactions if dashboard system is available
+                if (window.ReactionSystem && window.ReactionSystem.loadReactionsForVisiblePosts) {
+                    window.ReactionSystem.loadReactionsForVisiblePosts();
+                }
+            } else {
+                console.error('Error submitting reaction:', data.error);
+            }
+        } catch (error) {
+            console.error('Error submitting reaction:', error);
+        }
     }
 
     // Function to handle anchor scrolling to specific posts

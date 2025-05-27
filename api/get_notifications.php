@@ -101,7 +101,23 @@ try {
 
                 if ($notification['post_id']) {
                     $message .= " to your post";
-                    $link = "view_profile.php?id={$userId}#profile-post-{$notification['post_id']}";
+                    // Get post details for better identification
+                    $postStmt = $pdo->prepare("SELECT user_id, created_at FROM posts WHERE id = ?");
+                    $postStmt->execute([$notification['post_id']]);
+                    $postDetails = $postStmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($postDetails) {
+                        $params = http_build_query([
+                            'scroll_to_post' => $notification['post_id'],
+                            'user_id' => $postDetails['user_id'],
+                            'created_at' => $postDetails['created_at'],
+                            'source' => 'notification',
+                            'notification_type' => 'reaction'
+                        ]);
+                        $link = "dashboard.php?{$params}";
+                    } else {
+                        $link = "dashboard.php?scroll_to_post={$notification['post_id']}";
+                    }
                 } elseif ($notification['media_id']) {
                     $message .= " to your media";
                     $link = "view_album.php?media_id={$notification['media_id']}";
@@ -113,7 +129,23 @@ try {
 
                 if ($notification['post_id']) {
                     $message .= " on your post";
-                    $link = "view_profile.php?id={$userId}#profile-post-{$notification['post_id']}";
+                    // Get post details for better identification
+                    $postStmt = $pdo->prepare("SELECT user_id, created_at FROM posts WHERE id = ?");
+                    $postStmt->execute([$notification['post_id']]);
+                    $postDetails = $postStmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($postDetails) {
+                        $params = http_build_query([
+                            'scroll_to_post' => $notification['post_id'],
+                            'user_id' => $postDetails['user_id'],
+                            'created_at' => $postDetails['created_at'],
+                            'source' => 'notification',
+                            'notification_type' => 'comment'
+                        ]);
+                        $link = "dashboard.php?{$params}";
+                    } else {
+                        $link = "dashboard.php?scroll_to_post={$notification['post_id']}";
+                    }
                 } elseif ($notification['media_id']) {
                     $message .= " on your media";
                     $link = "view_album.php?media_id={$notification['media_id']}";
@@ -127,7 +159,23 @@ try {
             case 'comment_reply':
                 $message = "{$actorName} replied to your comment";
                 if ($notification['post_id']) {
-                    $link = "view_profile.php?id={$userId}#profile-post-{$notification['post_id']}";
+                    // Get post details for better identification
+                    $postStmt = $pdo->prepare("SELECT user_id, created_at FROM posts WHERE id = ?");
+                    $postStmt->execute([$notification['post_id']]);
+                    $postDetails = $postStmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($postDetails) {
+                        $params = http_build_query([
+                            'scroll_to_post' => $notification['post_id'],
+                            'user_id' => $postDetails['user_id'],
+                            'created_at' => $postDetails['created_at'],
+                            'source' => 'notification',
+                            'notification_type' => 'comment_reply'
+                        ]);
+                        $link = "dashboard.php?{$params}";
+                    } else {
+                        $link = "dashboard.php?scroll_to_post={$notification['post_id']}";
+                    }
                 }
 
                 if ($notification['content']) {

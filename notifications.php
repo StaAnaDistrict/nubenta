@@ -161,6 +161,36 @@ $currentPage = 'notifications';
         ?>
     </div>
 
+    <!-- Post Modal for Notifications -->
+    <div class="modal fade" id="notificationPostModal" tabindex="-1" aria-labelledby="notificationPostModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="notificationPostModalLabel">
+                        <i class="fas fa-bell me-2"></i>
+                        Post from Notification
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="notificationPostContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading post...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading post content...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="viewInDashboardBtn">
+                        <i class="fas fa-external-link-alt me-1"></i>
+                        View in Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
@@ -261,10 +291,345 @@ $currentPage = 'notifications';
             // Mark as read
             await markAsRead(notificationId);
 
-            // Navigate to the content
+            // Check if this is a post notification that should open in modal
+            if (link && link.includes('dashboard.php') && link.includes('scroll_to_post')) {
+                // Extract post information from the link
+                const url = new URL(link, window.location.origin);
+                const postId = url.searchParams.get('scroll_to_post');
+                const userId = url.searchParams.get('user_id');
+                const createdAt = url.searchParams.get('created_at');
+                const notificationType = url.searchParams.get('notification_type');
+
+                if (postId) {
+                    // Open post in modal
+                    openPostModal(postId, userId, createdAt, notificationType, link);
+                    return;
+                }
+            }
+
+            // For non-post notifications (media, friend requests, etc.), navigate normally
             if (link) {
                 window.location.href = link;
             }
+        }
+
+        // Open post in modal overlay
+        async function openPostModal(postId, userId, createdAt, notificationType, originalLink) {
+            const modal = new bootstrap.Modal(document.getElementById('notificationPostModal'));
+            const modalContent = document.getElementById('notificationPostContent');
+            const modalTitle = document.getElementById('notificationPostModalLabel');
+            const viewInDashboardBtn = document.getElementById('viewInDashboardBtn');
+
+            // Update modal title based on notification type
+            const typeLabels = {
+                'reaction': 'Post Reaction',
+                'comment': 'Post Comment',
+                'comment_reply': 'Comment Reply'
+            };
+            modalTitle.innerHTML = `<i class="fas fa-bell me-2"></i>${typeLabels[notificationType] || 'Post'} from Notification`;
+
+            // Set up "View in Dashboard" button
+            viewInDashboardBtn.onclick = function() {
+                modal.hide();
+                window.location.href = originalLink;
+            };
+
+            // Show modal with loading state
+            modal.show();
+
+            // Reset content to loading state
+            modalContent.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading post...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading post content...</p>
+                </div>
+            `;
+
+            try {
+                // Fetch the post content
+                const response = await fetch(`api/get_single_post.php?post_id=${postId}&user_id=${userId}&created_at=${encodeURIComponent(createdAt)}`);
+                const data = await response.json();
+
+                if (data.success && data.post) {
+                    // Render the post in the modal
+                    modalContent.innerHTML = renderPostForModal(data.post);
+
+                    // Initialize reactions and comments for this post
+                    setTimeout(() => {
+                        initializeModalPostInteractions(postId);
+                    }, 500);
+                } else {
+                    modalContent.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Post not found or no longer available.
+                            <div class="mt-2">
+                                <button class="btn btn-primary" onclick="document.getElementById('viewInDashboardBtn').click()">
+                                    View in Dashboard
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading post:', error);
+                modalContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error loading post content.
+                        <div class="mt-2">
+                            <button class="btn btn-primary" onclick="document.getElementById('viewInDashboardBtn').click()">
+                                View in Dashboard
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Render post for modal display
+        function renderPostForModal(post) {
+            const isOwnPost = post.user_id == <?= $_SESSION['user']['id'] ?? 0 ?>;
+
+            return `
+                <article class="post" data-post-id="${post.id}" id="modal-post-${post.id}">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="post-header d-flex align-items-center mb-3">
+                                <img src="${post.profile_pic || 'assets/images/default-profile.png'}"
+                                     alt="Profile" class="rounded-circle me-3"
+                                     style="width: 50px; height: 50px; object-fit: cover;">
+                                <div>
+                                    <h6 class="mb-0" style="color: #2c3e50;">${post.author}</h6>
+                                    <small class="text-muted">
+                                        <i class="far fa-clock me-1"></i> ${new Date(post.created_at).toLocaleString()}
+                                        ${post.visibility === 'friends' ? '<span class="ms-2"><i class="fas fa-user-friends"></i> Friends only</span>' : ''}
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="post-content">
+                                ${post.is_flagged ? '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-1"></i> Viewing discretion is advised.</div>' : ''}
+                                ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
+                                ${post.media && !post.is_removed ? renderModalPostMedia(post.media, post.is_flagged, post.id) : ''}
+                            </div>
+
+                            <div class="post-actions d-flex mt-3">
+                                <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}">
+                                    <i class="far fa-smile me-1"></i> React
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
+                                    <i class="far fa-comment me-1"></i> Comment <span class="comment-count-badge"></span>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}">
+                                    <i class="far fa-share-square me-1"></i> Share
+                                </button>
+                            </div>
+
+                            <!-- Comments section will be loaded here -->
+                            <div class="comments-section mt-3" id="comments-${post.id}" style="display: none;">
+                                <div class="comments-container" data-post-id="${post.id}">
+                                    <div class="text-center p-2">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading comments...</span>
+                                        </div>
+                                        <span class="ms-2">Loading comments...</span>
+                                    </div>
+                                </div>
+                                <form class="comment-form mt-2" data-post-id="${post.id}">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control comment-input" placeholder="Write a comment...">
+                                        <button type="submit" class="btn btn-primary">Post</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            `;
+        }
+
+        // Render post media for modal
+        function renderModalPostMedia(media, isBlurred, postId) {
+            if (!media) return '';
+
+            const blurClass = isBlurred ? 'blurred-image' : '';
+            let mediaArray;
+
+            try {
+                mediaArray = typeof media === 'string' ? JSON.parse(media) : media;
+            } catch (e) {
+                mediaArray = [media];
+            }
+
+            if (!Array.isArray(mediaArray)) {
+                mediaArray = [mediaArray];
+            }
+
+            // For single media item
+            if (mediaArray.length === 1) {
+                const mediaItem = mediaArray[0];
+                if (mediaItem.match(/\\.(jpg|jpeg|png|gif)$/i)) {
+                    return `<div class="media mt-3">
+                        <img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
+                             style="cursor: pointer; max-height: 400px; width: 100%; object-fit: cover; border-radius: 8px;">
+                    </div>`;
+                } else if (mediaItem.match(/\\.mp4$/i)) {
+                    return `<div class="media mt-3">
+                        <video controls class="img-fluid ${blurClass}"
+                               style="max-height: 400px; width: 100%; border-radius: 8px;">
+                            <source src="${mediaItem}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>`;
+                }
+            }
+
+            // For multiple media items - simplified grid
+            let mediaHTML = '<div class="post-media-container mt-3"><div class="row g-2">';
+            mediaArray.slice(0, 4).forEach((mediaItem, index) => {
+                const colClass = mediaArray.length === 1 ? 'col-12' :
+                               mediaArray.length === 2 ? 'col-6' :
+                               index === 0 ? 'col-12' : 'col-6';
+
+                mediaHTML += `<div class="${colClass}">`;
+                if (mediaItem.match(/\\.(jpg|jpeg|png|gif)$/i)) {
+                    mediaHTML += `<img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
+                                       style="cursor: pointer; height: 200px; width: 100%; object-fit: cover; border-radius: 8px;">`;
+                } else if (mediaItem.match(/\\.mp4$/i)) {
+                    mediaHTML += `<video controls class="img-fluid ${blurClass}"
+                                         style="height: 200px; width: 100%; object-fit: cover; border-radius: 8px;">
+                                      <source src="${mediaItem}" type="video/mp4">
+                                  </video>`;
+                }
+                mediaHTML += '</div>';
+            });
+
+            if (mediaArray.length > 4) {
+                mediaHTML += `<div class="col-6 position-relative">
+                    <div class="d-flex align-items-center justify-content-center bg-dark text-white"
+                         style="height: 200px; border-radius: 8px; cursor: pointer;">
+                        <span class="h4">+${mediaArray.length - 4} more</span>
+                    </div>
+                </div>`;
+            }
+
+            mediaHTML += '</div></div>';
+            return mediaHTML;
+        }
+
+        // Initialize post interactions in modal
+        function initializeModalPostInteractions(postId) {
+            console.log('Initializing modal post interactions for post:', postId);
+
+            // Set up reaction button
+            const reactBtn = document.querySelector(`#modal-post-${postId} .post-react-btn`);
+            if (reactBtn) {
+                reactBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Use a simple reaction picker for modal
+                    showSimpleModalReactionPicker(postId, this);
+                });
+            }
+
+            // Set up comment button
+            const commentBtn = document.querySelector(`#modal-post-${postId} .post-comment-btn`);
+            if (commentBtn) {
+                commentBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    toggleModalComments(postId);
+                });
+            }
+
+            // Set up comment form
+            const commentForm = document.querySelector(`#modal-post-${postId} .comment-form`);
+            if (commentForm) {
+                commentForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    submitModalComment(postId);
+                });
+            }
+
+            // Load comment count
+            loadModalCommentCount(postId);
+        }
+
+        // Simple functions for modal interactions (simplified versions)
+        function showSimpleModalReactionPicker(postId, button) {
+            // For now, just react with "love" - can be enhanced later
+            reactToModalPost(postId, 'love');
+        }
+
+        function reactToModalPost(postId, reactionType) {
+            // Submit reaction (same API as dashboard)
+            fetch('api/post_reaction.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId, reaction_type: reactionType })
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      console.log('Reaction posted successfully');
+                  }
+              }).catch(error => console.error('Error posting reaction:', error));
+        }
+
+        function toggleModalComments(postId) {
+            const commentsSection = document.getElementById(`comments-${postId}`);
+            if (commentsSection) {
+                commentsSection.style.display = commentsSection.style.display === 'none' ? 'block' : 'none';
+
+                if (commentsSection.style.display === 'block') {
+                    // Load comments when showing
+                    loadModalComments(postId);
+                }
+            }
+        }
+
+        function loadModalComments(postId) {
+            // Load comments (simplified version)
+            const container = document.querySelector(`#comments-${postId} .comments-container`);
+            if (container) {
+                container.innerHTML = '<p class="text-muted">Comments will be loaded here...</p>';
+            }
+        }
+
+        function loadModalCommentCount(postId) {
+            // Load comment count
+            fetch(`api/get_comment_count.php?post_id=${postId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const badge = document.querySelector(`#modal-post-${postId} .comment-count-badge`);
+                        if (badge) {
+                            badge.textContent = data.count > 0 ? `(${data.count})` : '';
+                        }
+                    }
+                }).catch(error => console.error('Error loading comment count:', error));
+        }
+
+        function submitModalComment(postId) {
+            const form = document.querySelector(`#modal-post-${postId} .comment-form`);
+            const input = form.querySelector('.comment-input');
+            const content = input.value.trim();
+
+            if (!content) return;
+
+            // Submit comment (same API as dashboard)
+            fetch('api/post_comment.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: postId, content: content })
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      input.value = '';
+                      loadModalComments(postId);
+                      loadModalCommentCount(postId);
+                  }
+              }).catch(error => console.error('Error posting comment:', error));
         }
 
         // Mark single notification as read
