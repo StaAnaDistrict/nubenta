@@ -11,14 +11,14 @@ if (!$userId) {
 try {
     error_log("track_activity.php: Starting activity tracking for user ID: " . $userId);
 
-    // First update user's last_activity
+    // First update user's last_seen for online status tracking
     $stmt = $pdo->prepare("
-        UPDATE users 
-        SET last_activity = NOW()
+        UPDATE users
+        SET last_seen = NOW()
         WHERE id = ?
     ");
     $stmt->execute([$userId]);
-    error_log("track_activity.php: Updated last_activity for user " . $userId . ", rows affected: " . $stmt->rowCount());
+    error_log("track_activity.php: Updated last_seen for user " . $userId . ", rows affected: " . $stmt->rowCount());
 
     // Debug: Check for undelivered messages
     $stmt = $pdo->prepare("
@@ -80,4 +80,4 @@ try {
 } catch (PDOException $e) {
     error_log("Error in track_activity.php: " . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
-} 
+}

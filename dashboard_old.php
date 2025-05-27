@@ -40,30 +40,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <script>
         // Set global variables for JavaScript modules
         window.isAdmin = <?php echo (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin') ? 'true' : 'false'; ?>;
-        window.currentUserId = <?php echo json_encode($_SESSION['user']['id']); ?>;
-        window.currentUserName = <?php echo json_encode($_SESSION['user']['first_name'] . ' ' . $_SESSION['user']['last_name']); ?>;
-
-        // Utility function to format time ago
-        function formatTimeAgo(dateString) {
-            const now = new Date();
-            const date = new Date(dateString);
-            const diffInSeconds = Math.floor((now - date) / 1000);
-
-            if (diffInSeconds < 60) {
-                return 'just now';
-            } else if (diffInSeconds < 3600) {
-                const minutes = Math.floor(diffInSeconds / 60);
-                return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-            } else if (diffInSeconds < 86400) {
-                const hours = Math.floor(diffInSeconds / 3600);
-                return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-            } else if (diffInSeconds < 604800) {
-                const days = Math.floor(diffInSeconds / 86400);
-                return `${days} day${days > 1 ? 's' : ''} ago`;
-            } else {
-                return date.toLocaleDateString();
-            }
-        }
     </script>
     <style>
         /* Media display styles */
@@ -93,44 +69,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         .blurred-image:hover {
             filter: blur(0);
             transition: filter 0.3s ease;
-        }
-
-        /* Media Modal Styles */
-        #mediaModal .modal-dialog {
-            max-width: 95vw;
-            max-height: 95vh;
-        }
-
-        #mediaModal .modal-content {
-            background-color: #1a1a1a !important;
-            border: none;
-            border-radius: 8px;
-        }
-
-        #mediaModal .modal-body {
-            max-height: 85vh;
-            overflow-y: auto;
-        }
-
-        .clickable-media:hover {
-            opacity: 0.9;
-            transition: opacity 0.2s ease;
-        }
-
-        /* Media container in modal */
-        .modal-media-container {
-            position: relative;
-            max-height: 70vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-media-container img,
-        .modal-media-container video {
-            max-height: 70vh;
-            max-width: 100%;
-            object-fit: contain;
         }
     </style>
 </head>
@@ -189,37 +127,21 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             </section>
         </main>
 
-        <!-- Right Sidebar - Using the modular add_ons.php -->
-        <?php
-        // You can customize the sidebar by setting these variables
-        // $topElementTitle = "Custom Ads Title";
-        // $showAdditionalContent = true;
-
-        // Include the modular right sidebar
-        include 'assets/add_ons.php';
-        ?>
-    </div>
-
-    <!-- Media Modal -->
-    <div id="mediaModal" class="modal fade" tabindex="-1" aria-labelledby="mediaModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content bg-dark text-white">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title" id="mediaModalLabel">Media Viewer</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-0">
-                    <div id="mediaModalContent">
-                        <!-- Content will be loaded here -->
-                        <div class="text-center p-5">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <!-- Right Sidebar -->
+        <aside class="right-sidebar">
+            <div class="sidebar-section">
+                <h4>📢 Ads</h4>
+                <p>(Coming Soon)</p>
             </div>
-        </div>
+            <div class="sidebar-section">
+                <h4>🕑 Activity Feed</h4>
+                <p>(Coming Soon)</p>
+            </div>
+            <div class="sidebar-section">
+                <h4>🟢 Online Friends</h4>
+                <p>(Coming Soon)</p>
+            </div>
+        </aside>
     </div>
 
     <!-- Include JavaScript files -->
@@ -349,7 +271,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                         <div class="post-content mt-3">
                             ${post.is_flagged ? '<div class="flagged-warning"><i class="fas fa-exclamation-triangle me-1"></i> Viewing discretion is advised.</div>' : ''}
                             ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
-                            ${post.media && !post.is_removed ? renderPostMedia(post.media, post.is_flagged, post.id) : ''}
+                            ${post.media && !post.is_removed ? renderPostMedia(post.media, post.is_flagged) : ''}
                         </div>
                         <div class="post-actions d-flex mt-3">
                             <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}">
@@ -914,7 +836,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     }
     </script>
     <script>
-    // Function to render post media with clickable functionality
+    // Function to render post media with modal support
     function renderPostMedia(mediaUrl, isFlagged = false, postId = null) {
         console.log("Rendering media:", mediaUrl, "for post:", postId);
 
@@ -922,18 +844,35 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
         const blurClass = isFlagged ? 'blurred-image' : '';
         let mediaArray;
+        let mediaIds = []; // Store media IDs for modal
 
         // Try to parse as JSON if it's a string
         if (typeof mediaUrl === 'string') {
             try {
                 // Check if it looks like JSON
                 if (mediaUrl.startsWith('[') || mediaUrl.startsWith('{')) {
-                    mediaArray = JSON.parse(mediaUrl);
-                    console.log("Parsed JSON media:", mediaArray);
+                    const parsed = JSON.parse(mediaUrl);
+                    console.log("Parsed JSON media:", parsed);
 
-                    // Fix escaped slashes in JSON strings
-                    if (Array.isArray(mediaArray)) {
-                        mediaArray = mediaArray.map(path => path.replace(/\\\//g, '/'));
+                    // Handle different JSON structures
+                    if (Array.isArray(parsed)) {
+                        // Array of paths or objects
+                        mediaArray = parsed.map(item => {
+                            if (typeof item === 'string') {
+                                return item.replace(/\\\//g, '/');
+                            } else if (item && item.media_url) {
+                                // Object with media_url and id
+                                if (item.id) mediaIds.push(item.id);
+                                return item.media_url.replace(/\\\//g, '/');
+                            }
+                            return item;
+                        });
+                    } else if (parsed && parsed.media_url) {
+                        // Single object
+                        if (parsed.id) mediaIds.push(parsed.id);
+                        mediaArray = [parsed.media_url.replace(/\\\//g, '/')];
+                    } else {
+                        mediaArray = [parsed];
                     }
                 } else {
                     // Single path
@@ -957,26 +896,29 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         }
 
         console.log("Processed media array:", mediaArray);
+        console.log("Media IDs:", mediaIds);
 
         // For a single media item
         if (mediaArray.length === 1) {
             const media = mediaArray[0];
-            console.log("Processing single media item:", media);
+            const mediaId = mediaIds[0] || null;
+            console.log("Processing single media item:", media, "with ID:", mediaId);
+
+            // Create onclick handler for modal
+            const onclickHandler = mediaId ? `onclick="loadMediaInModal([${mediaId}], 0)"` : '';
+            const cursorStyle = mediaId ? 'cursor: pointer;' : '';
 
             // Check if it's an image
             if (media.match(/\.(jpg|jpeg|png|gif)$/i)) {
                 return `<div class="media">
-                    <img src="${media}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
-                         data-post-id="${postId}" data-media-url="${media}" data-media-index="0"
-                         style="cursor: pointer;" onclick="openMediaModal('${postId}', 0)">
+                    <img src="${media}" alt="Post media" class="img-fluid ${blurClass}"
+                         ${onclickHandler} style="${cursorStyle}" data-media-id="${mediaId || ''}">
                 </div>`;
             }
             // Check if it's a video
             else if (media.match(/\.mp4$/i)) {
                 return `<div class="media">
-                    <video controls class="img-fluid ${blurClass} clickable-media"
-                           data-post-id="${postId}" data-media-url="${media}" data-media-index="0"
-                           style="cursor: pointer;" onclick="openMediaModal('${postId}', 0)">
+                    <video controls class="img-fluid ${blurClass}" data-media-id="${mediaId || ''}">
                         <source src="${media}" type="video/mp4">
                         Your browser does not support the video tag.
                     </video>
@@ -988,8 +930,9 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             }
         }
 
-        // For multiple media items
+        // For multiple media items - make them clickable for modal
         let mediaHTML = '<div class="post-media-container">';
+        const mediaIdsArray = mediaIds.length > 0 ? `[${mediaIds.join(',')}]` : '[]';
 
         // Different layouts based on number of media items
         if (mediaArray.length === 2) {
@@ -997,17 +940,18 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             mediaHTML += '<div class="row g-2">';
             for (let i = 0; i < mediaArray.length; i++) {
                 const media = mediaArray[i];
+                const mediaId = mediaIds[i] || null;
+                const onclickHandler = mediaId ? `onclick="loadMediaInModal(${mediaIdsArray}, ${i})"` : '';
+                const cursorStyle = mediaId ? 'cursor: pointer;' : '';
+
                 mediaHTML += '<div class="col-6">';
 
                 if (media.match(/\.(jpg|jpeg|png|gif)$/i)) {
-                    mediaHTML += `<img src="${media}" alt="Post media" class="img-fluid post-media ${blurClass} clickable-media"
-                                       data-post-id="${postId}" data-media-url="${media}" data-media-index="${i}"
-                                       style="cursor: pointer;" onclick="openMediaModal('${postId}', ${i})">`;
+                    mediaHTML += `<img src="${media}" alt="Post media" class="img-fluid post-media ${blurClass}"
+                                       ${onclickHandler} style="${cursorStyle}" data-media-id="${mediaId || ''}">`;
                 } else if (media.match(/\.mp4$/i)) {
                     mediaHTML += `
-                        <video controls class="img-fluid post-media ${blurClass} clickable-media"
-                               data-post-id="${postId}" data-media-url="${media}" data-media-index="${i}"
-                               style="cursor: pointer;" onclick="openMediaModal('${postId}', ${i})">
+                        <video controls class="img-fluid post-media ${blurClass}" data-media-id="${mediaId || ''}">
                             <source src="${media}" type="video/mp4">
                             Your browser does not support the video tag.
                         </video>`;
@@ -1023,17 +967,19 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             mediaHTML += '<div class="row g-2">';
 
             // First item takes full width
+            const media0 = mediaArray[0];
+            const mediaId0 = mediaIds[0] || null;
+            const onclickHandler0 = mediaId0 ? `onclick="loadMediaInModal(${mediaIdsArray}, 0)"` : '';
+            const cursorStyle0 = mediaId0 ? 'cursor: pointer;' : '';
+
             mediaHTML += '<div class="col-12 mb-2">';
-            if (mediaArray[0].match(/\.(jpg|jpeg|png|gif)$/i)) {
-                mediaHTML += `<img src="${mediaArray[0]}" alt="Post media" class="img-fluid post-media ${blurClass} clickable-media"
-                                   data-post-id="${postId}" data-media-url="${mediaArray[0]}" data-media-index="0"
-                                   style="cursor: pointer;" onclick="openMediaModal('${postId}', 0)">`;
-            } else if (mediaArray[0].match(/\.mp4$/i)) {
+            if (media0.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                mediaHTML += `<img src="${media0}" alt="Post media" class="img-fluid post-media ${blurClass}"
+                                   ${onclickHandler0} style="${cursorStyle0}" data-media-id="${mediaId0 || ''}">`;
+            } else if (media0.match(/\.mp4$/i)) {
                 mediaHTML += `
-                    <video controls class="img-fluid post-media ${blurClass} clickable-media"
-                           data-post-id="${postId}" data-media-url="${mediaArray[0]}" data-media-index="0"
-                           style="cursor: pointer;" onclick="openMediaModal('${postId}', 0)">
-                        <source src="${mediaArray[0]}" type="video/mp4">
+                    <video controls class="img-fluid post-media ${blurClass}" data-media-id="${mediaId0 || ''}">
+                        <source src="${media0}" type="video/mp4">
                         Your browser does not support the video tag.
                     </video>`;
             }
@@ -1042,17 +988,19 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             // Next 2 items side by side
             for (let i = 1; i < 3; i++) {
                 if (i < mediaArray.length) {
+                    const media = mediaArray[i];
+                    const mediaId = mediaIds[i] || null;
+                    const onclickHandler = mediaId ? `onclick="loadMediaInModal(${mediaIdsArray}, ${i})"` : '';
+                    const cursorStyle = mediaId ? 'cursor: pointer;' : '';
+
                     mediaHTML += '<div class="col-6">';
-                    if (mediaArray[i].match(/\.(jpg|jpeg|png|gif)$/i)) {
-                        mediaHTML += `<img src="${mediaArray[i]}" alt="Post media" class="img-fluid post-media ${blurClass} clickable-media"
-                                           data-post-id="${postId}" data-media-url="${mediaArray[i]}" data-media-index="${i}"
-                                           style="cursor: pointer;" onclick="openMediaModal('${postId}', ${i})">`;
-                    } else if (mediaArray[i].match(/\.mp4$/i)) {
+                    if (media.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                        mediaHTML += `<img src="${media}" alt="Post media" class="img-fluid post-media ${blurClass}"
+                                           ${onclickHandler} style="${cursorStyle}" data-media-id="${mediaId || ''}">`;
+                    } else if (media.match(/\.mp4$/i)) {
                         mediaHTML += `
-                            <video controls class="img-fluid post-media ${blurClass} clickable-media"
-                                   data-post-id="${postId}" data-media-url="${mediaArray[i]}" data-media-index="${i}"
-                                   style="cursor: pointer;" onclick="openMediaModal('${postId}', ${i})">
-                                <source src="${mediaArray[i]}" type="video/mp4">
+                            <video controls class="img-fluid post-media ${blurClass}" data-media-id="${mediaId || ''}">
+                                <source src="${media}" type="video/mp4">
                                 Your browser does not support the video tag.
                             </video>`;
                     }
@@ -1066,38 +1014,40 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
             // Show first 4 items
             for (let i = 0; i < Math.min(4, mediaArray.length); i++) {
+                const media = mediaArray[i];
+                const mediaId = mediaIds[i] || null;
+                const onclickHandler = mediaId ? `onclick="loadMediaInModal(${mediaIdsArray}, ${i})"` : '';
+                const cursorStyle = mediaId ? 'cursor: pointer;' : '';
+
                 mediaHTML += '<div class="col-6 mb-2">';
 
                 if (i === 3 && mediaArray.length > 4) {
                     // Last visible item with overlay showing count of remaining items
-                    mediaHTML += '<div class="position-relative clickable-media" style="cursor: pointer;" onclick="openMediaModal(\'' + postId + '\', ' + i + ')">';
-                    if (mediaArray[i].match(/\.(jpg|jpeg|png|gif)$/i)) {
-                        mediaHTML += `<img src="${mediaArray[i]}" alt="Post media" class="img-fluid post-media ${blurClass}"
-                                           data-post-id="${postId}" data-media-url="${mediaArray[i]}" data-media-index="${i}">`;
-                    } else if (mediaArray[i].match(/\.mp4$/i)) {
+                    mediaHTML += '<div class="position-relative">';
+                    if (media.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                        mediaHTML += `<img src="${media}" alt="Post media" class="img-fluid post-media ${blurClass}"
+                                           ${onclickHandler} style="${cursorStyle}" data-media-id="${mediaId || ''}">`;
+                    } else if (media.match(/\.mp4$/i)) {
                         mediaHTML += `
-                            <video controls class="img-fluid post-media ${blurClass}"
-                                   data-post-id="${postId}" data-media-url="${mediaArray[i]}" data-media-index="${i}">
-                                <source src="${mediaArray[i]}" type="video/mp4">
+                            <video controls class="img-fluid post-media ${blurClass}" data-media-id="${mediaId || ''}">
+                                <source src="${media}" type="video/mp4">
                                 Your browser does not support the video tag.
                             </video>`;
                     }
                     mediaHTML += `
-                        <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50 text-white">
+                        <div class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50 text-white"
+                             ${onclickHandler} style="${cursorStyle}">
                             <span class="h4">+${mediaArray.length - 4} more</span>
                         </div>
                         </div>`;
                 } else {
-                    if (mediaArray[i].match(/\.(jpg|jpeg|png|gif)$/i)) {
-                        mediaHTML += `<img src="${mediaArray[i]}" alt="Post media" class="img-fluid post-media ${blurClass} clickable-media"
-                                           data-post-id="${postId}" data-media-url="${mediaArray[i]}" data-media-index="${i}"
-                                           style="cursor: pointer;" onclick="openMediaModal('${postId}', ${i})">`;
-                    } else if (mediaArray[i].match(/\.mp4$/i)) {
+                    if (media.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                        mediaHTML += `<img src="${media}" alt="Post media" class="img-fluid post-media ${blurClass}"
+                                           ${onclickHandler} style="${cursorStyle}" data-media-id="${mediaId || ''}">`;
+                    } else if (media.match(/\.mp4$/i)) {
                         mediaHTML += `
-                            <video controls class="img-fluid post-media ${blurClass} clickable-media"
-                                   data-post-id="${postId}" data-media-url="${mediaArray[i]}" data-media-index="${i}"
-                                   style="cursor: pointer;" onclick="openMediaModal('${postId}', ${i})">
-                                <source src="${mediaArray[i]}" type="video/mp4">
+                            <video controls class="img-fluid post-media ${blurClass}" data-media-id="${mediaId || ''}">
+                                <source src="${media}" type="video/mp4">
                                 Your browser does not support the video tag.
                             </video>`;
                     }
@@ -1111,88 +1061,212 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         mediaHTML += '</div>';
         return mediaHTML;
     }
+    </script>
+    <script>
+      // Initialize only when document is fully loaded
+      document.addEventListener('DOMContentLoaded', function() {
+        // Any dashboard-specific initialization can go here
+        console.log('Dashboard v2 loaded');
 
-    // Global variables for modal functionality
-    let currentModalPostId = null;
-    let currentModalMediaIndex = 0;
+        // Ensure we only initialize once
+        if (window.dashboardInitialized) {
+          console.log('Dashboard already initialized, skipping');
+          return;
+        }
+
+        // Remove any existing event listeners to prevent duplicates
+        document.querySelectorAll('.post-comment-btn').forEach(btn => {
+          const newBtn = btn.cloneNode(true);
+          btn.parentNode.replaceChild(newBtn, btn);
+        });
+
+        // Remove the setupDeleteButtons function if it exists
+        if (window.setupDeleteButtons) {
+          window.setupDeleteButtons = function() {
+            console.log('Delete buttons setup disabled - using CommentSystem instead');
+          };
+        }
+
+        // Initialize comment system
+        if (typeof CommentSystem !== 'undefined') {
+          console.log('Initializing CommentSystem');
+          // Force recreation of CommentSystem
+          window.commentSystemInitialized = false;
+          window.CommentSystem = new CommentSystem();
+        }
+
+        // Set initialization flag
+        window.dashboardInitialized = true;
+
+        // Add event listeners for comment buttons
+        document.querySelectorAll('.post-comment-btn').forEach(btn => {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const postId = this.getAttribute('data-post-id');
+            console.log("Comment button clicked for post:", postId);
+
+            // Toggle comment section visibility
+            const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
+            if (postElement) {
+              const commentsSection = postElement.querySelector('.comments-section');
+              if (commentsSection) {
+                if (commentsSection.classList.contains('d-none')) {
+                  commentsSection.classList.remove('d-none');
+                } else {
+                  commentsSection.classList.add('d-none');
+                }
+                return;
+              }
+
+              // If comments section doesn't exist, create it
+              toggleCommentForm(postId);
+            }
+          });
+        });
+      });
+    </script>
+    <script>
+    // Completely revised initialization code
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Dashboard v2 loaded');
+
+      // Ensure we only initialize once
+      if (window.dashboardInitialized) {
+        console.log('Dashboard already initialized, skipping');
+        return;
+      }
+
+      // Remove any existing event listeners to prevent duplicates
+      document.querySelectorAll('.post-comment-btn').forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+      });
+
+      // Remove the setupDeleteButtons function if it exists
+      if (window.setupDeleteButtons) {
+        window.setupDeleteButtons = function() {
+          console.log('Delete buttons setup disabled - using CommentSystem instead');
+        };
+      }
+
+      // Initialize comment system
+      if (typeof CommentSystem !== 'undefined') {
+        console.log('Initializing CommentSystem');
+        // Force recreation of CommentSystem
+        window.commentSystemInitialized = false;
+        window.CommentSystem = new CommentSystem();
+      }
+
+      // Set initialization flag
+      window.dashboardInitialized = true;
+
+      // Add event listeners for comment buttons
+      document.querySelectorAll('.post-comment-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const postId = this.getAttribute('data-post-id');
+          console.log("Comment button clicked for post:", postId);
+
+          // Toggle comment section visibility
+          const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
+          if (postElement) {
+            const commentsSection = postElement.querySelector('.comments-section');
+            if (commentsSection) {
+              if (commentsSection.classList.contains('d-none')) {
+                commentsSection.classList.remove('d-none');
+              } else {
+                commentsSection.classList.add('d-none');
+              }
+              return;
+            }
+
+            // If comments section doesn't exist, create it
+            toggleCommentForm(postId);
+          }
+        });
+      });
+    });
+
+    // Disable the setupCommentInteractions function
+    function setupCommentInteractions(commentsContainer, postId) {
+      console.log('Comment interactions setup disabled - using CommentSystem instead');
+      // Do nothing - let CommentSystem handle it
+    }
+    </script>
+    <script>
+    // Disable any existing comment-related functions to prevent conflicts
+    if (typeof setupCommentInteractions === 'function') {
+        window.originalSetupCommentInteractions = setupCommentInteractions;
+        setupCommentInteractions = function() {
+            console.log('Original setupCommentInteractions disabled');
+        };
+    }
+
+    // Disable any existing delete button setup functions
+    if (typeof setupDeleteButtons === 'function') {
+        window.originalSetupDeleteButtons = setupDeleteButtons;
+        setupDeleteButtons = function() {
+            console.log('Original setupDeleteButtons disabled');
+        };
+    }
+
+    // Ensure we only initialize once
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Dashboard v2 loaded - comment system initialization');
+    });
+    </script>
+    <!-- Add the comment debugger script before the closing body tag -->
+    <script src="assets/js/comment-debugger.js"></script>
+
+    <!-- Modal functionality script -->
+    <script>
+    // Global variables for modal media navigation
     let currentModalMediaItems = [];
+    let currentModalMediaIndex = 0;
 
-    // Function to open media modal
-    async function openMediaModal(postId, mediaIndex = 0) {
-        console.log(`Opening media modal for post ${postId}, media index ${mediaIndex}`);
+    // Function to open media in modal
+    async function openMediaModal(mediaItems, startIndex = 0) {
+        console.log('Opening media modal with items:', mediaItems, 'starting at index:', startIndex);
+
+        currentModalMediaItems = mediaItems;
+        currentModalMediaIndex = startIndex;
+
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('mediaModal'));
+        modal.show();
+
+        // Load the first media item
+        await loadMediaInModal(startIndex);
+    }
+
+    // Function to load media content in modal
+    async function loadMediaInModal(index) {
+        if (!currentModalMediaItems || index < 0 || index >= currentModalMediaItems.length) {
+            console.error('Invalid media index or no media items available');
+            return;
+        }
+
+        currentModalMediaIndex = index;
+        const mediaId = currentModalMediaItems[index];
+
+        console.log('Loading media in modal:', mediaId, 'at index:', index);
 
         try {
-            // Show the modal first
-            const modal = new bootstrap.Modal(document.getElementById('mediaModal'));
-            modal.show();
-
-            // Set loading state
+            // Show loading state
             document.getElementById('mediaModalContent').innerHTML = `
                 <div class="text-center p-5">
-                    <div class="spinner-border text-primary" role="status">
+                    <div class="spinner-border text-light" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                     <p class="mt-3">Loading media...</p>
                 </div>
             `;
 
-            // Get media items for this post
-            const response = await fetch(`api/get_post_media_ids.php?post_id=${postId}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to load media');
-            }
-
-            // Store current modal state
-            currentModalPostId = postId;
-            currentModalMediaIndex = mediaIndex;
-            currentModalMediaItems = data.media_items;
-
-            if (currentModalMediaItems.length === 0) {
-                document.getElementById('mediaModalContent').innerHTML = `
-                    <div class="text-center p-5">
-                        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                        <h4>No Media Found</h4>
-                        <p>No media items found for this post.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            // Load the specific media item
-            await loadMediaInModal(mediaIndex);
-
-        } catch (error) {
-            console.error('Error opening media modal:', error);
-            document.getElementById('mediaModalContent').innerHTML = `
-                <div class="text-center p-5">
-                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
-                    <h4>Error Loading Media</h4>
-                    <p>${error.message}</p>
-                </div>
-            `;
-        }
-    }
-
-    // Function to load specific media item in modal - NEW UNIFIED APPROACH
-    async function loadMediaInModal(mediaIndex) {
-        if (!currentModalMediaItems || mediaIndex < 0 || mediaIndex >= currentModalMediaItems.length) {
-            console.error('Invalid media index:', mediaIndex);
-            return;
-        }
-
-        const mediaItem = currentModalMediaItems[mediaIndex];
-        currentModalMediaIndex = mediaIndex;
-        const mediaId = mediaItem.id; // This is the user_media.id
-
-        console.log('Loading media item with ID:', mediaId);
-
-        try {
-            // Use the new unified API that mirrors view_album.php
+            // Fetch media content
             const response = await fetch(`api/get_media_modal_content.php?media_id=${mediaId}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -1751,651 +1825,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         }
     }
 
-    // NEW: Initialize reactions for media (like view_album.php)
-    async function initializeModalReactionsForMedia(mediaId) {
-        console.log('Loading reactions for media (view_album style):', mediaId);
-
-        try {
-            const response = await fetch(`api/get_media_reactions.php?media_id=${mediaId}`);
-            if (!response.ok) {
-                throw new Error('Failed to load reactions');
-            }
-
-            const data = await response.json();
-            console.log('Media reactions data:', data);
-
-            if (data.success) {
-                const reactionsContainer = document.getElementById(`modal-reactions-${mediaId}`);
-                if (reactionsContainer) {
-                    // Update reaction count display
-                    const countDisplay = reactionsContainer.querySelector('.reaction-count-display');
-                    if (countDisplay) {
-                        if (data.reaction_count.total > 0) {
-                            countDisplay.textContent = `${data.reaction_count.total} reaction${data.reaction_count.total > 1 ? 's' : ''}`;
-                        } else {
-                            countDisplay.textContent = 'No reactions yet';
-                        }
-                    }
-
-                    // Set up react button (same as view_album.php)
-                    const reactBtn = reactionsContainer.querySelector('.modal-react-btn');
-                    if (reactBtn) {
-                        // Remove any existing event listeners
-                        const newReactBtn = reactBtn.cloneNode(true);
-                        reactBtn.parentNode.replaceChild(newReactBtn, reactBtn);
-
-                        newReactBtn.addEventListener('click', function(e) {
-                            e.preventDefault();
-                            console.log('React button clicked in modal');
-                            showModalReactionPickerForMedia(mediaId, this);
-                        });
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error loading media reactions:', error);
-        }
-    }
-
-    // NEW: Initialize comments for media (like view_album.php)
-    async function initializeModalCommentsForMedia(mediaId) {
-        console.log('Loading comments for media (view_album style):', mediaId);
-
-        try {
-            // Get ONLY media-specific comments (not mixing with post comments)
-            const response = await fetch(`api/get_media_comments.php?media_id=${mediaId}`);
-            if (!response.ok) {
-                throw new Error('Failed to load comments');
-            }
-
-            const data = await response.json();
-            console.log('Media comments data:', data);
-
-            if (data.success) {
-                const commentsContainer = document.querySelector(`[data-media-id="${mediaId}"]`);
-                if (commentsContainer) {
-                    if (data.comments.length === 0) {
-                        commentsContainer.innerHTML = `
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-comments fa-3x mb-3 opacity-50"></i>
-                                <p class="mb-0">No comments yet.</p>
-                                <small>Be the first to share your thoughts!</small>
-                            </div>
-                        `;
-                    } else {
-                        let commentsHTML = '';
-                        data.comments.forEach(comment => {
-                            const timeAgo = formatTimeAgo(comment.created_at);
-
-                            commentsHTML += `
-                                <div class="comment mb-3 p-3 rounded" data-comment-id="${comment.id}"
-                                     style="background: rgba(255,255,255,0.05); border-left: 3px solid #17a2b8;">
-                                    <div class="d-flex">
-                                        <img src="${comment.profile_pic}" alt="${comment.author}"
-                                             class="rounded-circle me-3 border border-secondary"
-                                             style="width: 40px; height: 40px; object-fit: cover;">
-                                        <div class="comment-content flex-grow-1">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <strong class="text-light d-block">${comment.author}</strong>
-                                                    <small class="text-muted">
-                                                        <i class="fas fa-clock me-1"></i>${timeAgo}
-                                                    </small>
-                                                </div>
-                                                ${comment.is_own_comment ?
-                                                    `<button class="btn btn-sm btn-outline-danger delete-comment-btn"
-                                                             data-comment-id="${comment.id}"
-                                                             data-media-id="${mediaId}"
-                                                             title="Delete comment">
-                                                        <i class="fas fa-trash-alt"></i>
-                                                     </button>` :
-                                                    ''
-                                                }
-                                            </div>
-                                            <p class="mb-0 text-light" style="line-height: 1.4;">${comment.content}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        commentsContainer.innerHTML = commentsHTML;
-
-                        // Set up delete comment handlers
-                        commentsContainer.querySelectorAll('.delete-comment-btn').forEach(btn => {
-                            btn.addEventListener('click', function() {
-                                const commentId = this.getAttribute('data-comment-id');
-                                const mediaId = this.getAttribute('data-media-id');
-                                deleteMediaComment(commentId, mediaId);
-                            });
-                        });
-                    }
-                }
-
-                // Comment form is now handled by view_album.php initCommentSystem()
-                // No need to set up additional event listeners here
-            }
-        } catch (error) {
-            console.error('Error loading media comments:', error);
-        }
-    }
-
-    // Function to initialize reactions for media in modal
-    async function initializeModalReactions(mediaId) {
-        console.log('Loading reactions for media:', mediaId);
-
-        try {
-            const response = await fetch(`api/get_media_reactions.php?media_id=${mediaId}`);
-            if (!response.ok) {
-                throw new Error('Failed to load reactions');
-            }
-
-            const data = await response.json();
-            console.log('Media reactions data:', data);
-
-            if (data.success) {
-                const reactionsContainer = document.getElementById(`modal-reactions-${mediaId}`);
-                console.log('Reactions container found:', reactionsContainer);
-
-                if (reactionsContainer) {
-                    // Create reaction buttons with detailed reaction breakdown
-                    let reactionsHTML = `
-                        <div class="d-flex align-items-center mb-2">
-                            <button class="btn btn-sm btn-outline-light me-2 modal-react-btn post-react-btn" data-media-id="${mediaId}" data-post-id="media-${mediaId}">
-                                <i class="far fa-smile me-1"></i> React
-                            </button>
-                    `;
-
-                    if (data.reaction_count.total > 0) {
-                        reactionsHTML += `<span class="text-muted me-2">${data.reaction_count.total} reaction${data.reaction_count.total > 1 ? 's' : ''}</span>`;
-
-                        // Show breakdown of reaction types
-                        if (data.reaction_count.by_type) {
-                            const reactionTypes = Object.entries(data.reaction_count.by_type);
-                            if (reactionTypes.length > 0) {
-                                reactionsHTML += '<div class="reaction-breakdown d-flex">';
-                                reactionTypes.forEach(([type, count]) => {
-                                    reactionsHTML += `<span class="badge bg-secondary me-1">${type}: ${count}</span>`;
-                                });
-                                reactionsHTML += '</div>';
-                            }
-                        }
-                    }
-
-                    reactionsHTML += '</div>';
-
-                    reactionsContainer.innerHTML = reactionsHTML;
-                    console.log('Reactions HTML set:', reactionsHTML);
-
-                    // Set up reaction button click handler using existing system
-                    const reactBtn = reactionsContainer.querySelector('.modal-react-btn');
-                    if (reactBtn) {
-                        console.log('Setting up reaction button click handler');
-
-                        // Use the existing reaction system's hover handler
-                        reactBtn.addEventListener('mouseover', function(e) {
-                            console.log('React button hovered in modal');
-                            if (window.ReactionSystem && typeof window.ReactionSystem.showReactionPicker === 'function') {
-                                // Temporarily set a post ID for the existing system
-                                this.setAttribute('data-post-id', `media-${mediaId}`);
-                                window.ReactionSystem.showReactionPicker(`media-${mediaId}`, this);
-                            } else {
-                                showModalReactionPicker(mediaId, this);
-                            }
-                        });
-
-                        reactBtn.addEventListener('click', function(e) {
-                            e.preventDefault();
-                            console.log('React button clicked in modal');
-                            showModalReactionPicker(mediaId, this);
-                        });
-                    } else {
-                        console.log('React button not found, creating one');
-                        // Create react button if it doesn't exist
-                        const reactButtonHTML = `
-                            <div class="d-flex align-items-center mb-2">
-                                <button class="btn btn-sm btn-outline-light me-2 modal-react-btn post-react-btn"
-                                        data-media-id="${mediaId}"
-                                        data-post-id="media-${mediaId}">
-                                    <i class="far fa-smile me-1"></i> React
-                                </button>
-                                <span class="text-muted reaction-count-display">
-                                    ${data.reaction_count.total > 0 ? `${data.reaction_count.total} reaction${data.reaction_count.total > 1 ? 's' : ''}` : 'No reactions yet'}
-                                </span>
-                            </div>
-                        `;
-                        reactionsContainer.insertAdjacentHTML('afterbegin', reactButtonHTML);
-
-                        // Set up the newly created button
-                        const newReactBtn = reactionsContainer.querySelector('.modal-react-btn');
-                        if (newReactBtn) {
-                            newReactBtn.addEventListener('click', function(e) {
-                                e.preventDefault();
-                                console.log('React button clicked in modal');
-                                showModalReactionPicker(mediaId, this);
-                            });
-                        }
-                    }
-                } else {
-                    console.error('Reactions container not found for media ID:', mediaId);
-                }
-            } else {
-                console.error('Failed to load reactions:', data.error);
-            }
-        } catch (error) {
-            console.error('Error loading media reactions:', error);
-        }
-    }
-
-    // Function to initialize comments for media in modal
-    async function initializeModalComments(mediaId) {
-        console.log('Loading comments for media:', mediaId);
-
-        try {
-            // First, try to get the post ID associated with this media
-            const postId = currentModalPostId;
-            console.log('Current modal post ID:', postId);
-
-            let allComments = [];
-
-            // Get post comments if we have a post ID
-            if (postId) {
-                console.log('Loading post comments for post ID:', postId);
-                try {
-                    const postCommentsResponse = await fetch(`api/get_comments.php?post_id=${postId}`);
-                    if (postCommentsResponse.ok) {
-                        const postCommentsData = await postCommentsResponse.json();
-                        if (postCommentsData.success && postCommentsData.comments) {
-                            console.log('Found post comments:', postCommentsData.comments.length);
-                            allComments = [...postCommentsData.comments];
-                        }
-                    }
-                } catch (error) {
-                    console.log('Error loading post comments:', error);
-                }
-            }
-
-            // Also get media-specific comments
-            try {
-                const mediaCommentsResponse = await fetch(`api/get_media_comments.php?media_id=${mediaId}`);
-                if (mediaCommentsResponse.ok) {
-                    const mediaCommentsData = await mediaCommentsResponse.json();
-                    if (mediaCommentsData.success && mediaCommentsData.comments) {
-                        console.log('Found media comments:', mediaCommentsData.comments.length);
-                        // Add media comments with a flag to distinguish them
-                        mediaCommentsData.comments.forEach(comment => {
-                            comment.is_media_comment = true;
-                        });
-                        allComments = [...allComments, ...mediaCommentsData.comments];
-                    }
-                }
-            } catch (error) {
-                console.log('Error loading media comments:', error);
-            }
-
-            // Sort all comments by creation date
-            allComments.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-            console.log('Total comments to display:', allComments.length);
-
-            const commentsContainer = document.querySelector(`[data-media-id="${mediaId}"]`);
-            console.log('Comments container found:', commentsContainer);
-
-            if (commentsContainer) {
-                if (allComments.length === 0) {
-                    commentsContainer.innerHTML = `
-                        <div class="text-center text-muted py-4">
-                            <i class="fas fa-comments fa-3x mb-3 opacity-50"></i>
-                            <p class="mb-0">No comments yet.</p>
-                            <small>Be the first to share your thoughts!</small>
-                        </div>
-                    `;
-                } else {
-                    let commentsHTML = '';
-                    allComments.forEach(comment => {
-                        const commentType = comment.is_media_comment ? 'media' : 'post';
-                        const timeAgo = formatTimeAgo(comment.created_at);
-
-                        commentsHTML += `
-                            <div class="comment mb-3 p-3 rounded" data-comment-id="${comment.id}" data-comment-type="${commentType}"
-                                 style="background: rgba(255,255,255,0.05); border-left: 3px solid ${comment.is_media_comment ? '#17a2b8' : '#007bff'};">
-                                <div class="d-flex">
-                                    <img src="${comment.profile_pic}" alt="${comment.author}"
-                                         class="rounded-circle me-3 border border-secondary"
-                                         style="width: 40px; height: 40px; object-fit: cover;">
-                                    <div class="comment-content flex-grow-1">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <div>
-                                                <strong class="text-light d-block">${comment.author}</strong>
-                                                <div class="d-flex align-items-center">
-                                                    <small class="text-muted me-2">
-                                                        <i class="fas fa-clock me-1"></i>${timeAgo}
-                                                    </small>
-                                                    ${comment.is_media_comment ?
-                                                        `<span class="badge bg-info">Media</span>` :
-                                                        `<span class="badge bg-primary">Post</span>`
-                                                    }
-                                                </div>
-                                            </div>
-                                            ${comment.is_own_comment ?
-                                                `<button class="btn btn-sm btn-outline-danger delete-comment-btn"
-                                                         data-comment-id="${comment.id}"
-                                                         data-comment-type="${commentType}"
-                                                         data-media-id="${mediaId}"
-                                                         title="Delete comment">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                 </button>` :
-                                                ''
-                                            }
-                                        </div>
-                                        <p class="mb-0 text-light" style="line-height: 1.4;">${comment.content}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    commentsContainer.innerHTML = commentsHTML;
-
-                    // Set up delete comment handlers
-                    commentsContainer.querySelectorAll('.delete-comment-btn').forEach(btn => {
-                        btn.addEventListener('click', function() {
-                            const commentId = this.getAttribute('data-comment-id');
-                            const commentType = this.getAttribute('data-comment-type');
-                            const mediaId = this.getAttribute('data-media-id');
-
-                            if (commentType === 'media') {
-                                deleteMediaComment(commentId, mediaId);
-                            } else {
-                                // Use existing post comment deletion
-                                if (window.CommentSystem && typeof window.CommentSystem.deleteComment === 'function') {
-                                    window.CommentSystem.deleteComment(commentId);
-                                }
-                            }
-                        });
-                    });
-                }
-            } else {
-                console.error('Comments container not found for media ID:', mediaId);
-            }
-
-            // Set up comment form submission for media comments
-            const commentForm = document.querySelector(`form[data-media-id="${mediaId}"]`);
-            console.log('Comment form found:', commentForm);
-
-            if (commentForm) {
-                // Remove any existing event listeners
-                const newForm = commentForm.cloneNode(true);
-                commentForm.parentNode.replaceChild(newForm, commentForm);
-
-                newForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    console.log('Media comment form submitted');
-                    submitMediaComment(mediaId);
-                });
-            }
-
-        } catch (error) {
-            console.error('Error loading comments:', error);
-        }
-    }
-
-    // Function to show reaction picker for media
-    function showModalReactionPicker(mediaId, button) {
-        console.log('Showing reaction picker for media:', mediaId);
-
-        // Try to use the existing reaction system first
-        if (window.ReactionSystem && typeof window.ReactionSystem.showReactionPicker === 'function') {
-            console.log('Using existing ReactionSystem');
-
-            // Temporarily modify the button to work with existing system
-            const originalPostId = button.getAttribute('data-post-id');
-            button.setAttribute('data-post-id', `media-${mediaId}`);
-
-            // Override the reaction handler temporarily
-            const originalHandler = window.ReactionSystem.handleReaction;
-            window.ReactionSystem.handleReaction = function(postId, reactionId, reactionName) {
-                if (postId.startsWith('media-')) {
-                    const actualMediaId = postId.replace('media-', '');
-                    console.log('Handling media reaction:', actualMediaId, reactionId, reactionName);
-                    reactToMedia(actualMediaId, reactionId, reactionName);
-                } else {
-                    // Call original handler for regular posts
-                    originalHandler.call(this, postId, reactionId, reactionName);
-                }
-            };
-
-            // Show the picker
-            window.ReactionSystem.showReactionPicker(`media-${mediaId}`, button);
-
-            // Restore original handler after a delay
-            setTimeout(() => {
-                window.ReactionSystem.handleReaction = originalHandler;
-                if (originalPostId) {
-                    button.setAttribute('data-post-id', originalPostId);
-                } else {
-                    button.removeAttribute('data-post-id');
-                }
-            }, 5000);
-
-            return;
-        }
-
-        // Fallback to manual picker if ReactionSystem not available
-        console.log('Using fallback reaction picker');
-        const picker = document.getElementById('simple-reaction-picker');
-        if (!picker) {
-            console.error('Reaction picker not found');
-            return;
-        }
-
-        picker.setAttribute('data-media-id', mediaId);
-        picker.removeAttribute('data-post-id');
-
-        // Position picker above the button
-        const rect = button.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-        const pickerTop = rect.top + scrollTop - picker.offsetHeight - 15;
-        const pickerLeft = rect.left + (rect.width / 2) - (picker.offsetWidth / 2);
-
-        picker.style.left = `${pickerLeft}px`;
-        picker.style.top = `${pickerTop}px`;
-        picker.style.display = 'flex';
-
-        // Update reaction option click handlers for media
-        picker.querySelectorAll('.reaction-option').forEach(option => {
-            const newOption = option.cloneNode(true);
-            option.parentNode.replaceChild(newOption, option);
-
-            newOption.addEventListener('click', function() {
-                const reactionId = this.getAttribute('data-reaction-id');
-                const reactionName = this.getAttribute('data-reaction-name');
-                console.log('Reaction clicked:', reactionId, reactionName);
-                reactToMedia(mediaId, reactionId, reactionName);
-                picker.style.display = 'none';
-            });
-        });
-    }
-
-    // Function to react to media
-    async function reactToMedia(mediaId, reactionId, reactionName) {
-        console.log(`Reacting to media ${mediaId} with reaction ${reactionName} (${reactionId})`);
-
-        try {
-            const response = await fetch('api/post_media_reaction.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    media_id: mediaId,
-                    reaction_type_id: reactionId
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to post reaction');
-            }
-
-            const data = await response.json();
-            if (data.success) {
-                console.log('Media reaction posted successfully');
-                // Reload reactions
-                await initializeModalReactions(mediaId);
-            } else {
-                console.error('Error posting media reaction:', data.error);
-            }
-        } catch (error) {
-            console.error('Error posting media reaction:', error);
-        }
-    }
-
-    // REMOVED: submitMediaCommentForMedia - using view_album.php system instead
-
-    // NEW: Show reaction picker for media (like view_album.php)
-    function showModalReactionPickerForMedia(mediaId, button) {
-        console.log('Showing reaction picker for media (view_album style):', mediaId);
-
-        // Try to use the existing reaction system first
-        if (window.SimpleReactionSystem && typeof window.SimpleReactionSystem.showReactionPicker === 'function') {
-            console.log('Using SimpleReactionSystem for media');
-
-            // Set the media ID as post ID for the existing system
-            button.setAttribute('data-post-id', mediaId);
-            window.SimpleReactionSystem.showReactionPicker(mediaId, button);
-
-            return;
-        }
-
-        // Fallback to manual picker if SimpleReactionSystem not available
-        console.log('Using fallback reaction picker for media');
-        const picker = document.getElementById('simple-reaction-picker');
-        if (!picker) {
-            console.error('Reaction picker not found');
-            return;
-        }
-
-        picker.setAttribute('data-media-id', mediaId);
-        picker.removeAttribute('data-post-id');
-
-        // Position picker above the button
-        const rect = button.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-        const pickerTop = rect.top + scrollTop - picker.offsetHeight - 15;
-        const pickerLeft = rect.left + (rect.width / 2) - (picker.offsetWidth / 2);
-
-        picker.style.left = `${pickerLeft}px`;
-        picker.style.top = `${pickerTop}px`;
-        picker.style.display = 'flex';
-
-        // Update reaction option click handlers for media
-        picker.querySelectorAll('.reaction-option').forEach(option => {
-            const newOption = option.cloneNode(true);
-            option.parentNode.replaceChild(newOption, option);
-
-            newOption.addEventListener('click', function() {
-                const reactionId = this.getAttribute('data-reaction-id');
-                const reactionName = this.getAttribute('data-reaction-name');
-                console.log('Reaction clicked for media:', reactionId, reactionName);
-                reactToMediaForMedia(mediaId, reactionId, reactionName);
-                picker.style.display = 'none';
-            });
-        });
-    }
-
-    // REMOVED: initializeUnifiedModalSystem - using view_album.php system instead
-
-    // REMOVED: initializeUnifiedReactions - using view_album.php system instead
-
-    // REMOVED: All unified display functions - using view_album.php system instead
-
-    // Function to delete media comment
-    async function deleteMediaComment(commentId, mediaId) {
-        if (!confirm('Are you sure you want to delete this comment?')) {
-            return;
-        }
-
-        try {
-            const response = await fetch('api/delete_media_comment.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `comment_id=${commentId}`
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to delete comment');
-            }
-
-            const data = await response.json();
-            if (data.success) {
-                console.log('Media comment deleted successfully');
-                // Reload comments
-                await initializeModalComments(mediaId);
-            } else {
-                console.error('Error deleting media comment:', data.error);
-                alert('Error deleting comment: ' + data.error);
-            }
-        } catch (error) {
-            console.error('Error deleting media comment:', error);
-            alert('An error occurred while deleting your comment.');
-        }
-    }
-
-    // REMOVED: All unified event handlers and functions - using view_album.php system instead
-
-    // Add keyboard navigation for modal
-    document.addEventListener('keydown', function(e) {
-        const modal = document.getElementById('mediaModal');
-        if (modal && modal.classList.contains('show')) {
-            switch(e.key) {
-                case 'Escape':
-                    const modalInstance = bootstrap.Modal.getInstance(modal);
-                    if (modalInstance) {
-                        modalInstance.hide();
-                    }
-                    break;
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    navigateModalMedia(-1);
-                    break;
-                case 'ArrowRight':
-                    e.preventDefault();
-                    navigateModalMedia(1);
-                    break;
-            }
-        }
-    });
-
-    // Debug function for testing reactions
-    window.debugReactions = function(mediaId) {
-        console.log('=== DEBUGGING REACTIONS ===');
-        console.log('Media ID:', mediaId);
-        console.log('SimpleReactionSystem available:', !!window.SimpleReactionSystem);
-
-        if (window.SimpleReactionSystem) {
-            console.log('Calling loadReactions...');
-            window.SimpleReactionSystem.loadReactions(mediaId);
-        }
-
-        // Check if reaction button exists
-        const reactBtn = document.querySelector(`.post-react-btn[data-post-id="${mediaId}"]`);
-        console.log('React button found:', !!reactBtn);
-        if (reactBtn) {
-            console.log('React button attributes:', {
-                'data-post-id': reactBtn.getAttribute('data-post-id'),
-                'data-content-type': reactBtn.getAttribute('data-content-type')
-            });
-        }
-
-        // Check if reaction summary container exists
-        const summaryContainer = document.querySelector(`.reaction-summary[data-media-id="${mediaId}"]`);
-        console.log('Reaction summary container found:', !!summaryContainer);
-
-        console.log('=== END DEBUG ===');
-    };
-
     // Enhanced function to open media modal from a specific post
     window.openMediaModalFromPost = function(postId, mediaId, userId = null, createdAt = null) {
         console.log('Looking for post', postId, 'to open media', mediaId, 'user:', userId, 'created:', createdAt);
@@ -2525,42 +1954,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         }
     };
     </script>
+
+    <!-- Add DOM loaded event handler for "View Post" functionality -->
     <script>
-      // Initialize only when document is fully loaded
-      document.addEventListener('DOMContentLoaded', function() {
-        // Any dashboard-specific initialization can go here
-        console.log('Dashboard v2 loaded');
-
-        // Ensure we only initialize once
-        if (window.dashboardInitialized) {
-          console.log('Dashboard already initialized, skipping');
-          return;
-        }
-
-        // Remove any existing event listeners to prevent duplicates
-        document.querySelectorAll('.post-comment-btn').forEach(btn => {
-          const newBtn = btn.cloneNode(true);
-          btn.parentNode.replaceChild(newBtn, btn);
-        });
-
-        // Remove the setupDeleteButtons function if it exists
-        if (window.setupDeleteButtons) {
-          window.setupDeleteButtons = function() {
-            console.log('Delete buttons setup disabled - using CommentSystem instead');
-          };
-        }
-
-        // Initialize comment system
-        if (typeof CommentSystem !== 'undefined') {
-          console.log('Initializing CommentSystem');
-          // Force recreation of CommentSystem
-          window.commentSystemInitialized = false;
-          window.CommentSystem = new CommentSystem();
-        }
-
-        // Set initialization flag
-        window.dashboardInitialized = true;
-
+    document.addEventListener('DOMContentLoaded', function() {
         // Check if we need to open a specific post modal
         const urlParams = new URLSearchParams(window.location.search);
         const openPostId = urlParams.get('open_post');
@@ -2582,130 +1979,9 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 scrollToPost(openPostId, userId, createdAt);
             }, 2000);
         }
-
-        // Add event listeners for comment buttons
-        document.querySelectorAll('.post-comment-btn').forEach(btn => {
-          btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const postId = this.getAttribute('data-post-id');
-            console.log("Comment button clicked for post:", postId);
-
-            // Toggle comment section visibility
-            const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
-            if (postElement) {
-              const commentsSection = postElement.querySelector('.comments-section');
-              if (commentsSection) {
-                if (commentsSection.classList.contains('d-none')) {
-                  commentsSection.classList.remove('d-none');
-                } else {
-                  commentsSection.classList.add('d-none');
-                }
-                return;
-              }
-
-              // If comments section doesn't exist, create it
-              toggleCommentForm(postId);
-            }
-          });
-        });
-      });
-    </script>
-    <script>
-    // Completely revised initialization code
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('Dashboard v2 loaded');
-
-      // Ensure we only initialize once
-      if (window.dashboardInitialized) {
-        console.log('Dashboard already initialized, skipping');
-        return;
-      }
-
-      // Remove any existing event listeners to prevent duplicates
-      document.querySelectorAll('.post-comment-btn').forEach(btn => {
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-      });
-
-      // Remove the setupDeleteButtons function if it exists
-      if (window.setupDeleteButtons) {
-        window.setupDeleteButtons = function() {
-          console.log('Delete buttons setup disabled - using CommentSystem instead');
-        };
-      }
-
-      // Initialize comment system
-      if (typeof CommentSystem !== 'undefined') {
-        console.log('Initializing CommentSystem');
-        // Force recreation of CommentSystem
-        window.commentSystemInitialized = false;
-        window.CommentSystem = new CommentSystem();
-      }
-
-      // Set initialization flag
-      window.dashboardInitialized = true;
-
-      // Add event listeners for comment buttons
-      document.querySelectorAll('.post-comment-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-
-          const postId = this.getAttribute('data-post-id');
-          console.log("Comment button clicked for post:", postId);
-
-          // Toggle comment section visibility
-          const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
-          if (postElement) {
-            const commentsSection = postElement.querySelector('.comments-section');
-            if (commentsSection) {
-              if (commentsSection.classList.contains('d-none')) {
-                commentsSection.classList.remove('d-none');
-              } else {
-                commentsSection.classList.add('d-none');
-              }
-              return;
-            }
-
-            // If comments section doesn't exist, create it
-            toggleCommentForm(postId);
-          }
-        });
-      });
-    });
-
-    // Disable the setupCommentInteractions function
-    function setupCommentInteractions(commentsContainer, postId) {
-      console.log('Comment interactions setup disabled - using CommentSystem instead');
-      // Do nothing - let CommentSystem handle it
-    }
-    </script>
-    <script>
-    // Disable any existing comment-related functions to prevent conflicts
-    if (typeof setupCommentInteractions === 'function') {
-        window.originalSetupCommentInteractions = setupCommentInteractions;
-        setupCommentInteractions = function() {
-            console.log('Original setupCommentInteractions disabled');
-        };
-    }
-
-    // Disable any existing delete button setup functions
-    if (typeof setupDeleteButtons === 'function') {
-        window.originalSetupDeleteButtons = setupDeleteButtons;
-        setupDeleteButtons = function() {
-            console.log('Original setupDeleteButtons disabled');
-        };
-    }
-
-    // Ensure we only initialize once
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Dashboard v2 loaded - comment system initialization');
     });
     </script>
-    <!-- Add the comment debugger script before the closing body tag -->
-    <script src="assets/js/comment-debugger.js"></script>
+
     <!-- Remove any debug buttons that might be added directly in HTML -->
     <script>
     // Enhanced debug button removal script
@@ -2809,5 +2085,22 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
       });
     });
     </script>
+
+    <!-- Media Modal -->
+    <div class="modal fade" id="mediaModal" tabindex="-1" aria-labelledby="mediaModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="mediaModalLabel">Media Viewer</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="mediaModalContent">
+                        <!-- Content will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

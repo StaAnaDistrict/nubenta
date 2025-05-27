@@ -9,8 +9,8 @@ if ($currentUser) {
     try {
         require_once __DIR__ . '/../db.php';
         $stmt = $pdo->prepare("
-            SELECT COUNT(*) 
-            FROM friend_requests 
+            SELECT COUNT(*)
+            FROM friend_requests
             WHERE receiver_id = ? AND status = 'pending'
         ");
         $stmt->execute([$currentUser['id']]);
@@ -29,12 +29,16 @@ if ($currentUser) {
 
   <nav class="navbar-vertical">
     <ul class="nav-list">
-        <li><a href="dashboardv2.php" class="<?php echo $currentPage === 'dashboardv2' ? 'active' : ''; ?>">
+        <li><a href="dashboard.php" class="<?php echo $currentPage === 'dashboard' ? 'active' : ''; ?>">
             <i class="fas fa-home"></i> Home
         </a></li>
         <li><a href="messages.php" class="<?php echo $currentPage === 'messages' ? 'active' : ''; ?>" id="messagesLink">
             <i class="fas fa-envelope"></i> Messages
             <span class="notification-badge" id="messagesNotification" style="display: none;"></span>
+        </a></li>
+        <li><a href="notifications.php" class="<?php echo $currentPage === 'notifications' ? 'active' : ''; ?>" id="notificationsLink">
+            <i class="fas fa-bell"></i> Notifications
+            <span class="notification-badge" id="notificationsNotification" style="display: none;"></span>
         </a></li>
         <li>
             <a href="friends.php" id="connectionsLink" class="<?php echo $currentPage === 'friends' ? 'active' : ''; ?>">
@@ -53,7 +57,7 @@ if ($currentUser) {
         <li><a href="testimonials.php"><i class="fas fa-star"></i> Testimonials</a></li>
         <li><a href="view_profile.php?id=<?= $user['id'] ?>"><i class="fas fa-user"></i> View Profile</a></li>
         <li><a href="edit_profile.php"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
-        
+
       <?php if ($currentUser && $currentUser['role'] === 'admin'): ?>
             <li><a href="admin_dashboard.php"><i class="fas fa-users-cog"></i> Admin Panel</a></li>
       <?php endif; ?>
@@ -66,14 +70,14 @@ if ($currentUser) {
 async function checkUnreadDeliveredMessages() {
     try {
         const response = await fetch('api/check_unread_delivered.php');
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const data = await response.json();
         const messagesNotification = document.getElementById('messagesNotification');
-        
+
         if (data.success && data.has_unread_delivered) {
             messagesNotification.style.display = 'inline-block';
             messagesNotification.textContent = data.count > 0 ? data.count : '';
@@ -82,6 +86,29 @@ async function checkUnreadDeliveredMessages() {
         }
     } catch (error) {
         console.error('Error checking unread delivered messages:', error);
+    }
+}
+
+// Function to check for unread notifications
+async function checkUnreadNotifications() {
+    try {
+        const response = await fetch('api/get_notifications.php?limit=1');
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const notificationsNotification = document.getElementById('notificationsNotification');
+
+        if (data.success && data.unread_count > 0) {
+            notificationsNotification.style.display = 'inline-block';
+            notificationsNotification.textContent = data.unread_count;
+        } else {
+            notificationsNotification.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error checking unread notifications:', error);
     }
 }
 
@@ -98,13 +125,16 @@ function updateUnreadCount(count) {
 
 // Check for unread delivered messages when the page loads
 checkUnreadDeliveredMessages();
+checkUnreadNotifications();
 
 // Check periodically (every 5 seconds)
 setInterval(checkUnreadDeliveredMessages, 5000);
+setInterval(checkUnreadNotifications, 5000);
 
 // Make functions available globally
 window.updateUnreadCount = updateUnreadCount;
 window.checkUnreadDeliveredMessages = checkUnreadDeliveredMessages;
+window.checkUnreadNotifications = checkUnreadNotifications;
 </script>
 
 <style>
@@ -149,6 +179,10 @@ window.checkUnreadDeliveredMessages = checkUnreadDeliveredMessages;
 }
 
 #connectionsLink {
+    position: relative;
+}
+
+#notificationsLink {
     position: relative;
 }
 </style>

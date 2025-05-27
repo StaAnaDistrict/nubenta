@@ -17,7 +17,7 @@ $sql="SELECT id,
        location, hometown, company,
        schools, occupation, affiliations, hobbies,
        favorite_books, favorite_tv, favorite_movies, favorite_music,
-       created_at, last_login
+       created_at, last_login, last_seen
 FROM users WHERE id = ?";
 $st=$pdo->prepare($sql);$st->execute([$profileId]);
 $u=$st->fetch(PDO::FETCH_ASSOC);
@@ -34,7 +34,7 @@ if(!$u) die('User not found');
      LIMIT 1");
  $relStmt->execute([$current['id'], $profileId, $profileId, $current['id']]);
  $rel = $relStmt->fetch(PDO::FETCH_ASSOC);
- 
+
  $friendBtnState = 'add';           // default
  if ($rel) {
      if     ($rel['status'] === 'accepted')  $friendBtnState = 'friends';
@@ -44,12 +44,163 @@ if(!$u) die('User not found');
                          : 'pending_recv';    // they sent; I must answer
      }
  }
- 
+
 
 // simple follower / friend counts (dummy until wired)
 $followerCount = 0;      // placeholder
 $friendStatus  = 'none'; // placeholder
 $isFollowing   = false;  // placeholder
+
+// Get user's albums for Media Gallery section
+$albumStmt = $pdo->prepare("
+    SELECT a.*,
+           COUNT(DISTINCT am.media_id) AS media_count,
+           m.media_url AS cover_image,
+           CASE WHEN a.id = 1 THEN 'My Gallery' ELSE a.album_name END AS display_name,
+           CASE WHEN a.id = 1 THEN 'Default media gallery containing all uploaded photos and videos' ELSE a.description END AS display_description
+    FROM user_media_albums a
+    LEFT JOIN album_media am ON a.id = am.album_id
+    LEFT JOIN user_media m ON a.cover_image_id = m.id
+    WHERE a.user_id = ?
+    GROUP BY a.id
+    ORDER BY CASE WHEN a.id = 1 THEN 0 ELSE 1 END, a.created_at DESC
+");
+$albumStmt->execute([$profileId]);
+$userAlbums = $albumStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Check if current user can view albums (privacy check)
+$canViewAlbums = false;
+if ($current['id'] === $profileId) {
+    // Own profile - can view all
+    $canViewAlbums = true;
+} else {
+    // Check friendship status for privacy
+    $areFriends = false;
+    if ($rel && $rel['status'] === 'accepted') {
+        $areFriends = true;
+    }
+
+    // Filter albums based on privacy and friendship
+    $filteredAlbums = [];
+    foreach ($userAlbums as $album) {
+        if ($album['privacy'] === 'public' ||
+            ($album['privacy'] === 'friends' && $areFriends)) {
+            $filteredAlbums[] = $album;
+        }
+    }
+    $userAlbums = $filteredAlbums;
+    $canViewAlbums = !empty($userAlbums);
+}
+
+// Get user's friends for Connections section
+$friendsStmt = $pdo->prepare("
+    SELECT
+        u.id,
+        CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS full_name,
+        u.profile_pic,
+        u.gender,
+        fr.created_at as friendship_date
+    FROM friend_requests fr
+    JOIN users u ON (
+        CASE
+            WHEN fr.sender_id = ? THEN fr.receiver_id = u.id
+            WHEN fr.receiver_id = ? THEN fr.sender_id = u.id
+        END
+    )
+    WHERE (fr.sender_id = ? OR fr.receiver_id = ?)
+    AND fr.status = 'accepted'
+    ORDER BY fr.created_at DESC
+    LIMIT 12
+");
+$friendsStmt->execute([$profileId, $profileId, $profileId, $profileId]);
+$userFriends = $friendsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Check if current user can view friends list
+$canViewFriends = false;
+if ($current['id'] === $profileId) {
+    // Own profile - can view all friends
+    $canViewFriends = true;
+} else {
+    // For other users, show friends if they are friends with the profile owner
+    // or if the profile owner has public friend visibility (we'll assume public for now)
+    $canViewFriends = true; // You can add privacy settings for friends list later
+}
+
+// Update current user's last_seen timestamp (for online status tracking)
+if (isset($_SESSION['user']['id'])) {
+    try {
+        $updateLastSeenStmt = $pdo->prepare("UPDATE users SET last_seen = NOW() WHERE id = ?");
+        $updateLastSeenStmt->execute([$_SESSION['user']['id']]);
+    } catch (Exception $e) {
+        // Silently handle if last_seen column doesn't exist yet
+        error_log("Could not update last_seen: " . $e->getMessage());
+    }
+}
+
+// Calculate online status for the profile user
+function getOnlineStatus($lastSeen) {
+    if (empty($lastSeen)) {
+        return 'Never logged in';
+    }
+
+    // Set timezone to match your location
+    date_default_timezone_set('Asia/Manila');
+
+    try {
+        // Use simple timestamp calculation for more accuracy
+        $lastSeenTimestamp = strtotime($lastSeen);
+        $currentTimestamp = time();
+        $diffSeconds = $currentTimestamp - $lastSeenTimestamp;
+
+        // Convert to minutes
+        $diffMinutes = floor($diffSeconds / 60);
+
+        // Consider user online if last seen within 5 minutes
+        if ($diffMinutes < 5) {
+            return 'Online';
+        } elseif ($diffMinutes < 60) {
+            return $diffMinutes . ' minute' . ($diffMinutes > 1 ? 's' : '') . ' ago';
+        } elseif ($diffMinutes < (24 * 60)) { // Less than 24 hours
+            $diffHours = floor($diffMinutes / 60);
+            return $diffHours . ' hour' . ($diffHours > 1 ? 's' : '') . ' ago';
+        } elseif ($diffMinutes < (7 * 24 * 60)) { // Less than 7 days
+            $diffDays = floor($diffMinutes / (24 * 60));
+            return $diffDays . ' day' . ($diffDays > 1 ? 's' : '') . ' ago';
+        } elseif ($diffMinutes < (30 * 24 * 60)) { // Less than 30 days
+            $diffWeeks = floor($diffMinutes / (7 * 24 * 60));
+            return $diffWeeks . ' week' . ($diffWeeks > 1 ? 's' : '') . ' ago';
+        } elseif ($diffMinutes < (365 * 24 * 60)) { // Less than 365 days
+            $diffMonths = floor($diffMinutes / (30 * 24 * 60));
+            return $diffMonths . ' month' . ($diffMonths > 1 ? 's' : '') . ' ago';
+        } else {
+            $diffYears = floor($diffMinutes / (365 * 24 * 60));
+            return $diffYears . ' year' . ($diffYears > 1 ? 's' : '') . ' ago';
+        }
+    } catch (Exception $e) {
+        return 'Status unavailable';
+    }
+}
+
+// Check if last_seen column exists and get online status
+$onlineStatus = 'Status unavailable';
+try {
+    $onlineStatus = getOnlineStatus($u['last_seen'] ?? null);
+} catch (Exception $e) {
+    // Fallback to last_login if last_seen doesn't exist
+    if (!empty($u['last_login'])) {
+        $lastLogin = new DateTime($u['last_login']);
+        $now = new DateTime();
+        $diff = $lastLogin->diff($now);
+
+        if ($diff->days == 0 && $diff->h < 1) {
+            $onlineStatus = 'Recently active';
+        } else {
+            $onlineStatus = 'Last seen ' . $lastLogin->format('M d, Y');
+        }
+    } else {
+        $onlineStatus = 'Status unavailable';
+    }
+}
 
 // (optional) log profile view here…
 
@@ -63,7 +214,7 @@ $isFollowing   = false;  // placeholder
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="assets/css/viewprofile.css" rel="stylesheet">
-    
+
     <?php if (!empty($u['custom_theme'])): ?>
         <?= $u['custom_theme'] ?>
 <?php endif; ?>
@@ -196,7 +347,7 @@ $isFollowing   = false;  // placeholder
                                 $today = new DateTime();
                                 $age = $birthdate->diff($today)->y;
                             }
-                            
+
                             // Format member since date
                             $memberSinceFormatted = 'Not available';
                             if (!empty($u['created_at'])) {
@@ -204,24 +355,24 @@ $isFollowing   = false;  // placeholder
                                 $memberSince = new DateTime($u['created_at']);
                                 $memberSinceFormatted = $memberSince->format('F Y');
                             }
-                            
+
                             // Format last login
                             $lastLoginFormatted = 'Not available';
                             if (!empty($u['last_login'])) {
                                 // Set timezone to match MySQL
                                 date_default_timezone_set('Asia/Manila');
-                                
+
                                 error_log("Last login value from DB: " . $u['last_login']);
-                                
+
                                 $lastLogin = new DateTime($u['last_login']);
                                 $now = new DateTime();
-                                
+
                                 error_log("Last login DateTime: " . $lastLogin->format('Y-m-d H:i:s'));
                                 error_log("Current DateTime: " . $now->format('Y-m-d H:i:s'));
-                                
+
                                 $diff = $lastLogin->diff($now);
                                 error_log("Time difference - Days: " . $diff->days . ", Hours: " . $diff->h . ", Minutes: " . $diff->i);
-                                
+
                                 if ($diff->days == 0) {
                                     if ($diff->h == 0) {
                                         if ($diff->i == 0) {
@@ -237,14 +388,14 @@ $isFollowing   = false;  // placeholder
                                 } else {
                                     $lastLoginFormatted = $lastLogin->format('M d, Y');
                                 }
-                                
+
                                 error_log("Formatted last login: " . $lastLoginFormatted);
                             }
                             ?>
-                            
+
                             <div class="info-line">
-                                <?= htmlspecialchars($u['gender'] ?? 'Not specified') ?> • 
-                                <?= $age > 0 ? $age . ' years old' : 'Age not specified' ?> • 
+                                <?= htmlspecialchars($u['gender'] ?? 'Not specified') ?> •
+                                <?= $age > 0 ? $age . ' years old' : 'Age not specified' ?> •
                                 <?= htmlspecialchars($u['relationship_status'] ?? 'Not specified') ?>
                             </div>
                             <div class="info-line">
@@ -257,7 +408,13 @@ $isFollowing   = false;  // placeholder
                                 <span class="info-label">Hometown:</span> <?= htmlspecialchars($u['hometown'] ?? 'Not specified') ?>
                             </div>
                             <div class="info-line">
-                                <span class="info-label">Last Login:</span> <?= $lastLoginFormatted ?>
+                                <span class="info-label">Last Seen Online:</span>
+                                <span class="<?= $onlineStatus === 'Online' ? 'text-success' : 'text-muted' ?>">
+                                    <?php if ($onlineStatus === 'Online'): ?>
+                                        <i class="fas fa-circle me-1" style="font-size: 0.7em;"></i>
+                                    <?php endif; ?>
+                                    <?= $onlineStatus ?>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -265,15 +422,140 @@ $isFollowing   = false;  // placeholder
       </div>
   </div>
 
-        <!-- Featured Photos Section -->
-  <div class="profile-section">
-            <h3 class="section-title">Featured Photos</h3>
-            <div class="row">
-                <div class="col-12">
-                    <p class="text-muted">No featured photos yet.</p>
+        <!-- Media Gallery Section -->
+        <div class="profile-section" id="media-gallery-section">
+            <h3 class="section-title">Media Gallery</h3>
+            <?php if ($canViewAlbums && !empty($userAlbums)): ?>
+                <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 album-gallery">
+                    <?php foreach ($userAlbums as $album): ?>
+                        <div class="col">
+                            <div class="card h-100 album-card">
+                                <a href="view_album.php?id=<?php echo $album['id']; ?>" class="text-decoration-none">
+                                    <div class="album-cover position-relative">
+                                        <?php if (!empty($album['cover_image'])): ?>
+                                            <img src="<?php echo htmlspecialchars($album['cover_image']); ?>"
+                                                 class="card-img-top" alt="Album Cover"
+                                                 style="height: 140px; object-fit: cover;">
+                                        <?php else: ?>
+                                            <div class="d-flex align-items-center justify-content-center bg-light"
+                                                 style="height: 140px;">
+                                                <i class="fas fa-images fa-2x text-muted"></i>
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <!-- Media count overlay -->
+                                        <div class="position-absolute bottom-0 end-0 m-2">
+                                            <span class="badge bg-dark bg-opacity-75">
+                                                <i class="fas fa-photo-video me-1"></i>
+                                                <?php echo $album['media_count']; ?>
+                                            </span>
+                                        </div>
+
+                                        <!-- Privacy indicator -->
+                                        <?php if ($album['privacy'] !== 'public'): ?>
+                                            <div class="position-absolute top-0 start-0 m-2">
+                                                <span class="badge bg-secondary bg-opacity-75">
+                                                    <i class="fas <?php echo $album['privacy'] === 'private' ? 'fa-lock' : 'fa-user-friends'; ?>"></i>
+                                                </span>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-2 text-truncate" style="color: #2c3e50;">
+                                            <?php echo htmlspecialchars($album['display_name']); ?>
+                                        </h6>
+                                        <?php if (!empty($album['display_description'])): ?>
+                                            <p class="card-text text-muted small mb-2">
+                                                <?php
+                                                $description = $album['display_description'];
+                                                echo htmlspecialchars(strlen($description) > 80 ? substr($description, 0, 77) . '...' : $description);
+                                                ?>
+                                            </p>
+                                        <?php endif; ?>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted">
+                                                <?php echo date('M j, Y', strtotime($album['created_at'])); ?>
+                                            </small>
+                                            <small class="text-muted">
+                                                <?php echo ucfirst($album['privacy']); ?>
+                                            </small>
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
-            </div>
-  </div>
+            <?php elseif ($canViewAlbums && empty($userAlbums)): ?>
+                <div class="text-center py-4">
+                    <i class="fas fa-photo-video fa-3x mb-3 text-muted"></i>
+                    <p class="text-muted mb-0">No albums created yet.</p>
+                    <?php if ($current['id'] === $profileId): ?>
+                        <small class="text-muted">Create your first album to organize your photos and videos!</small>
+                    <?php endif; ?>
+                </div>
+            <?php else: ?>
+                <div class="text-center py-4">
+                    <i class="fas fa-lock fa-3x mb-3 text-muted"></i>
+                    <p class="text-muted mb-0">This user's albums are private.</p>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Connections Section -->
+        <div class="profile-section" id="connections-section">
+            <h3 class="section-title">Connections</h3>
+            <?php if ($canViewFriends && !empty($userFriends)): ?>
+                <div class="row row-cols-2 row-cols-md-4 row-cols-lg-5 row-cols-xl-6 g-3 connections-gallery">
+                    <?php foreach ($userFriends as $friend): ?>
+                        <div class="col">
+                            <div class="card h-100 friend-card">
+                                <a href="view_profile.php?id=<?php echo $friend['id']; ?>" class="text-decoration-none">
+                                    <div class="friend-avatar text-center py-4 px-2">
+                                        <?php
+                                        $friendProfilePic = !empty($friend['profile_pic'])
+                                            ? 'uploads/profile_pics/' . htmlspecialchars($friend['profile_pic'])
+                                            : ($friend['gender'] === 'Female' ? 'assets/images/FemaleDefaultProfilePicture.png' : 'assets/images/MaleDefaultProfilePicture.png');
+                                        ?>
+                                        <img src="<?php echo $friendProfilePic; ?>"
+                                             alt="<?php echo htmlspecialchars($friend['full_name']); ?>"
+                                             class="rounded-circle mb-3"
+                                             style="width: 80px; height: 80px; object-fit: cover;">
+                                        <h6 class="friend-name mb-1 text-truncate" style="color: #2c3e50;">
+                                            <?php echo htmlspecialchars($friend['full_name']); ?>
+                                        </h6>
+                                        <small class="text-muted">
+                                            Friends since <?php echo date('M Y', strtotime($friend['friendship_date'])); ?>
+                                        </small>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <?php if (count($userFriends) >= 12): ?>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">Showing recent connections</small>
+                    </div>
+                <?php endif; ?>
+
+            <?php elseif ($canViewFriends && empty($userFriends)): ?>
+                <div class="text-center py-4">
+                    <i class="fas fa-user-friends fa-3x mb-3 text-muted"></i>
+                    <p class="text-muted mb-0">No connections yet.</p>
+                    <?php if ($current['id'] === $profileId): ?>
+                        <small class="text-muted">Connect with friends to build your network!</small>
+                    <?php endif; ?>
+                </div>
+            <?php else: ?>
+                <div class="text-center py-4">
+                    <i class="fas fa-lock fa-3x mb-3 text-muted"></i>
+                    <p class="text-muted mb-0">This user's connections are private.</p>
+                </div>
+            <?php endif; ?>
+        </div>
 
         <!-- More About Me Section -->
   <div class="profile-section">
@@ -344,14 +626,37 @@ $isFollowing   = false;  // placeholder
         </div>
   </div>
 
+        <!-- Contents Section -->
+        <div class="profile-section" id="contents-section">
+            <h3 class="section-title">Contents</h3>
+            <div id="user-posts-container">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading posts...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading user contents...</p>
+                </div>
+            </div>
+        </div>
+  </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Custom JavaScript Handler -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize album gallery functionality
+        initializeAlbumGallery();
+
+        // Load user posts in Contents section
+        loadUserPosts();
+
+        // Handle anchor scrolling to specific posts
+        handlePostAnchorScrolling();
+
         // Get the custom theme content
         const customTheme = <?= json_encode($u['custom_theme'] ?? '') ?>;
-        
+
         // Extract JavaScript from custom theme
         if (customTheme) {
             const scriptMatch = customTheme.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
@@ -367,6 +672,353 @@ $isFollowing   = false;  // placeholder
             }
         }
     });
+
+    // Function to initialize album gallery - accessible for custom themes
+    function initializeAlbumGallery() {
+        const albumCards = document.querySelectorAll('.album-card');
+
+        // Add custom event listeners that can be overridden by custom themes
+        albumCards.forEach(card => {
+            // Add data attributes for easy access in custom themes
+            const link = card.querySelector('a[href*="view_album.php"]');
+            if (link) {
+                const albumId = link.href.match(/id=(\d+)/);
+                if (albumId) {
+                    card.setAttribute('data-album-id', albumId[1]);
+                }
+            }
+
+            // Add hover effects that can be customized
+            card.addEventListener('mouseenter', function() {
+                this.classList.add('album-card-hover');
+            });
+
+            card.addEventListener('mouseleave', function() {
+                this.classList.remove('album-card-hover');
+            });
+        });
+
+        // Make album gallery section accessible for custom themes
+        const gallerySection = document.getElementById('media-gallery-section');
+        if (gallerySection) {
+            gallerySection.setAttribute('data-customizable', 'true');
+            gallerySection.setAttribute('data-section-type', 'album-gallery');
+        }
+
+        console.log('Album gallery initialized with', albumCards.length, 'albums');
+    }
+
+    // Function to load user posts
+    async function loadUserPosts() {
+        const profileUserId = <?= $profileId ?>;
+        const currentUserId = <?= isset($_SESSION['user']['id']) ? $_SESSION['user']['id'] : 0 ?>;
+        const postsContainer = document.getElementById('user-posts-container');
+
+        try {
+            console.log('Loading posts for user:', profileUserId);
+
+            // Fetch user's posts
+            const response = await fetch(`api/get_user_posts.php?user_id=${profileUserId}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success && data.posts && data.posts.length > 0) {
+                console.log(`Loaded ${data.posts.length} posts for user ${profileUserId}`);
+
+                let postsHTML = '';
+                data.posts.forEach(post => {
+                    postsHTML += renderUserPost(post, currentUserId);
+                });
+
+                postsContainer.innerHTML = postsHTML;
+
+                // Initialize reactions and comments for the posts
+                initializePostInteractions();
+
+            } else {
+                postsContainer.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-file-alt fa-3x mb-3 text-muted"></i>
+                        <p class="text-muted mb-0">No posts to show yet.</p>
+                        ${profileUserId == currentUserId ? '<small class="text-muted">Share your thoughts to get started!</small>' : ''}
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Error loading user posts:', error);
+            postsContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading posts: ${error.message}
+                </div>
+            `;
+        }
+    }
+
+    // Function to render a user post
+    function renderUserPost(post, currentUserId) {
+        const isOwnPost = post.user_id == currentUserId;
+
+        return `
+            <article class="post mb-4" data-post-id="${post.id}" id="profile-post-${post.id}">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="post-header d-flex align-items-center mb-3">
+                            <img src="${post.profile_pic || 'assets/images/default-profile.png'}"
+                                 alt="Profile" class="rounded-circle me-3"
+                                 style="width: 50px; height: 50px; object-fit: cover;">
+                            <div>
+                                <h6 class="mb-0" style="color: #2c3e50;">${post.author}</h6>
+                                <small class="text-muted">
+                                    <i class="far fa-clock me-1"></i> ${new Date(post.created_at).toLocaleString()}
+                                    ${post.visibility === 'friends' ? '<span class="ms-2"><i class="fas fa-user-friends"></i> Friends only</span>' : ''}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="post-content">
+                            ${post.is_flagged ? '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-1"></i> Viewing discretion is advised.</div>' : ''}
+                            ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
+                            ${post.media && !post.is_removed ? renderPostMedia(post.media, post.is_flagged, post.id) : ''}
+                        </div>
+
+                        <div class="post-actions d-flex mt-3">
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}">
+                                <i class="far fa-smile me-1"></i> React
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
+                                <i class="far fa-comment me-1"></i> Comment <span class="comment-count-badge"></span>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}">
+                                <i class="far fa-share-square me-1"></i> Share
+                            </button>
+                            ${isOwnPost ? `
+                                <button class="btn btn-sm btn-outline-danger me-2 post-delete-btn" data-post-id="${post.id}">
+                                    <i class="far fa-trash-alt me-1"></i> Delete
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </article>
+        `;
+    }
+
+    // Function to render post media (reuse from dashboard)
+    function renderPostMedia(media, isBlurred, postId) {
+        if (!media) return '';
+
+        const blurClass = isBlurred ? 'blurred-image' : '';
+        let mediaArray;
+
+        try {
+            mediaArray = typeof media === 'string' ? JSON.parse(media) : media;
+        } catch (e) {
+            mediaArray = [media];
+        }
+
+        if (!Array.isArray(mediaArray)) {
+            mediaArray = [mediaArray];
+        }
+
+        // For single media item
+        if (mediaArray.length === 1) {
+            const mediaItem = mediaArray[0];
+            if (mediaItem.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                return `<div class="media mt-3">
+                    <img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
+                         style="cursor: pointer; max-height: 400px; width: 100%; object-fit: cover; border-radius: 8px;">
+                </div>`;
+            } else if (mediaItem.match(/\.mp4$/i)) {
+                return `<div class="media mt-3">
+                    <video controls class="img-fluid ${blurClass}"
+                           style="max-height: 400px; width: 100%; border-radius: 8px;">
+                        <source src="${mediaItem}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>`;
+            }
+        }
+
+        // For multiple media items - simplified grid
+        let mediaHTML = '<div class="post-media-container mt-3"><div class="row g-2">';
+        mediaArray.slice(0, 4).forEach((mediaItem, index) => {
+            const colClass = mediaArray.length === 1 ? 'col-12' :
+                           mediaArray.length === 2 ? 'col-6' :
+                           index === 0 ? 'col-12' : 'col-6';
+
+            mediaHTML += `<div class="${colClass}">`;
+            if (mediaItem.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                mediaHTML += `<img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
+                                   style="cursor: pointer; height: 200px; width: 100%; object-fit: cover; border-radius: 8px;">`;
+            } else if (mediaItem.match(/\.mp4$/i)) {
+                mediaHTML += `<video controls class="img-fluid ${blurClass}"
+                                     style="height: 200px; width: 100%; object-fit: cover; border-radius: 8px;">
+                                  <source src="${mediaItem}" type="video/mp4">
+                              </video>`;
+            }
+            mediaHTML += '</div>';
+        });
+
+        if (mediaArray.length > 4) {
+            mediaHTML += `<div class="col-6 position-relative">
+                <div class="d-flex align-items-center justify-content-center bg-dark text-white"
+                     style="height: 200px; border-radius: 8px; cursor: pointer;">
+                    <span class="h4">+${mediaArray.length - 4} more</span>
+                </div>
+            </div>`;
+        }
+
+        mediaHTML += '</div></div>';
+        return mediaHTML;
+    }
+
+    // Function to initialize post interactions
+    function initializePostInteractions() {
+        // Load comment counts
+        document.querySelectorAll('.post[data-post-id]').forEach(post => {
+            const postId = post.getAttribute('data-post-id');
+            if (postId) {
+                loadCommentCount(postId);
+            }
+        });
+
+        // Set up comment button listeners
+        document.querySelectorAll('.post-comment-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const postId = this.getAttribute('data-post-id');
+                toggleCommentForm(postId);
+            });
+        });
+
+        // Initialize reaction system if available
+        if (window.ReactionSystem) {
+            setTimeout(() => {
+                window.ReactionSystem.loadReactionsForVisiblePosts();
+            }, 500);
+        }
+    }
+
+    // Function to load comment count (simplified version)
+    async function loadCommentCount(postId) {
+        try {
+            const response = await fetch(`api/get_comment_count.php?post_id=${postId}`);
+            if (!response.ok) return;
+
+            const data = await response.json();
+            if (data.success) {
+                const commentBtn = document.querySelector(`.post-comment-btn[data-post-id="${postId}"]`);
+                if (commentBtn) {
+                    const countBadge = commentBtn.querySelector('.comment-count-badge');
+                    if (countBadge) {
+                        countBadge.textContent = data.count > 0 ? `(${data.count})` : '';
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Error loading comment count for post ${postId}:`, error);
+        }
+    }
+
+    // Function to toggle comment form (simplified version)
+    function toggleCommentForm(postId) {
+        const postElement = document.querySelector(`#profile-post-${postId}`);
+        if (!postElement) return;
+
+        let commentsSection = postElement.querySelector('.comments-section');
+
+        if (commentsSection) {
+            commentsSection.classList.toggle('d-none');
+            return;
+        }
+
+        // Create comments section
+        commentsSection = document.createElement('div');
+        commentsSection.className = 'comments-section mt-3';
+        commentsSection.innerHTML = `
+            <div class="comments-container mb-3" data-post-id="${postId}">
+                <div class="text-center p-2">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Loading comments...</span>
+                    </div>
+                    <span class="ms-2">Loading comments...</span>
+                </div>
+            </div>
+            <form class="comment-form" data-post-id="${postId}">
+                <div class="input-group">
+                    <input type="text" class="form-control comment-input" placeholder="Write a comment...">
+                    <button type="submit" class="btn btn-primary">Post</button>
+                </div>
+            </form>
+        `;
+
+        postElement.querySelector('.card-body').appendChild(commentsSection);
+
+        // Load existing comments and set up form submission
+        // (This would need the full comment system implementation)
+        console.log('Comment form created for post:', postId);
+    }
+
+    // Function to handle anchor scrolling to specific posts
+    function handlePostAnchorScrolling() {
+        // Check if there's a hash in the URL pointing to a specific post
+        const hash = window.location.hash;
+        if (hash && hash.startsWith('#profile-post-')) {
+            const postId = hash.replace('#profile-post-', '');
+            console.log('Attempting to scroll to post:', postId);
+
+            // Wait for posts to load, then scroll
+            let attempts = 0;
+            const maxAttempts = 10;
+
+            function attemptScroll() {
+                attempts++;
+                const postElement = document.getElementById(`profile-post-${postId}`);
+
+                if (postElement) {
+                    console.log('Post found, scrolling to:', postId);
+
+                    // Scroll to the post with smooth animation
+                    postElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+
+                    // Highlight the post temporarily
+                    postElement.style.border = '3px solid #2c3e50';
+                    postElement.style.borderRadius = '8px';
+                    postElement.style.transition = 'border 0.3s ease';
+
+                    setTimeout(() => {
+                        postElement.style.border = '';
+                        postElement.style.borderRadius = '';
+                    }, 3000);
+
+                    // Auto-expand comments if available
+                    setTimeout(() => {
+                        const commentBtn = postElement.querySelector('.post-comment-btn');
+                        if (commentBtn) {
+                            console.log('Auto-expanding comments for post:', postId);
+                            commentBtn.click();
+                        }
+                    }, 1000);
+
+                } else if (attempts < maxAttempts) {
+                    console.log(`Post ${postId} not found yet, retrying in 1 second... (attempt ${attempts})`);
+                    setTimeout(attemptScroll, 1000);
+                } else {
+                    console.log(`Failed to find post ${postId} after ${maxAttempts} attempts`);
+                }
+            }
+
+            // Start attempting after a short delay
+            setTimeout(attemptScroll, 1500);
+        }
+    }
     /* --- Friends Scripts --- */
                     async function hit(url, data) {
                     const r = await fetch(url, {
@@ -407,18 +1059,18 @@ $isFollowing   = false;  // placeholder
     async function startMessage(userId) {
         try {
             console.log('Starting message with user ID:', userId);
-            
+
             // Check thread status for both users
             const checkResponse = await fetch(`api/check_thread_status.php?user_id=${userId}`);
             console.log('Thread status response:', checkResponse);
-            
+
             if (!checkResponse.ok) {
                 throw new Error(`HTTP error! status: ${checkResponse.status}`);
             }
-            
+
             const checkData = await checkResponse.json();
             console.log('Thread status data:', checkData);
-            
+
             if (checkData.success) {
                 if (checkData.exists) {
                     if (!checkData.deleted_by_current_user) {
@@ -433,7 +1085,7 @@ $isFollowing   = false;  // placeholder
                     window.location.href = `messages.php?new_chat=${userId}&preserve_thread=${checkData.thread_id}`;
                     return;
                 }
-                
+
                 // No thread exists, start new chat
                 console.log('Starting new chat with user:', userId);
                 window.location.href = `messages.php?new_chat=${userId}`;

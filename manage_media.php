@@ -28,7 +28,7 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_media'])) {
     $mediaId = intval($_POST['media_id']);
     $success = $mediaUploader->deleteMedia($mediaId, $user['id']);
-    
+
     if ($success) {
         $_SESSION['flash_message'] = [
             'type' => 'success',
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_media'])) {
             'message' => 'Failed to delete media'
         ];
     }
-    
+
     // Redirect to avoid form resubmission
     header("Location: manage_media.php");
     exit();
@@ -50,17 +50,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_media'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_privacy'])) {
     $mediaId = intval($_POST['media_id']);
     $privacy = $_POST['privacy'];
-    
+
     try {
         // Check if media belongs to user
         $checkStmt = $pdo->prepare("SELECT id FROM user_media WHERE id = ? AND user_id = ?");
         $checkStmt->execute([$mediaId, $user['id']]);
-        
+
         if ($checkStmt->fetch()) {
             // Update privacy
             $updateStmt = $pdo->prepare("UPDATE user_media SET privacy = ? WHERE id = ?");
             $updateStmt->execute([$privacy, $mediaId]);
-            
+
             $_SESSION['flash_message'] = [
                 'type' => 'success',
                 'message' => 'Privacy updated successfully'
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_privacy'])) {
             'message' => 'Error updating privacy: ' . $e->getMessage()
         ];
     }
-    
+
     // Redirect to avoid form resubmission
     header("Location: manage_media.php");
     exit();
@@ -99,29 +99,29 @@ $offset = ($page - 1) * $limit;
 try {
     $params = [$user['id']];
     $sql = "SELECT * FROM user_media WHERE user_id = ?";
-    
+
     if ($mediaType) {
         $sql .= " AND media_type LIKE ?";
         $params[] = $mediaType . '%';
     }
-    
+
     $sql .= " ORDER BY created_at DESC LIMIT ? OFFSET ?";
     $params[] = $limit;
     $params[] = $offset;
-    
+
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $media = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Count total media
     $countSql = "SELECT COUNT(*) as total FROM user_media WHERE user_id = ?";
     $countParams = [$user['id']];
-    
+
     if ($mediaType) {
         $countSql .= " AND media_type LIKE ?";
         $countParams[] = $mediaType . '%';
     }
-    
+
     $countStmt = $pdo->prepare($countSql);
     $countStmt->execute($countParams);
     $totalMedia = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
@@ -179,7 +179,7 @@ $pageTitle = "Manage Media";
         <!-- Main Content -->
         <main class="main-content">
             <h1>Manage Media</h1>
-            
+
             <?php if (isset($_SESSION['flash_message'])): ?>
                 <div class="alert alert-<?php echo $_SESSION['flash_message']['type']; ?> alert-dismissible fade show" role="alert">
                     <?php echo $_SESSION['flash_message']['message']; ?>
@@ -187,18 +187,18 @@ $pageTitle = "Manage Media";
                 </div>
                 <?php unset($_SESSION['flash_message']); ?>
             <?php endif; ?>
-            
+
             <div class="btn-group mb-3">
                 <a href="manage_media.php" class="btn btn-sm <?php echo !$mediaType ? 'btn-dark' : 'btn-outline-dark'; ?>">All</a>
                 <a href="manage_media.php?type=image" class="btn btn-sm <?php echo $mediaType === 'image' ? 'btn-dark' : 'btn-outline-dark'; ?>">Images</a>
                 <a href="manage_media.php?type=video" class="btn btn-sm <?php echo $mediaType === 'video' ? 'btn-dark' : 'btn-outline-dark'; ?>">Videos</a>
             </div>
-            
+
             <?php if (empty($media)): ?>
                 <div class="text-center p-4 text-muted">
                     <i class="fas fa-photo-video fa-3x mb-3"></i>
                     <p>No media found. Start sharing photos and videos in your posts!</p>
-                    <a href="dashboardv2.php" class="btn btn-dark">Go to Dashboard</a>
+                    <a href="dashboard.php" class="btn btn-dark">Go to Dashboard</a>
                 </div>
             <?php else: ?>
                 <div class="row g-3">
@@ -214,7 +214,7 @@ $pageTitle = "Manage Media";
                                         <a href="view_media.php?id=<?php echo $item['id']; ?>">
                                             <div class="position-relative">
                                                 <?php if (!empty($item['thumbnail_url']) && file_exists($item['thumbnail_url'])): ?>
-                                                    <img src="<?php echo htmlspecialchars($item['thumbnail_url']); ?>" 
+                                                    <img src="<?php echo htmlspecialchars($item['thumbnail_url']); ?>"
                                                          class="card-img-top" alt="Video thumbnail" style="height: 160px; object-fit: cover;">
                                                 <?php else: ?>
                                                     <div class="video-placeholder card-img-top">
@@ -227,7 +227,7 @@ $pageTitle = "Manage Media";
                                             </div>
                                         </a>
                                     <?php endif; ?>
-                                    
+
                                     <!-- Media actions -->
                                     <div class="position-absolute top-0 end-0 p-2">
                                         <div class="dropdown">
@@ -258,7 +258,7 @@ $pageTitle = "Manage Media";
                                     <p class="card-text small text-muted d-flex justify-content-between align-items-center">
                                         <span>
                                             <i class="fas <?php echo $item['media_type'] === 'image' ? 'fa-image' : 'fa-video'; ?> me-1"></i>
-                                            <?php echo ucfirst($item['media_type']); ?> • 
+                                            <?php echo ucfirst($item['media_type']); ?> •
                                             <?php echo date('M j, Y', strtotime($item['created_at'])); ?>
                                         </span>
                                         <span class="badge bg-<?php echo $item['privacy'] === 'public' ? 'dark' : 'secondary'; ?>">
@@ -268,7 +268,7 @@ $pageTitle = "Manage Media";
                                     </p>
                                 </div>
                             </div>
-                            
+
                             <!-- Privacy Modal -->
                             <div class="modal fade" id="privacyModal<?php echo $item['id']; ?>" tabindex="-1" aria-hidden="true">
                                 <div class="modal-dialog">
@@ -296,7 +296,7 @@ $pageTitle = "Manage Media";
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <!-- Delete Modal -->
                             <div class="modal fade" id="deleteModal<?php echo $item['id']; ?>" tabindex="-1" aria-hidden="true">
                                 <div class="modal-dialog">
@@ -321,7 +321,7 @@ $pageTitle = "Manage Media";
                         </div>
                     <?php endforeach; ?>
                 </div>
-                
+
                 <!-- Pagination -->
                 <?php if ($totalPages > 1): ?>
                     <nav aria-label="Page navigation" class="mt-4">
@@ -333,7 +333,7 @@ $pageTitle = "Manage Media";
                                     </a>
                                 </li>
                             <?php endif; ?>
-                            
+
                             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                                 <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
                                     <a class="page-link" href="?page=<?php echo $i; ?><?php echo $mediaType ? '&type=' . $mediaType : ''; ?>">
@@ -341,7 +341,7 @@ $pageTitle = "Manage Media";
                                     </a>
                                 </li>
                             <?php endfor; ?>
-                            
+
                             <?php if ($page < $totalPages): ?>
                                 <li class="page-item">
                                     <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo $mediaType ? '&type=' . $mediaType : ''; ?>">

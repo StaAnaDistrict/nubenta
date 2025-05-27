@@ -8,12 +8,12 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
-// Update user's last_activity timestamp
+// Update user's last_seen timestamp for online status tracking
 try {
     $userId = intval($_SESSION['user']['id']);
     $stmt = $pdo->prepare("
-        UPDATE users 
-        SET last_activity = NOW()
+        UPDATE users
+        SET last_seen = NOW()
         WHERE id = ?
     ");
     $stmt->execute([$userId]);
@@ -31,4 +31,4 @@ try {
 } catch (PDOException $e) {
     error_log("Error updating user activity: " . $e->getMessage());
 }
-?> 
+?>

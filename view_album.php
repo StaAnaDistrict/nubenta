@@ -239,14 +239,20 @@ if ($mediaId > 0) {
         if ($item['id'] == $mediaId) {
             $currentMedia = $item;
 
-            // Get previous media
+            // Get previous media (cycle to last if at beginning)
             if ($index > 0) {
                 $prevMedia = $media[$index - 1];
+            } else {
+                // If at first item, cycle to last item
+                $prevMedia = count($media) > 1 ? $media[count($media) - 1] : null;
             }
 
-            // Get next media
+            // Get next media (cycle to first if at end)
             if ($index < count($media) - 1) {
                 $nextMedia = $media[$index + 1];
+            } else {
+                // If at last item, cycle to first item
+                $nextMedia = count($media) > 1 ? $media[0] : null;
             }
 
             break;
@@ -370,9 +376,18 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                             <a href="view_album.php?id=<?php echo $albumId; ?>" class="btn btn-sm btn-outline-dark">
                                 <i class="fas fa-images me-1"></i> Back to Album
                             </a>
-                            <a href="manage_albums.php" class="btn btn-sm btn-outline-dark ms-2">
-                                <i class="fas fa-photo-video me-1"></i> Back to Albums
-                            </a>
+                            <?php if ($album['user_id'] === $user['id']): ?>
+                                <a href="manage_albums.php" class="btn btn-sm btn-outline-dark ms-2">
+                                    <i class="fas fa-photo-video me-1"></i> Back to Albums
+                                </a>
+                            <?php else: ?>
+                                <a href="view_profile.php?id=<?php echo $album['user_id']; ?>#media-gallery-section" class="btn btn-sm btn-outline-dark ms-2">
+                                    <i class="fas fa-images me-1"></i> View Albums
+                                </a>
+                                <a href="view_profile.php?id=<?php echo $album['user_id']; ?>" class="btn btn-sm btn-outline-dark ms-2">
+                                    <i class="fas fa-user me-1"></i> Back to Profile
+                                </a>
+                            <?php endif; ?>
                             <?php if ($currentMedia['post_id']): ?>
                                 <?php
                                 // Get additional post details for better identification
@@ -380,7 +395,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                 $postStmt->execute([$currentMedia['post_id']]);
                                 $postDetails = $postStmt->fetch(PDO::FETCH_ASSOC);
                                 ?>
-                                <a href="dashboardv2.php"
+                                <a href="dashboard.php"
                                    onclick="openPostModal(<?php echo $currentMedia['post_id']; ?>, <?php echo $currentMedia['id']; ?>, <?php echo $postDetails['user_id'] ?? 'null'; ?>, '<?php echo $postDetails['created_at'] ?? ''; ?>'); return false;"
                                    class="btn btn-sm btn-outline-dark ms-2">
                                     <i class="fas fa-link me-1"></i> View Post
@@ -395,7 +410,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                         created_at: createdAt,
                                         source: 'view_album'
                                     });
-                                    window.location.href = `dashboardv2.php?${params.toString()}`;
+                                    window.location.href = `dashboard.php?${params.toString()}`;
                                 }
                                 </script>
                             <?php endif; ?>
@@ -412,14 +427,14 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                 </video>
                             <?php endif; ?>
 
-                            <?php if ($prevMedia): ?>
-                                <a href="view_album.php?id=<?php echo $albumId; ?>&media_id=<?php echo $prevMedia['id']; ?>" class="media-nav prev">
+                            <?php if ($prevMedia && count($media) > 1): ?>
+                                <a href="view_album.php?id=<?php echo $albumId; ?>&media_id=<?php echo $prevMedia['id']; ?>" class="media-nav prev" title="Previous media">
                                     <i class="fas fa-chevron-left"></i>
                                 </a>
                             <?php endif; ?>
 
-                            <?php if ($nextMedia): ?>
-                                <a href="view_album.php?id=<?php echo $albumId; ?>&media_id=<?php echo $nextMedia['id']; ?>" class="media-nav next">
+                            <?php if ($nextMedia && count($media) > 1): ?>
+                                <a href="view_album.php?id=<?php echo $albumId; ?>&media_id=<?php echo $nextMedia['id']; ?>" class="media-nav next" title="Next media">
                                     <i class="fas fa-chevron-right"></i>
                                 </a>
                             <?php endif; ?>
@@ -537,9 +552,18 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                         </div>
 
                         <div>
-                            <a href="manage_albums.php" class="btn btn-sm btn-outline-dark">
-                                <i class="fas fa-arrow-left"></i> Back to Albums
-                            </a>
+                            <?php if ($album['user_id'] === $user['id']): ?>
+                                <a href="manage_albums.php" class="btn btn-sm btn-outline-dark">
+                                    <i class="fas fa-arrow-left"></i> Back to Albums
+                                </a>
+                            <?php else: ?>
+                                <a href="view_profile.php?id=<?php echo $album['user_id']; ?>#media-gallery-section" class="btn btn-sm btn-outline-dark">
+                                    <i class="fas fa-images"></i> View Albums
+                                </a>
+                                <a href="view_profile.php?id=<?php echo $album['user_id']; ?>" class="btn btn-sm btn-outline-dark ms-2">
+                                    <i class="fas fa-arrow-left"></i> Back to Profile
+                                </a>
+                            <?php endif; ?>
                             <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
                                 <a href="edit_album.php?id=<?php echo $albumId; ?>" class="btn btn-sm btn-outline-dark">
                                     <i class="fas fa-edit"></i> Edit
@@ -954,13 +978,18 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
           <div class="comment mb-3 p-3 rounded" data-comment-id="${comment.id}"
                style="background: rgba(0,0,0,0.05); border-left: 3px solid #007bff;">
             <div class="d-flex">
-              <img src="${comment.profile_pic}" alt="${comment.author}"
-                   class="rounded-circle me-3"
-                   style="width: 40px; height: 40px; object-fit: cover;">
+              <a href="view_profile.php?id=${comment.author_id}" class="text-decoration-none">
+                <img src="${comment.profile_pic}" alt="${comment.author}"
+                     class="rounded-circle me-3"
+                     style="width: 40px; height: 40px; object-fit: cover; cursor: pointer;"
+                     title="View ${comment.author}'s profile">
+              </a>
               <div class="comment-content flex-grow-1">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                   <div>
-                    <strong class="d-block">${comment.author}</strong>
+                    <a href="view_profile.php?id=${comment.author_id}" class="text-decoration-none">
+                      <strong class="d-block" style="cursor: pointer; color: #2c3e50;" title="View ${comment.author}'s profile">${comment.author}</strong>
+                    </a>
                     <small class="text-muted">
                       <i class="fas fa-clock me-1"></i>${timeAgo}
                     </small>

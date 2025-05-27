@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../db.php';
+require_once '../includes/NotificationHelper.php';
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);
@@ -60,74 +61,83 @@ if (!$reactionType && !$toggleOff) {
 try {
     // Begin transaction
     $pdo->beginTransaction();
-    
+
+    // Initialize notification helper
+    $notificationHelper = new NotificationHelper($pdo);
+
     // Check if post exists
     $stmt = $pdo->prepare("SELECT id FROM posts WHERE id = ?");
     $stmt->execute([$postId]);
     if ($stmt->rowCount() == 0) {
         throw new Exception("Post with ID $postId does not exist");
     }
-    
+
     // Check if user already reacted to this post
     $stmt = $pdo->prepare("
-        SELECT id, reaction_type 
-        FROM post_reactions 
+        SELECT id, reaction_type
+        FROM post_reactions
         WHERE user_id = ? AND post_id = ?
     ");
     $stmt->execute([$userId, $postId]);
     $existingReaction = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     // Log existing reaction for debugging
     error_log("Existing reaction: " . json_encode($existingReaction));
-    
+
     if ($existingReaction) {
         // User already reacted
         if ($toggleOff || $existingReaction['reaction_type'] == $reactionType) {
             // Remove reaction if toggling off or clicking the same reaction
             $stmt = $pdo->prepare("
-                DELETE FROM post_reactions 
+                DELETE FROM post_reactions
                 WHERE user_id = ? AND post_id = ?
             ");
             $stmt->execute([$userId, $postId]);
-            
+
             // Log the deletion for debugging
             error_log("Deleted reaction for user $userId on post $postId");
         } else {
             // Update to new reaction type
             $stmt = $pdo->prepare("
-                UPDATE post_reactions 
-                SET reaction_type = ?, updated_at = NOW() 
+                UPDATE post_reactions
+                SET reaction_type = ?, updated_at = NOW()
                 WHERE user_id = ? AND post_id = ?
             ");
             $stmt->execute([$reactionType, $userId, $postId]);
-            
+
             // Log the update for debugging
             error_log("Updated reaction for user $userId on post $postId to type $reactionType");
+
+            // Create notification for the post owner (update existing notification)
+            $notificationHelper->createReactionNotification($userId, $postId, null, $reactionType);
         }
     } else if (!$toggleOff) {
         // Check if updated_at column exists in post_reactions table
         $stmt = $pdo->query("DESCRIBE post_reactions");
         $columns = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
         $hasUpdatedAt = in_array('updated_at', $columns);
-        
+
         // Insert new reaction
         if ($hasUpdatedAt) {
             $stmt = $pdo->prepare("
-                INSERT INTO post_reactions (user_id, post_id, reaction_type, created_at, updated_at) 
+                INSERT INTO post_reactions (user_id, post_id, reaction_type, created_at, updated_at)
                 VALUES (?, ?, ?, NOW(), NOW())
             ");
         } else {
             $stmt = $pdo->prepare("
-                INSERT INTO post_reactions (user_id, post_id, reaction_type, created_at) 
+                INSERT INTO post_reactions (user_id, post_id, reaction_type, created_at)
                 VALUES (?, ?, ?, NOW())
             ");
         }
         $stmt->execute([$userId, $postId, $reactionType]);
-        
+
         // Log the insertion for debugging
         error_log("Inserted new reaction for user $userId on post $postId with type $reactionType");
+
+        // Create notification for the post owner
+        $notificationHelper->createReactionNotification($userId, $postId, null, $reactionType);
     }
-    
+
     // Get updated reaction counts
     $stmt = $pdo->prepare("
         SELECT reaction_type, COUNT(*) as count
@@ -138,12 +148,12 @@ try {
     $stmt->execute([$postId]);
     $reactionCounts = [];
     $totalCount = 0;
-    
+
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $reactionCounts[$row['reaction_type']] = (int)$row['count'];
         $totalCount += (int)$row['count'];
     }
-    
+
     // Get user's current reaction
     $stmt = $pdo->prepare("
         SELECT reaction_type
@@ -152,10 +162,10 @@ try {
     ");
     $stmt->execute([$userId, $postId]);
     $userReaction = $stmt->fetchColumn();
-    
+
     // Commit transaction
     $pdo->commit();
-    
+
     // Log the response for debugging
     $response = [
         'success' => true,
@@ -166,15 +176,15 @@ try {
         'user_reaction' => $userReaction
     ];
     error_log("Response from post_reaction.php: " . json_encode($response));
-    
+
     echo json_encode($response);
-    
+
 } catch (Exception $e) {
     // Rollback transaction on error
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    
+
     error_log("Error in post_reaction.php: " . $e->getMessage());
     echo json_encode([
         'success' => false,
