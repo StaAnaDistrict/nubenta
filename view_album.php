@@ -30,7 +30,7 @@ if ($albumId <= 0) {
 
 // Get album details
 $stmt = $pdo->prepare("
-    SELECT a.*, u.first_name, u.last_name, u.profile_pic as profile_picture 
+    SELECT a.*, u.first_name, u.last_name, u.profile_pic as profile_picture
     FROM user_media_albums a
     JOIN users u ON a.user_id = u.id
     WHERE a.id = ?
@@ -70,7 +70,7 @@ if ($albumId == 1) {
         $friendStmt->execute([$user['id'], $album['user_id'], $album['user_id'], $user['id']]);
         $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
         $areFriends = ($friendship['is_friend'] > 0);
-        
+
         // Show only public media for non-friends, or public+friends for friends
         if ($areFriends) {
             $stmt = $pdo->prepare("
@@ -94,9 +94,10 @@ if ($albumId == 1) {
     if ($album['user_id'] === $user['id'] || $user['role'] === 'admin') {
         // Show all media for owner or admin
         $stmt = $pdo->prepare("
-            SELECT m.*, am.created_at as added_at
+            SELECT m.*, am.created_at as added_at, p.content as post_content, p.id as linked_post_id
             FROM user_media m
             JOIN album_media am ON m.id = am.media_id
+            LEFT JOIN posts p ON m.post_id = p.id
             WHERE am.album_id = ?
             ORDER BY am.created_at DESC
         ");
@@ -113,21 +114,23 @@ if ($albumId == 1) {
         $friendStmt->execute([$user['id'], $album['user_id'], $album['user_id'], $user['id']]);
         $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
         $areFriends = ($friendship['is_friend'] > 0);
-        
+
         // Show only public media for non-friends, or public+friends for friends
         if ($areFriends) {
             $stmt = $pdo->prepare("
-                SELECT m.*, am.created_at as added_at
+                SELECT m.*, am.created_at as added_at, p.content as post_content, p.id as linked_post_id
                 FROM user_media m
                 JOIN album_media am ON m.id = am.media_id
+                LEFT JOIN posts p ON m.post_id = p.id
                 WHERE am.album_id = ? AND (m.privacy = 'public' OR m.privacy = 'friends')
                 ORDER BY am.created_at DESC
             ");
         } else {
             $stmt = $pdo->prepare("
-                SELECT m.*, am.created_at as added_at
+                SELECT m.*, am.created_at as added_at, p.content as post_content, p.id as linked_post_id
                 FROM user_media m
                 JOIN album_media am ON m.id = am.media_id
+                LEFT JOIN posts p ON m.post_id = p.id
                 WHERE am.album_id = ? AND m.privacy = 'public'
                 ORDER BY am.created_at DESC
             ");
@@ -140,23 +143,23 @@ $media = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Handle removing media from album
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_media']) && $albumId != 1) {
     $mediaId = intval($_POST['media_id']);
-    
+
     try {
         // Check if the album belongs to the user
         $stmt = $pdo->prepare("SELECT id FROM user_media_albums WHERE id = ? AND user_id = ?");
         $stmt->execute([$albumId, $user['id']]);
-        
+
         if ($stmt->fetch()) {
             // Remove media from album
             $stmt = $pdo->prepare("DELETE FROM album_media WHERE album_id = ? AND media_id = ?");
             $stmt->execute([$albumId, $mediaId]);
-            
+
             // If this was the cover image, update the album
             $stmt = $pdo->prepare("
                 SELECT cover_image_id FROM user_media_albums WHERE id = ? AND cover_image_id = ?
             ");
             $stmt->execute([$albumId, $mediaId]);
-            
+
             if ($stmt->fetch()) {
                 // Find a new cover image
                 $stmt = $pdo->prepare("
@@ -168,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_media']) && $a
                 ");
                 $stmt->execute([$albumId]);
                 $newCover = $stmt->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($newCover) {
                     $stmt = $pdo->prepare("
                         UPDATE user_media_albums SET cover_image_id = ? WHERE id = ?
@@ -182,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_media']) && $a
                     $stmt->execute([$albumId]);
                 }
             }
-            
+
             // Redirect to refresh the page
             header("Location: view_album.php?id=" . $albumId);
             exit();
@@ -196,23 +199,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_media']) && $a
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_privacy'])) {
     $mediaId = isset($_POST['media_id']) ? intval($_POST['media_id']) : 0;
     $privacy = isset($_POST['privacy']) ? $_POST['privacy'] : 'public';
-    
+
     if ($mediaId > 0) {
         // Check if media belongs to user
         $checkStmt = $pdo->prepare("SELECT user_id FROM user_media WHERE id = ?");
         $checkStmt->execute([$mediaId]);
         $mediaOwner = $checkStmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if ($mediaOwner && $mediaOwner['user_id'] == $user['id']) {
             // Update privacy setting
             $updateStmt = $pdo->prepare("UPDATE user_media SET privacy = ? WHERE id = ?");
             $updateStmt->execute([$privacy, $mediaId]);
-            
+
             $_SESSION['flash_message'] = [
                 'type' => 'success',
                 'message' => 'Privacy settings updated successfully'
             ];
-            
+
             // Redirect to refresh the page
             header("Location: view_album.php?id=" . $albumId . "&media_id=" . $mediaId);
             exit();
@@ -235,21 +238,21 @@ if ($mediaId > 0) {
     foreach ($media as $index => $item) {
         if ($item['id'] == $mediaId) {
             $currentMedia = $item;
-            
+
             // Get previous media
             if ($index > 0) {
                 $prevMedia = $media[$index - 1];
             }
-            
+
             // Get next media
             if ($index < count($media) - 1) {
                 $nextMedia = $media[$index + 1];
             }
-            
+
             break;
         }
     }
-    
+
     // If media not found in this album, redirect
     if (!$currentMedia) {
         $_SESSION['flash_message'] = [
@@ -339,12 +342,29 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                 </div>
                 <?php unset($_SESSION['flash_message']); ?>
             <?php endif; ?>
-            
+
             <?php if ($currentMedia): ?>
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            <?php echo htmlspecialchars($currentMedia['caption'] ?? ''); ?>
+                            <?php
+                            // Debug: Show what we have
+                            if (!empty($currentMedia['post_content'])) {
+                                echo htmlspecialchars($currentMedia['post_content']);
+                            } elseif (!empty($currentMedia['caption'])) {
+                                echo htmlspecialchars($currentMedia['caption']);
+                            } else {
+                                echo 'Media Viewer';
+                            }
+
+                            // Debug output (remove in production)
+                            if (isset($_GET['debug'])) {
+                                echo '<br><small style="color: red;">DEBUG: post_id=' . ($currentMedia['post_id'] ?? 'NULL') .
+                                     ', linked_post_id=' . ($currentMedia['linked_post_id'] ?? 'NULL') .
+                                     ', post_content=' . ($currentMedia['post_content'] ?? 'NULL') .
+                                     ', caption=' . ($currentMedia['caption'] ?? 'NULL') . '</small>';
+                            }
+                            ?>
                         </h5>
                         <div>
                             <a href="view_album.php?id=<?php echo $albumId; ?>" class="btn btn-sm btn-outline-dark">
@@ -354,9 +374,30 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                 <i class="fas fa-photo-video me-1"></i> Back to Albums
                             </a>
                             <?php if ($currentMedia['post_id']): ?>
-                                <a href="view_post.php?id=<?php echo $currentMedia['post_id']; ?>" class="btn btn-sm btn-outline-dark ms-2">
+                                <?php
+                                // Get additional post details for better identification
+                                $postStmt = $pdo->prepare("SELECT user_id, created_at FROM posts WHERE id = ?");
+                                $postStmt->execute([$currentMedia['post_id']]);
+                                $postDetails = $postStmt->fetch(PDO::FETCH_ASSOC);
+                                ?>
+                                <a href="dashboardv2.php"
+                                   onclick="openPostModal(<?php echo $currentMedia['post_id']; ?>, <?php echo $currentMedia['id']; ?>, <?php echo $postDetails['user_id'] ?? 'null'; ?>, '<?php echo $postDetails['created_at'] ?? ''; ?>'); return false;"
+                                   class="btn btn-sm btn-outline-dark ms-2">
                                     <i class="fas fa-link me-1"></i> View Post
                                 </a>
+                                <script>
+                                function openPostModal(postId, mediaId, userId, createdAt) {
+                                    // Enhanced redirect with more post identification parameters
+                                    const params = new URLSearchParams({
+                                        open_post: postId,
+                                        media_id: mediaId,
+                                        user_id: userId,
+                                        created_at: createdAt,
+                                        source: 'view_album'
+                                    });
+                                    window.location.href = `dashboardv2.php?${params.toString()}`;
+                                }
+                                </script>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -370,21 +411,28 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                     Your browser does not support the video tag.
                                 </video>
                             <?php endif; ?>
-                            
+
                             <?php if ($prevMedia): ?>
                                 <a href="view_album.php?id=<?php echo $albumId; ?>&media_id=<?php echo $prevMedia['id']; ?>" class="media-nav prev">
                                     <i class="fas fa-chevron-left"></i>
                                 </a>
                             <?php endif; ?>
-                            
+
                             <?php if ($nextMedia): ?>
                                 <a href="view_album.php?id=<?php echo $albumId; ?>&media_id=<?php echo $nextMedia['id']; ?>" class="media-nav next">
                                     <i class="fas fa-chevron-right"></i>
                                 </a>
                             <?php endif; ?>
                         </div>
-                        
+
                         <div class="media-info">
+                            <!-- Post Caption -->
+                            <?php if (!empty($currentMedia['post_content'])): ?>
+                                <div class="mb-3">
+                                    <p class="mb-0"><?php echo nl2br(htmlspecialchars($currentMedia['post_content'])); ?></p>
+                                </div>
+                            <?php endif; ?>
+
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <span class="text-muted">Uploaded: <?php echo date('F j, Y, g:i a', strtotime($currentMedia['added_at'])); ?></span>
@@ -412,34 +460,58 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Reactions section -->
                         <div class="reactions-section mt-3">
                             <div class="d-flex">
                                 <button class="btn btn-sm btn-outline-dark me-2 post-react-btn" data-post-id="<?php echo $currentMedia['id']; ?>" data-content-type="media">
                                     <i class="far fa-smile me-1"></i> React
                                 </button>
-                                
+
                                 <button class="btn btn-sm btn-outline-dark me-2">
                                     <i class="far fa-comment me-1"></i> Comment
                                 </button>
-                                
+
                                 <button class="btn btn-sm btn-outline-dark">
                                     <i class="fas fa-share me-1"></i> Share
                                 </button>
                             </div>
-                            
+
                             <!-- Add a container for reaction summary -->
                             <div class="reaction-summary" data-media-id="<?php echo $currentMedia['id']; ?>" style="display: none; align-items: center; margin-top: 10px;"></div>
                         </div>
-                        
+
                         <div id="reactionsContainer" class="mt-2">
                             <!-- Reactions will be displayed here -->
                         </div>
-                        
-                        <div class="mt-3">
-                            <h6>Comments</h6>
-                            <p class="text-muted small">Comments feature coming soon!</p>
+
+                        <!-- Comments Section -->
+                        <div class="comments-section mt-3">
+                            <h6 class="mb-3">
+                                <i class="fas fa-comments me-2"></i>Comments
+                                <small class="text-muted ms-2" id="comment-count-<?php echo $currentMedia['id']; ?>">Loading...</small>
+                            </h6>
+
+                            <!-- Comments Container -->
+                            <div class="comments-container mb-3"
+                                 data-media-id="<?php echo $currentMedia['id']; ?>"
+                                 style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.05); border-radius: 8px; padding: 15px;">
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-comments fa-2x mb-2"></i>
+                                    <p>Loading comments...</p>
+                                </div>
+                            </div>
+
+                            <!-- Comment Form -->
+                            <form class="comment-form" data-media-id="<?php echo $currentMedia['id']; ?>">
+                                <div class="input-group">
+                                    <input type="text" class="form-control comment-input"
+                                           placeholder="Write a comment..." required>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-paper-plane me-1"></i> Post
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -458,12 +530,12 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                             <div>
                                 <h5 class="mb-0"><?php echo htmlspecialchars($album['album_name']); ?></h5>
                                 <small class="text-muted">
-                                    By <?php echo htmlspecialchars($album['username']); ?> • 
+                                    By <?php echo htmlspecialchars($album['username']); ?> •
                                     <?php echo count($media); ?> item<?php echo count($media) != 1 ? 's' : ''; ?>
                                 </small>
                             </div>
                         </div>
-                        
+
                         <div>
                             <a href="manage_albums.php" class="btn btn-sm btn-outline-dark">
                                 <i class="fas fa-arrow-left"></i> Back to Albums
@@ -481,7 +553,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                 <p><?php echo nl2br(htmlspecialchars($album['description'])); ?></p>
                             </div>
                         <?php endif; ?>
-                        
+
                         <?php if (empty($media)): ?>
                             <div class="text-center py-5">
                                 <i class="fas fa-photo-video fa-3x mb-3 text-muted"></i>
@@ -520,7 +592,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                                         <i class="fas fa-file fa-3x text-muted"></i>
                                                     </div>
                                                 <?php endif; ?>
-                                                
+
                                                 <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
                                                     <div class="position-absolute top-0 end-0 p-2">
                                                         <button type="button" class="btn btn-sm btn-dark" data-bs-toggle="modal" data-bs-target="#removeMediaModal<?php echo $item['id']; ?>">
@@ -528,7 +600,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                                         </button>
                                                     </div>
                                                 <?php endif; ?>
-                                                
+
                                                 <!-- Privacy indicator -->
                                                 <div class="position-absolute bottom-0 start-0 p-2">
                                                     <span class="badge bg-dark">
@@ -541,7 +613,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                                     <small class="text-muted">
                                                         Added: <?php echo date('M j, Y', strtotime($item['added_at'])); ?>
                                                     </small>
-                                                    <button class="btn btn-sm btn-outline-dark post-react-btn" data-post-id="<?php echo $item['id']; ?>">
+                                                    <button class="btn btn-sm btn-outline-dark post-react-btn" data-post-id="<?php echo $item['id']; ?>" data-content-type="media">
                                                         <i class="far fa-smile me-1"></i> React
                                                     </button>
                                                 </div>
@@ -550,7 +622,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
                                         <!-- Remove Media Modal -->
                                         <div class="modal fade" id="removeMediaModal<?php echo $item['id']; ?>" tabindex="-1" aria-hidden="true">
@@ -589,7 +661,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
         include 'assets/add_ons.php';
         ?>
     </div>
-    
+
     <!-- Add Media Modal -->
     <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
     <div class="modal fade" id="addMediaModal" tabindex="-1" aria-hidden="true">
@@ -663,14 +735,14 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
     // Load user media for the Add Media modal
     document.getElementById('addMediaModal').addEventListener('show.bs.modal', function () {
         const mediaSelector = document.querySelector('.media-selector');
-        
+
         // Fetch user media that's not already in this album
         fetch('api/get_user_media.php?exclude_album=<?php echo $albumId; ?>')
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.media.length > 0) {
                     let html = '<div class="row row-cols-2 row-cols-md-4 g-3">';
-                    
+
                     data.media.forEach(item => {
                         html += `
                             <div class="col">
@@ -678,12 +750,12 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                     <div class="form-check position-absolute top-0 end-0 m-2">
                                         <input class="form-check-input media-checkbox" type="checkbox" value="${item.id}" id="media${item.id}">
                                     </div>
-                                    ${item.media_type.includes('image') 
-                                        ? `<img src="${item.media_url}" class="card-img-top" alt="Image" style="height: 120px; object-fit: cover;">` 
+                                    ${item.media_type.includes('image')
+                                        ? `<img src="${item.media_url}" class="card-img-top" alt="Image" style="height: 120px; object-fit: cover;">`
                                         : (item.media_type.includes('video')
                                             ? `<div class="position-relative">
-                                                ${item.thumbnail_url 
-                                                    ? `<img src="${item.thumbnail_url}" class="card-img-top" alt="Video thumbnail" style="height: 120px; object-fit: cover;">` 
+                                                ${item.thumbnail_url
+                                                    ? `<img src="${item.thumbnail_url}" class="card-img-top" alt="Video thumbnail" style="height: 120px; object-fit: cover;">`
                                                     : `<div class="d-flex align-items-center justify-content-center bg-dark text-white" style="height: 120px;"><i class="fas fa-video fa-2x"></i></div>`
                                                 }
                                                 <div class="position-absolute top-50 start-50 translate-middle">
@@ -700,14 +772,14 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                             </div>
                         `;
                     });
-                    
+
                     html += '</div>';
                     html += '<div class="mt-3 d-flex justify-content-end">';
                     html += '<button type="button" class="btn btn-primary" id="addSelectedMedia">Add Selected Media</button>';
                     html += '</div>';
-                    
+
                     mediaSelector.innerHTML = html;
-                    
+
                     // Add event listeners to checkboxes
                     document.querySelectorAll('.media-checkbox').forEach(checkbox => {
                         checkbox.addEventListener('change', function() {
@@ -719,7 +791,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                             }
                         });
                     });
-                    
+
                     // Add event listener to media items for easier selection
                     document.querySelectorAll('.media-item').forEach(item => {
                         item.addEventListener('click', function(e) {
@@ -727,7 +799,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                             if (e.target.type !== 'checkbox') {
                                 const checkbox = this.querySelector('.media-checkbox');
                                 checkbox.checked = !checkbox.checked;
-                                
+
                                 // Trigger change event
                                 const event = new Event('change');
                                 checkbox.dispatchEvent(event);
@@ -748,12 +820,12 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
     document.getElementById('addSelectedMedia').addEventListener('click', function() {
         const checkboxes = document.querySelectorAll('.media-selector input[type="checkbox"]:checked');
         const mediaIds = Array.from(checkboxes).map(cb => cb.value);
-        
+
         if (mediaIds.length === 0) {
             alert('Please select at least one media item to add.');
             return;
         }
-        
+
         // Send request to add media to album
         fetch('api/add_media_to_album.php', {
             method: 'POST',
@@ -785,23 +857,23 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
     function safeInitReactionSystem() {
       try {
         console.log('Checking SimpleReactionSystem');
-        
+
         // Initialize SimpleReactionSystem if available and not already initialized
         if (window.SimpleReactionSystem && !window.reactionSystemInitialized) {
           console.log('Initializing SimpleReactionSystem');
           window.SimpleReactionSystem.init();
-          
+
           // Load reactions for the current media
-          const mediaId = <?php echo isset($media_id) && is_numeric($media_id) ? $media_id : 'null'; ?>;
+          const mediaId = <?php echo isset($currentMedia) ? $currentMedia['id'] : 'null'; ?>;
           if (mediaId) {
             console.log('Loading reactions for media ID:', mediaId);
             window.SimpleReactionSystem.loadReactions(mediaId);
           }
         } else if (window.reactionSystemInitialized) {
           console.log('SimpleReactionSystem already initialized');
-          
+
           // Still load reactions for the current media
-          const mediaId = <?php echo isset($media_id) && is_numeric($media_id) ? $media_id : 'null'; ?>;
+          const mediaId = <?php echo isset($currentMedia) ? $currentMedia['id'] : 'null'; ?>;
           if (mediaId) {
             console.log('Loading reactions for media ID:', mediaId);
             window.SimpleReactionSystem.loadReactions(mediaId);
@@ -812,18 +884,239 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
       }
     }
 
+    // Initialize comment system for view_album.php
+    function initCommentSystem() {
+      const mediaId = <?php echo isset($currentMedia) ? $currentMedia['id'] : 'null'; ?>;
+      if (!mediaId) return;
+
+      console.log('Initializing comment system for media:', mediaId);
+
+      // Load existing comments
+      loadComments(mediaId);
+
+      // Set up comment form
+      const commentForm = document.querySelector(`form[data-media-id="${mediaId}"]`);
+      if (commentForm) {
+        commentForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          submitComment(mediaId);
+        });
+      }
+    }
+
+    // Load comments for media
+    async function loadComments(mediaId) {
+      try {
+        const response = await fetch(`api/get_media_comments.php?media_id=${mediaId}`);
+        if (!response.ok) {
+          throw new Error('Failed to load comments');
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          displayComments(mediaId, data.comments);
+        } else {
+          console.error('Error loading comments:', data.error);
+        }
+      } catch (error) {
+        console.error('Error loading comments:', error);
+      }
+    }
+
+    // Display comments
+    function displayComments(mediaId, comments) {
+      const commentsContainer = document.querySelector(`[data-media-id="${mediaId}"].comments-container`);
+      const countDisplay = document.getElementById(`comment-count-${mediaId}`);
+
+      if (!commentsContainer) return;
+
+      // Update comment count
+      if (countDisplay) {
+        countDisplay.textContent = `(${comments.length})`;
+      }
+
+      if (comments.length === 0) {
+        commentsContainer.innerHTML = `
+          <div class="text-center text-muted py-4">
+            <i class="fas fa-comments fa-3x mb-3 opacity-50"></i>
+            <p class="mb-0">No comments yet.</p>
+            <small>Be the first to share your thoughts!</small>
+          </div>
+        `;
+        return;
+      }
+
+      let commentsHTML = '';
+      comments.forEach(comment => {
+        const timeAgo = formatTimeAgo(comment.created_at);
+
+        commentsHTML += `
+          <div class="comment mb-3 p-3 rounded" data-comment-id="${comment.id}"
+               style="background: rgba(0,0,0,0.05); border-left: 3px solid #007bff;">
+            <div class="d-flex">
+              <img src="${comment.profile_pic}" alt="${comment.author}"
+                   class="rounded-circle me-3"
+                   style="width: 40px; height: 40px; object-fit: cover;">
+              <div class="comment-content flex-grow-1">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <strong class="d-block">${comment.author}</strong>
+                    <small class="text-muted">
+                      <i class="fas fa-clock me-1"></i>${timeAgo}
+                    </small>
+                  </div>
+                  ${comment.is_own_comment ?
+                    `<button class="btn btn-sm btn-outline-danger delete-comment-btn"
+                             data-comment-id="${comment.id}"
+                             data-media-id="${mediaId}"
+                             title="Delete comment">
+                        <i class="fas fa-trash-alt"></i>
+                     </button>` :
+                    ''
+                  }
+                </div>
+                <p class="mb-0" style="line-height: 1.4;">${comment.content}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      commentsContainer.innerHTML = commentsHTML;
+
+      // Set up delete comment handlers
+      commentsContainer.querySelectorAll('.delete-comment-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const commentId = this.getAttribute('data-comment-id');
+          const mediaId = this.getAttribute('data-media-id');
+          deleteComment(commentId, mediaId);
+        });
+      });
+    }
+
+    // Submit comment
+    async function submitComment(mediaId) {
+      const commentForm = document.querySelector(`form[data-media-id="${mediaId}"]`);
+      if (!commentForm) return;
+
+      const commentInput = commentForm.querySelector('.comment-input');
+      if (!commentInput) return;
+
+      const content = commentInput.value.trim();
+      if (!content) return;
+
+      const submitButton = commentForm.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Posting...';
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append('media_id', mediaId);
+        formData.append('content', content);
+
+        const response = await fetch('api/post_media_comment.php', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to post comment');
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          commentInput.value = '';
+          // Reload comments to show the new comment
+          await loadComments(mediaId);
+
+          // Show brief success feedback
+          if (submitButton) {
+            submitButton.innerHTML = '<i class="fas fa-check me-1"></i> Posted!';
+            setTimeout(() => {
+              submitButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Post';
+            }, 2000);
+          }
+        } else {
+          console.error('Error posting comment:', data.error);
+          alert('Error posting comment: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error posting comment:', error);
+        alert('An error occurred while posting your comment: ' + error.message);
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          if (!submitButton.innerHTML.includes('Posted!')) {
+            submitButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Post';
+          }
+        }
+      }
+    }
+
+    // Delete comment
+    async function deleteComment(commentId, mediaId) {
+      if (!confirm('Are you sure you want to delete this comment?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('api/delete_media_comment.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: `comment_id=${commentId}`
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete comment');
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          // Reload comments to reflect the deletion
+          await loadComments(mediaId);
+        } else {
+          console.error('Error deleting comment:', data.error);
+          alert('Error deleting comment: ' + data.error);
+        }
+      } catch (error) {
+        console.error('Error deleting comment:', error);
+        alert('An error occurred while deleting your comment.');
+      }
+    }
+
+    // Utility function to format time ago
+    function formatTimeAgo(dateString) {
+      const now = new Date();
+      const date = new Date(dateString);
+      const diffInSeconds = Math.floor((now - date) / 1000);
+
+      if (diffInSeconds < 60) return 'Just now';
+      if (diffInSeconds < 3600) return Math.floor(diffInSeconds / 60) + ' minutes ago';
+      if (diffInSeconds < 86400) return Math.floor(diffInSeconds / 3600) + ' hours ago';
+      if (diffInSeconds < 2592000) return Math.floor(diffInSeconds / 86400) + ' days ago';
+
+      return date.toLocaleDateString();
+    }
+
     // Initialize reaction system when DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
       console.log('DOM loaded for view_album.php');
-      
+
       // Remove any existing reaction pickers to prevent duplicates
       document.querySelectorAll('.reaction-picker:not(#simple-reaction-picker)').forEach(picker => {
         console.log('Removing duplicate reaction picker:', picker);
         picker.remove();
       });
-      
+
       // Safely initialize the reaction system
       safeInitReactionSystem();
+
+      // Initialize comment system
+      initCommentSystem();
     });
 
     // Add window resize handler to reposition picker if needed
@@ -863,10 +1156,10 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                 'button[style*="position: fixed"][style*="bottom: 10px"][style*="right: 10px"], ' +
                 'button[style*="background-color: #f44336"]'
             );
-            
+
             debugButtons.forEach(button => {
-                if (button.textContent && 
-                    (button.textContent.toLowerCase().includes('debug') || 
+                if (button.textContent &&
+                    (button.textContent.toLowerCase().includes('debug') ||
                     button.getAttribute('id')?.toLowerCase().includes('debug') ||
                     button.getAttribute('class')?.toLowerCase().includes('debug'))) {
                     console.log('Removing debug button:', button);
@@ -874,7 +1167,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                 }
             });
         }
-        
+
         // Override any methods that might add debug buttons
         if (window.SimpleReactionSystem) {
             window.SimpleReactionSystem.addDebugButton = function() {
@@ -882,7 +1175,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                 return;
             };
         }
-        
+
         // Run immediately and after delays
         removeDebugButtons();
         setTimeout(removeDebugButtons, 500);
