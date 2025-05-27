@@ -250,7 +250,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <!-- <script src="assets/js/reaction-init.js"></script> -->
 
     <!-- Load other non-reaction scripts -->
-    <script src="assets/js/comments.js"></script>
+    <script src="assets/js/comments.js?v=<?= time() ?>"></script>
     <script src="assets/js/comment-initializer.js"></script>
     <script src="assets/js/share.js"></script>
     <script src="assets/js/activity-tracker.js"></script>

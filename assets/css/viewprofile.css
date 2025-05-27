@@ -228,6 +228,28 @@
   color: rgba(255,255,255,0.7) !important;
 }
 
+/* Contents Section Styles - Now using proper Bootstrap structure */
+.profile-section#contents-section {
+  /* Let Bootstrap handle the width naturally */
+}
+
+.profile-section#contents-section .post {
+  width: 100%;
+  max-width: 100%;
+}
+
+.profile-section#contents-section .post .card {
+  width: 100%;
+  max-width: 100%;
+}
+
+.profile-section#contents-section .post-media-container img,
+.profile-section#contents-section .post-media-container video {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .profile-header {

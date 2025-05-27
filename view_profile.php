@@ -213,7 +213,7 @@ try {
     <title><?= htmlspecialchars($u['full_name']) ?>'s Profile</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link href="assets/css/viewprofile.css" rel="stylesheet">
+    <link href="assets/css/viewprofile.css?v=<?= time() ?>" rel="stylesheet">
     <!-- Dashboard.php CSS files for reactions and comments -->
     <link rel="stylesheet" href="assets/css/reactions.css">
     <link rel="stylesheet" href="assets/css/simple-reactions.css">
@@ -628,21 +628,24 @@ try {
                 <?php endif; ?>
             </div>
         </div>
-  </div>
 
         <!-- Contents Section -->
         <div class="profile-section" id="contents-section">
             <h3 class="section-title">Contents</h3>
-            <div id="user-posts-container">
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading posts...</span>
+            <div class="row">
+                <div class="col-12">
+                    <div id="user-posts-container">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading posts...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Loading user contents...</p>
+                        </div>
                     </div>
-                    <p class="mt-2 text-muted">Loading user contents...</p>
                 </div>
             </div>
         </div>
-  </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -659,7 +662,7 @@ try {
     <script src="assets/js/simple-reactions.js"></script>
 
     <!-- Load other non-reaction scripts (SAME as dashboard.php) -->
-    <script src="assets/js/comments.js"></script>
+    <script src="assets/js/comments.js?v=<?= time() ?>"></script>
     <script src="assets/js/comment-initializer.js"></script>
     <script src="assets/js/share.js"></script>
     <script src="assets/js/activity-tracker.js"></script>

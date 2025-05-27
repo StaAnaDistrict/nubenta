@@ -26,7 +26,7 @@ try {
     $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM comments WHERE post_id = ?");
     $stmt->execute([$post_id]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     header('Content-Type: application/json');
     echo json_encode([
       'success' => true,
@@ -35,10 +35,10 @@ try {
     ]);
     exit();
   }
-  
+
   // Get full comments for post
   $stmt = $pdo->prepare("
-    SELECT c.*, 
+    SELECT c.*,
            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
            u.profile_pic,
            u.gender
@@ -49,20 +49,20 @@ try {
   ");
   $stmt->execute([$post_id]);
   $comments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-  
+
   // Format comments for response
   $formatted_comments = [];
   foreach ($comments as $comment) {
     // Determine profile picture
     $defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
     $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
-    $profilePic = !empty($comment['profile_pic']) 
-        ? 'uploads/profile_pics/' . htmlspecialchars($comment['profile_pic']) 
+    $profilePic = !empty($comment['profile_pic'])
+        ? 'uploads/profile_pics/' . htmlspecialchars($comment['profile_pic'])
         : ($comment['gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
-    
+
     // Get replies for this comment
     $repliesStmt = $pdo->prepare("
-      SELECT cr.*, 
+      SELECT cr.*,
              CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
              u.profile_pic,
              u.gender
@@ -73,16 +73,17 @@ try {
     ");
     $repliesStmt->execute([$comment['id']]);
     $replies = $repliesStmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Format replies
     $formatted_replies = [];
     foreach ($replies as $reply) {
-      $replyProfilePic = !empty($reply['profile_pic']) 
-          ? 'uploads/profile_pics/' . htmlspecialchars($reply['profile_pic']) 
+      $replyProfilePic = !empty($reply['profile_pic'])
+          ? 'uploads/profile_pics/' . htmlspecialchars($reply['profile_pic'])
           : ($reply['gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
-      
+
       $formatted_replies[] = [
         'id' => $reply['id'],
+        'user_id' => $reply['user_id'],
         'content' => htmlspecialchars($reply['content']),
         'author' => htmlspecialchars($reply['author_name']),
         'profile_pic' => $replyProfilePic,
@@ -90,9 +91,10 @@ try {
         'is_own_reply' => ($reply['user_id'] == $user_id)
       ];
     }
-    
+
     $formatted_comments[] = [
       'id' => $comment['id'],
+      'user_id' => $comment['user_id'],
       'content' => htmlspecialchars($comment['content']),
       'author' => htmlspecialchars($comment['author_name']),
       'profile_pic' => $profilePic,
@@ -102,13 +104,13 @@ try {
       'reply_count' => count($formatted_replies)
     ];
   }
-  
+
   header('Content-Type: application/json');
   echo json_encode([
     'success' => true,
     'comments' => $formatted_comments
   ]);
-  
+
 } catch (Exception $e) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'error' => $e->getMessage()]);
