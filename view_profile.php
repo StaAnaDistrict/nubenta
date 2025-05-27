@@ -812,13 +812,13 @@ try {
                         </div>
 
                         <div class="post-actions d-flex mt-3">
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}" style="font-size: 0.8rem;">
+                            <button class="post-action-btn post-react-btn me-2" data-post-id="${post.id}">
                                 <i class="far fa-smile me-1"></i> React
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}" style="font-size: 0.8rem;">
+                            <button class="post-action-btn post-comment-btn me-2" data-post-id="${post.id}">
                                 <i class="far fa-comment me-1"></i> Comment <span class="comment-count-badge"></span>
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}" style="font-size: 0.8rem;">
+                            <button class="post-action-btn post-share-btn me-2" data-post-id="${post.id}">
                                 <i class="far fa-share-square me-1"></i> Share
                             </button>
                             ${isOwnPost ? `

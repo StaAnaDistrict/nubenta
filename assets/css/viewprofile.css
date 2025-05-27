@@ -250,6 +250,52 @@
   height: auto;
 }
 
+/* Post Action Button Styles for Contents Section - Match Dashboard */
+.profile-section#contents-section .post-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  margin-right: 5px;
+  border-radius: 4px;
+  background-color: #0f2a43;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  text-decoration: none;
+}
+
+.profile-section#contents-section .post-action-btn:hover {
+  background-color: #1a3f61;
+  color: white;
+}
+
+.profile-section#contents-section .post-action-btn i,
+.profile-section#contents-section .post-action-btn svg {
+  margin-right: 5px;
+}
+
+/* Active state when reaction is selected */
+.profile-section#contents-section .post-action-btn.has-reacted {
+  background-color: #0f2a43;
+  color: white;
+  font-weight: 500;
+}
+
+/* When reaction button shows emoticon (active state) */
+.profile-section#contents-section .post-react-btn.has-reacted {
+  background-color: #0f2a43;
+  color: white;
+}
+
+/* Comment button active state */
+.profile-section#contents-section .post-comment-btn.active {
+  background-color: #0f2a43;
+  color: white;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .profile-header {
