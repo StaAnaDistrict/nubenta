@@ -399,7 +399,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                                 <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}" data-content-type="post">
                                     <i class="far fa-smile me-1"></i> React
                                 </button>
-                                <div class="reaction-summary" data-post-id="${post.id}" style="display: none; margin-top: 10px;"></div>
                             </div>
                             <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
                                 <i class="far fa-comment me-1"></i> <span class="comment-text">Comment</span> <span class="comment-count-badge"></span>
@@ -421,6 +420,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                                 </button>
                             ` : ''}
                         </div>
+                        <div class="reaction-summary" data-post-id="${post.id}" style="display: none; margin-top: 10px;"></div>
                     `;
 
                     postElement.innerHTML = postHTML;
