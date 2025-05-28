@@ -390,78 +390,9 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     // Log the media data for debugging
                     console.log(`Post ${post.id} media:`, post.media);
 
-                    // Check if this is a friend activity post
+                    // Activity tracking is maintained for ordering, but no visual headers
+                    // Activity notifications are now shown in the right sidebar
                     let activityHeader = '';
-                    if (post.friend_activity) {
-                        let activityText = '';
-                        let clickAction = '';
-                        let activityIcon = '';
-                        let borderColor = '#495057'; // Default dark gray
-
-                        if (post.friend_activity.type === 'comment') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> commented on this post`;
-                            clickAction = `onclick="highlightComment(${post.id}, ${post.friend_activity.comment_id})"`;
-                            activityIcon = 'fas fa-comment';
-                            borderColor = '#495057'; // Dark gray for comments
-                        } else if (post.friend_activity.type === 'comment_on_friend_post') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> commented on ${post.author}'s post`;
-                            clickAction = `onclick="highlightComment(${post.id}, ${post.friend_activity.comment_id})"`;
-                            activityIcon = 'fas fa-user-friends';
-                            borderColor = '#6c757d'; // Medium gray for friend post interactions
-                        } else if (post.friend_activity.type === 'reaction_on_friend_post') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> reacted ${post.friend_activity.reaction_type} to ${post.author}'s post`;
-                            clickAction = `onclick="showReactionDetails(${post.id})"`;
-                            activityIcon = 'fas fa-heart';
-                            borderColor = '#e83e8c'; // Pink for reactions on friend posts
-                        } else if (post.friend_activity.type === 'media_comment') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> commented on media in this post`;
-                            clickAction = `onclick="openMediaWithComment(${post.id}, ${post.friend_activity.media_id}, ${post.friend_activity.comment_id})"`;
-                            activityIcon = 'fas fa-photo-video';
-                            borderColor = '#0d223d'; // Dark blue for media (matching your project theme)
-                        } else if (post.friend_activity.type === 'post_reaction') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> reacted ${post.friend_activity.reaction_type} to this post`;
-                            clickAction = `onclick="showReactionDetails(${post.id})"`;
-                            activityIcon = 'fas fa-heart';
-                            borderColor = '#52637a'; // Muted blue-gray for reactions
-                        } else if (post.friend_activity.type === 'media_reaction') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> reacted ${post.friend_activity.reaction_type} to media in this post`;
-                            clickAction = `onclick="openMediaWithReaction(${post.id}, ${post.friend_activity.media_id})"`;
-                            activityIcon = 'fas fa-heart';
-                            borderColor = '#6f42c1'; // Purple for media reactions
-                        } else if (post.friend_activity.type === 'reaction') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> reacted ${post.friend_activity.reaction_type} to this post`;
-                            clickAction = `onclick="showReactionDetails(${post.id})"`;
-                            activityIcon = 'fas fa-heart';
-                            borderColor = '#52637a'; // Muted blue-gray for reactions (matching your project theme)
-                        } else if (post.friend_activity.type === 'friend_request') {
-                            activityText = `You are now connected with <strong>${post.friend_activity.friend_name}</strong>`;
-                            clickAction = `onclick="viewProfile('${post.friend_activity.friend_name}')"`;
-                            activityIcon = 'fas fa-user-plus';
-                            borderColor = '#28a745'; // Green for new connections
-                        } else if (post.friend_activity.type === 'friend_connection') {
-                            activityText = `<strong onclick="viewProfile(${post.friend_activity.friend_user_id})" style="cursor: pointer; color: #007bff;">${post.friend_activity.friend_name}</strong> is now friends with <strong onclick="viewProfile(${post.friend_activity.other_friend_user_id})" style="cursor: pointer; color: #007bff;">${post.friend_activity.other_friend_name}</strong>`;
-                            clickAction = ``; // Remove the overall click action
-                            activityIcon = 'fas fa-users';
-                            borderColor = '#17a2b8'; // Blue for friend connections
-                        } else if (post.friend_activity.type === 'profile_update') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> updated their profile`;
-                            clickAction = `onclick="viewProfile('${post.friend_activity.friend_name}')"`;
-                            activityIcon = 'fas fa-user-edit';
-                            borderColor = '#17a2b8'; // Blue for profile updates
-                        }
-
-                        activityHeader = `
-                            <div class="friend-activity-header mb-2 p-2 rounded" ${clickAction}
-                                 style="background-color: #f8f9fa; border-left: 4px solid ${borderColor}; cursor: pointer; transition: background-color 0.2s;">
-                                <img src="${post.friend_activity.friend_profile_pic}" alt="Friend" class="rounded-circle me-2" width="24" height="24">
-                                <small style="color: ${borderColor};">
-                                    <i class="${activityIcon} me-1"></i>
-                                    ${activityText}
-                                    <span class="text-muted ms-2">${new Date(post.friend_activity.activity_time).toLocaleString()}</span>
-                                </small>
-                            </div>
-                        `;
-                    }
 
                     // Create post HTML with clickable profile elements
                     let postHTML = `

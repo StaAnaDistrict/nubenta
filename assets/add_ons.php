@@ -31,20 +31,20 @@ $elementTitle = isset($topElementTitle) ? $topElementTitle : null;
     <?php if ($showTopElement): ?>
         <?php include_once 'api/add_ons_top_element.php'; ?>
     <?php endif; ?>
-    
+
     <?php if ($showMiddleElement): ?>
-        <?php 
+        <?php
         // Reset element title for middle element
         $elementTitle = isset($middleElementTitle) ? $middleElementTitle : null;
-        include_once 'api/add_ons_middle_element.php'; 
+        include_once 'api/add_ons_middle_element_html.php';
         ?>
     <?php endif; ?>
-    
+
     <?php if ($showBottomElement): ?>
-        <?php 
+        <?php
         // Reset element title for bottom element
         $elementTitle = isset($bottomElementTitle) ? $bottomElementTitle : null;
-        include_once 'api/add_ons_bottom_element.php'; 
+        include_once 'api/add_ons_bottom_element.php';
         ?>
     <?php endif; ?>
 </aside>
