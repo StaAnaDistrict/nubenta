@@ -103,18 +103,18 @@ if ($custom_theme !== null && $custom_theme !== '') {
     // Basic security checks
     $custom_theme = preg_replace('/<\?php.*?\?>/s', '', $custom_theme); // Remove PHP tags
     $custom_theme = preg_replace('/<\?.*?\?>/s', '', $custom_theme);    // Remove short PHP tags
-    
+
     // Allow style, script, and common HTML tags
     $allowed_tags = '<style><script><div><span><p><br><strong><em><i><b><u><h1><h2><h3><h4><h5><h6>';
-    
+
     // Preserve script content
     $custom_theme = preg_replace_callback('/<script\b[^>]*>(.*?)<\/script>/is', function($matches) {
         return '<script type="text/javascript">' . $matches[1] . '</script>';
     }, $custom_theme);
-    
+
     // Strip tags but preserve script content
     $custom_theme = strip_tags($custom_theme, $allowed_tags);
-    
+
     // Add to params array
     $params['custom_theme'] = $custom_theme;
     error_log("Processed custom theme: " . $custom_theme);
@@ -211,7 +211,7 @@ if (!empty($_FILES['profile_pic']['name'])) {
         echo json_encode(['success'=>false,'message'=>'Database error while updating profile picture']);
         exit;
     }
-    
+
     $picStmt->bind_param('si', $newName, $id);
     if (!$picStmt->execute()) {
         error_log("Failed to update profile_pic in database: " . $picStmt->error);
@@ -219,6 +219,21 @@ if (!empty($_FILES['profile_pic']['name'])) {
         exit;
     }
     $picStmt->close();
+
+    // Add profile picture to Profile Pictures album
+    try {
+        require_once __DIR__ . '/includes/MediaUploader.php';
+        require_once __DIR__ . '/db.php';
+
+        $mediaUploader = new MediaUploader($pdo);
+        $albumResult = $mediaUploader->addProfilePictureToAlbum($id, $newName);
+
+        if (!$albumResult) {
+            error_log("Failed to add profile picture to album for user $id");
+        }
+    } catch (Exception $e) {
+        error_log("Error adding profile picture to album: " . $e->getMessage());
+    }
 }
 
 try {
@@ -231,13 +246,13 @@ try {
     $selectStmt->bind_param('i', $id);
     $selectStmt->execute();
     $result = $selectStmt->get_result();
-    
+
     if ($result && $result->num_rows > 0) {
         $_SESSION['user'] = $result->fetch_assoc();
     }
-    
+
     $response = ['success' => true, 'message' => 'Profile updated successfully'];
-    
+
 } catch (Exception $e) {
     error_log("Error in process_update_profile.php: " . $e->getMessage());
     $response = ['success' => false, 'message' => $e->getMessage()];

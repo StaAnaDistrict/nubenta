@@ -1464,5 +1464,170 @@ class MediaUploader {
             ];
         }
     }
+
+    /**
+     * Ensure Profile Pictures album exists for a user
+     * @param int $userId User ID
+     * @return array Result with success status and message
+     */
+    public function ensureProfilePicturesAlbum($userId) {
+        try {
+            // Check if Profile Pictures album exists
+            $stmt = $this->pdo->prepare("
+                SELECT id FROM user_media_albums
+                WHERE user_id = ? AND album_name = 'Profile Pictures'
+                LIMIT 1
+            ");
+            $stmt->execute([$userId]);
+            $profileAlbum = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$profileAlbum) {
+                // Create Profile Pictures album
+                $stmt = $this->pdo->prepare("
+                    INSERT INTO user_media_albums
+                    (user_id, album_name, description, privacy, created_at)
+                    VALUES (?, 'Profile Pictures', 'Your profile pictures collection', 'public', NOW())
+                ");
+                $stmt->execute([$userId]);
+                $albumId = $this->pdo->lastInsertId();
+
+                // Sync existing profile picture if it exists
+                $this->syncExistingProfilePicture($userId, $albumId);
+
+                return [
+                    'success' => true,
+                    'message' => 'Profile Pictures album created successfully',
+                    'album_id' => $albumId
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Profile Pictures album already exists',
+                'album_id' => $profileAlbum['id']
+            ];
+        } catch (PDOException $e) {
+            error_log("Error ensuring Profile Pictures album: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Database error: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Sync existing profile picture to Profile Pictures album
+     * @param int $userId User ID
+     * @param int $albumId Profile Pictures album ID
+     * @return bool Success status
+     */
+    private function syncExistingProfilePicture($userId, $albumId) {
+        try {
+            // Get current profile picture from users table
+            $stmt = $this->pdo->prepare("SELECT profile_pic FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user || empty($user['profile_pic'])) {
+                return false; // No profile picture to sync
+            }
+
+            $profilePicFilename = $user['profile_pic'];
+            $profilePicPath = 'uploads/profile_pics/' . $profilePicFilename;
+
+            // Check if this profile picture already exists in user_media
+            $stmt = $this->pdo->prepare("
+                SELECT id FROM user_media
+                WHERE user_id = ? AND media_url = ?
+            ");
+            $stmt->execute([$userId, $profilePicPath]);
+            $existingMedia = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($existingMedia) {
+                // Add existing media to Profile Pictures album
+                return $this->addMediaToAlbum($albumId, $existingMedia['id'], $userId);
+            } else {
+                // Create new media entry for the profile picture
+                $mediaId = $this->createProfilePictureMediaEntry($userId, $profilePicPath);
+                if ($mediaId) {
+                    return $this->addMediaToAlbum($albumId, $mediaId, $userId);
+                }
+            }
+
+            return false;
+        } catch (PDOException $e) {
+            error_log("Error syncing existing profile picture: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Create media entry for profile picture
+     * @param int $userId User ID
+     * @param string $profilePicPath Path to profile picture
+     * @return int|bool Media ID on success, false on failure
+     */
+    private function createProfilePictureMediaEntry($userId, $profilePicPath) {
+        try {
+            // Check if file exists
+            if (!file_exists($profilePicPath)) {
+                return false;
+            }
+
+            // Get file size
+            $fileSize = filesize($profilePicPath);
+
+            // Insert into user_media table
+            $stmt = $this->pdo->prepare("
+                INSERT INTO user_media
+                (user_id, media_url, media_type, file_size_bytes, created_at)
+                VALUES (?, ?, 'image', ?, NOW())
+            ");
+
+            $stmt->execute([$userId, $profilePicPath, $fileSize]);
+            return $this->pdo->lastInsertId();
+        } catch (PDOException $e) {
+            error_log("Error creating profile picture media entry: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Add new profile picture to Profile Pictures album
+     * @param int $userId User ID
+     * @param string $profilePicFilename Profile picture filename
+     * @return bool Success status
+     */
+    public function addProfilePictureToAlbum($userId, $profilePicFilename) {
+        try {
+            // Ensure Profile Pictures album exists
+            $albumResult = $this->ensureProfilePicturesAlbum($userId);
+            if (!$albumResult['success']) {
+                return false;
+            }
+
+            $albumId = $albumResult['album_id'];
+            $profilePicPath = 'uploads/profile_pics/' . $profilePicFilename;
+
+            // Create media entry for the new profile picture
+            $mediaId = $this->createProfilePictureMediaEntry($userId, $profilePicPath);
+            if (!$mediaId) {
+                return false;
+            }
+
+            // Add to Profile Pictures album
+            $addResult = $this->addMediaToAlbum($albumId, $mediaId, $userId);
+
+            // Set as album cover if it's the first image
+            if ($addResult) {
+                $this->updateAlbumCover($albumId, $mediaId, $userId);
+            }
+
+            return $addResult;
+        } catch (PDOException $e) {
+            error_log("Error adding profile picture to album: " . $e->getMessage());
+            return false;
+        }
+    }
 }
 ?>
