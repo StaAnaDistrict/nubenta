@@ -103,6 +103,12 @@ try {
     $stmt->execute([$user_id, $media_id]);
     $existing_reaction = $stmt->fetch(PDO::FETCH_ASSOC);
 
+    // Get reaction type name for notifications
+    $reactionTypeStmt = $pdo->prepare("SELECT name FROM reaction_types WHERE reaction_type_id = ?");
+    $reactionTypeStmt->execute([$reaction_type_id]);
+    $reactionTypeData = $reactionTypeStmt->fetch(PDO::FETCH_ASSOC);
+    $reactionTypeName = $reactionTypeData ? $reactionTypeData['name'] : 'unknown';
+
     if ($toggle_off && $existing_reaction) {
         // Remove existing reaction
         $stmt = $pdo->prepare("DELETE FROM media_reactions WHERE reaction_id = ?");
@@ -121,6 +127,11 @@ try {
 
         $message = 'Reaction updated successfully';
         $user_reaction = $reaction_type_id;
+
+        // Create notification for the media owner (update existing notification)
+        require_once '../includes/NotificationHelper.php';
+        $notificationHelper = new NotificationHelper($pdo);
+        $notificationHelper->createReactionNotification($user_id, null, $media_id, $reactionTypeName);
     } else {
         // Create new reaction
         $stmt = $pdo->prepare("
@@ -131,6 +142,11 @@ try {
 
         $message = 'Reaction added successfully';
         $user_reaction = $reaction_type_id;
+
+        // Create notification for the media owner
+        require_once '../includes/NotificationHelper.php';
+        $notificationHelper = new NotificationHelper($pdo);
+        $notificationHelper->createReactionNotification($user_id, null, $media_id, $reactionTypeName);
     }
 
     // Get updated reaction counts

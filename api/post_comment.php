@@ -37,7 +37,7 @@ if ($post_id <= 0 || empty($content)) {
 try {
   // First check if the user has permission to view the post
   $stmt = $pdo->prepare("
-    SELECT p.*, 
+    SELECT p.*,
            u.id as author_id,
            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
            u.profile_pic,
@@ -48,14 +48,14 @@ try {
   ");
   $stmt->execute([$post_id]);
   $post = $stmt->fetch(PDO::FETCH_ASSOC);
-  
+
   if (!$post) {
     throw new Exception('Post not found');
   }
-  
+
   // Check visibility permissions
   $can_view = false;
-  
+
   if ($post['visibility'] === 'public') {
     // Anyone can view and comment on public posts
     $can_view = true;
@@ -74,15 +74,15 @@ try {
       ");
       $stmt->execute([$user_id, $post['author_id'], $post['author_id'], $user_id]);
       $friendship = $stmt->fetch(PDO::FETCH_ASSOC);
-      
+
       $can_view = ($friendship['is_friend'] > 0);
     }
   }
-  
+
   if (!$can_view) {
     throw new Exception('You do not have permission to comment on this post');
   }
-  
+
   // Insert the comment
   $stmt = $pdo->prepare("
     INSERT INTO comments (post_id, user_id, content, created_at)
@@ -90,10 +90,15 @@ try {
   ");
   $stmt->execute([$post_id, $user_id, $content]);
   $comment_id = $pdo->lastInsertId();
-  
+
+  // Create notification for the post owner
+  require_once '../includes/NotificationHelper.php';
+  $notificationHelper = new NotificationHelper($pdo);
+  $notificationHelper->createCommentNotification($user_id, $post_id, null, $comment_id, $content);
+
   // Get the newly created comment with author info
   $stmt = $pdo->prepare("
-    SELECT c.*, 
+    SELECT c.*,
            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
            u.profile_pic,
            u.gender
@@ -103,14 +108,14 @@ try {
   ");
   $stmt->execute([$comment_id]);
   $comment = $stmt->fetch(PDO::FETCH_ASSOC);
-  
+
   // Determine profile picture
   $defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
   $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
-  $profilePic = !empty($comment['profile_pic']) 
-      ? 'uploads/profile_pics/' . htmlspecialchars($comment['profile_pic']) 
+  $profilePic = !empty($comment['profile_pic'])
+      ? 'uploads/profile_pics/' . htmlspecialchars($comment['profile_pic'])
       : ($comment['gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
-  
+
   // Format comment for response
   $formatted_comment = [
     'id' => $comment['id'],
@@ -120,7 +125,7 @@ try {
     'created_at' => $comment['created_at'],
     'is_own_comment' => true
   ];
-  
+
   // Get total comment count for this post
   $count_stmt = $pdo->prepare("SELECT COUNT(*) as count FROM comments WHERE post_id = ?");
   $count_stmt->execute([$post_id]);
@@ -128,11 +133,11 @@ try {
 
   header('Content-Type: application/json');
   echo json_encode([
-    'success' => true, 
+    'success' => true,
     'comment' => $formatted_comment,
     'comment_count' => $comment_count
   ]);
-  
+
 } catch (Exception $e) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'error' => $e->getMessage()]);

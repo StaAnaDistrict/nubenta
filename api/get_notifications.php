@@ -101,26 +101,15 @@ try {
 
                 if ($notification['post_id']) {
                     $message .= " to your post";
-                    // Get post details for better identification
-                    $postStmt = $pdo->prepare("SELECT user_id, created_at FROM posts WHERE id = ?");
-                    $postStmt->execute([$notification['post_id']]);
-                    $postDetails = $postStmt->fetch(PDO::FETCH_ASSOC);
-
-                    if ($postDetails) {
-                        $params = http_build_query([
-                            'scroll_to_post' => $notification['post_id'],
-                            'user_id' => $postDetails['user_id'],
-                            'created_at' => $postDetails['created_at'],
-                            'source' => 'notification',
-                            'notification_type' => 'reaction'
-                        ]);
-                        $link = "dashboard.php?{$params}";
-                    } else {
-                        $link = "dashboard.php?scroll_to_post={$notification['post_id']}";
-                    }
+                    $link = "posts.php?id={$notification['post_id']}&highlight=reactions&source=notification";
                 } elseif ($notification['media_id']) {
                     $message .= " to your media";
-                    $link = "view_album.php?media_id={$notification['media_id']}";
+                    // Get media owner for proper view_album.php link
+                    $mediaStmt = $pdo->prepare("SELECT user_id FROM user_media WHERE id = ?");
+                    $mediaStmt->execute([$notification['media_id']]);
+                    $mediaOwner = $mediaStmt->fetch(PDO::FETCH_ASSOC);
+                    $ownerId = $mediaOwner ? $mediaOwner['user_id'] : $userId;
+                    $link = "view_album.php?id={$ownerId}&media_id={$notification['media_id']}&source=notification";
                 }
                 break;
 
@@ -129,26 +118,19 @@ try {
 
                 if ($notification['post_id']) {
                     $message .= " on your post";
-                    // Get post details for better identification
-                    $postStmt = $pdo->prepare("SELECT user_id, created_at FROM posts WHERE id = ?");
-                    $postStmt->execute([$notification['post_id']]);
-                    $postDetails = $postStmt->fetch(PDO::FETCH_ASSOC);
-
-                    if ($postDetails) {
-                        $params = http_build_query([
-                            'scroll_to_post' => $notification['post_id'],
-                            'user_id' => $postDetails['user_id'],
-                            'created_at' => $postDetails['created_at'],
-                            'source' => 'notification',
-                            'notification_type' => 'comment'
-                        ]);
-                        $link = "dashboard.php?{$params}";
+                    if ($notification['comment_id']) {
+                        $link = "posts.php?id={$notification['post_id']}&comment={$notification['comment_id']}&source=notification";
                     } else {
-                        $link = "dashboard.php?scroll_to_post={$notification['post_id']}";
+                        $link = "posts.php?id={$notification['post_id']}&highlight=comments&source=notification";
                     }
                 } elseif ($notification['media_id']) {
                     $message .= " on your media";
-                    $link = "view_album.php?media_id={$notification['media_id']}";
+                    // Get media owner for proper view_album.php link
+                    $mediaStmt = $pdo->prepare("SELECT user_id FROM user_media WHERE id = ?");
+                    $mediaStmt->execute([$notification['media_id']]);
+                    $mediaOwner = $mediaStmt->fetch(PDO::FETCH_ASSOC);
+                    $ownerId = $mediaOwner ? $mediaOwner['user_id'] : $userId;
+                    $link = "view_album.php?id={$ownerId}&media_id={$notification['media_id']}&source=notification";
                 }
 
                 if ($notification['content']) {
@@ -159,22 +141,10 @@ try {
             case 'comment_reply':
                 $message = "{$actorName} replied to your comment";
                 if ($notification['post_id']) {
-                    // Get post details for better identification
-                    $postStmt = $pdo->prepare("SELECT user_id, created_at FROM posts WHERE id = ?");
-                    $postStmt->execute([$notification['post_id']]);
-                    $postDetails = $postStmt->fetch(PDO::FETCH_ASSOC);
-
-                    if ($postDetails) {
-                        $params = http_build_query([
-                            'scroll_to_post' => $notification['post_id'],
-                            'user_id' => $postDetails['user_id'],
-                            'created_at' => $postDetails['created_at'],
-                            'source' => 'notification',
-                            'notification_type' => 'comment_reply'
-                        ]);
-                        $link = "dashboard.php?{$params}";
+                    if ($notification['comment_id']) {
+                        $link = "posts.php?id={$notification['post_id']}&comment={$notification['comment_id']}&source=notification";
                     } else {
-                        $link = "dashboard.php?scroll_to_post={$notification['post_id']}";
+                        $link = "posts.php?id={$notification['post_id']}&highlight=comments&source=notification";
                     }
                 }
 

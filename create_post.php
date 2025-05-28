@@ -15,22 +15,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $content = trim($_POST['content'] ?? '');
   $visibility = $_POST['visibility'] ?? 'public';
   $errors = [];
-  
+
   // Validate content
   if (empty($content)) {
     $errors[] = "Post content cannot be empty";
   }
-  
+
   // Handle media files
   $mediaPaths = [];
-  
+
   if (!empty($_FILES['media']['name'][0])) {
     // Multiple files were uploaded
     $fileCount = count($_FILES['media']['name']);
-    
+
     for ($i = 0; $i < $fileCount; $i++) {
       if (empty($_FILES['media']['name'][$i])) continue; // Skip empty entries
-      
+
       $targetDir = "uploads/";
       if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
 
@@ -56,21 +56,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $pdo->prepare("INSERT INTO posts (user_id, content, media, visibility, created_at) VALUES (?, ?, ?, ?, NOW())");
     $stmt->execute([$user['id'], $content, json_encode($mediaPaths), $visibility]);
     $postId = $pdo->lastInsertId();
-    
-    // Optional: Track media in the user_media system without affecting the original flow
-    if (!empty($mediaPaths) && class_exists('MediaUploader')) {
-      require_once 'includes/MediaUploader.php';
-      $mediaUploader = new MediaUploader($pdo);
-      
-      // Make sure mediaPaths is an array
-      if (!is_array($mediaPaths)) {
-        error_log("Converting mediaPaths to array: " . json_encode($mediaPaths));
-        $mediaPaths = [$mediaPaths];
+
+    // ENHANCED: Track media in the user_media system for view_album.php integration
+    if (!empty($mediaPaths)) {
+      try {
+        require_once 'includes/MediaUploader.php';
+        $mediaUploader = new MediaUploader($pdo);
+
+        // Make sure mediaPaths is an array
+        if (!is_array($mediaPaths)) {
+          error_log("Converting mediaPaths to array: " . json_encode($mediaPaths));
+          $mediaPaths = [$mediaPaths];
+        }
+
+        // Log for debugging
+        error_log("Tracking post media for user {$user['id']}, post {$postId}: " . json_encode($mediaPaths));
+
+        // Track media in user_media system
+        $trackResult = $mediaUploader->trackPostMedia($user['id'], $mediaPaths, $postId);
+
+        if ($trackResult) {
+          error_log("Successfully tracked media in user_media system");
+        } else {
+          error_log("Failed to track media in user_media system");
+        }
+
+      } catch (Exception $e) {
+        error_log("Error tracking post media: " . $e->getMessage());
+        // Don't fail the post creation if media tracking fails
       }
-      
-      $mediaUploader->trackPostMedia($user['id'], $mediaPaths, $postId);
     }
-    
+
     header("Location: dashboard.php"); // Redirect back to dashboard or newsfeed
     exit();
   }
@@ -171,35 +187,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     document.getElementById('media-input').addEventListener('change', function(e) {
       const previewContainer = document.getElementById('media-preview-container');
       previewContainer.innerHTML = '';
-      
+
       const files = Array.from(e.target.files);
       files.forEach(file => {
         const preview = document.createElement('div');
         preview.className = 'media-preview-item';
-        
+
         if (file.type.startsWith('image/')) {
           const img = document.createElement('img');
-          
+
           const reader = new FileReader();
           reader.onload = function(e) {
             img.src = e.target.result;
           };
           reader.readAsDataURL(file);
-          
+
           preview.appendChild(img);
         } else if (file.type.startsWith('video/')) {
           const video = document.createElement('video');
           video.controls = true;
-          
+
           const reader = new FileReader();
           reader.onload = function(e) {
             video.src = e.target.result;
           };
           reader.readAsDataURL(file);
-          
+
           preview.appendChild(video);
         }
-        
+
         // Add remove button (note: this is just visual, doesn't actually remove from input)
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-media-btn';
@@ -207,7 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         removeBtn.addEventListener('click', function() {
           preview.remove();
         });
-        
+
         preview.appendChild(removeBtn);
         previewContainer.appendChild(preview);
       });

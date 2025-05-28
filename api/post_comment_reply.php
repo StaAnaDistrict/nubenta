@@ -39,14 +39,14 @@ try {
   $stmt = $pdo->prepare("SELECT c.*, p.visibility, p.user_id as post_author_id FROM comments c JOIN posts p ON c.post_id = p.id WHERE c.id = ?");
   $stmt->execute([$comment_id]);
   $comment = $stmt->fetch(PDO::FETCH_ASSOC);
-  
+
   if (!$comment) {
     throw new Exception('Comment not found');
   }
-  
+
   // Check visibility permissions (similar to post_comment.php)
   $can_reply = false;
-  
+
   if ($comment['visibility'] === 'public') {
     // Anyone can reply to comments on public posts
     $can_reply = true;
@@ -65,15 +65,15 @@ try {
       ");
       $stmt->execute([$user_id, $comment['post_author_id'], $comment['post_author_id'], $user_id]);
       $friendship = $stmt->fetch(PDO::FETCH_ASSOC);
-      
+
       $can_reply = ($friendship['is_friend'] > 0);
     }
   }
-  
+
   if (!$can_reply) {
     throw new Exception('You do not have permission to reply to this comment');
   }
-  
+
   // Insert the reply
   $stmt = $pdo->prepare("
     INSERT INTO comment_replies (comment_id, user_id, content, created_at)
@@ -81,10 +81,15 @@ try {
   ");
   $stmt->execute([$comment_id, $user_id, $content]);
   $reply_id = $pdo->lastInsertId();
-  
+
+  // Create notification for the comment owner
+  require_once '../includes/NotificationHelper.php';
+  $notificationHelper = new NotificationHelper($pdo);
+  $notificationHelper->createCommentReplyNotification($user_id, $comment_id, $content);
+
   // Get the newly created reply with author info
   $stmt = $pdo->prepare("
-    SELECT cr.*, 
+    SELECT cr.*,
            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
            u.profile_pic,
            u.gender
@@ -94,14 +99,14 @@ try {
   ");
   $stmt->execute([$reply_id]);
   $reply = $stmt->fetch(PDO::FETCH_ASSOC);
-  
+
   // Determine profile picture
   $defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
   $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
-  $profilePic = !empty($reply['profile_pic']) 
-      ? 'uploads/profile_pics/' . htmlspecialchars($reply['profile_pic']) 
+  $profilePic = !empty($reply['profile_pic'])
+      ? 'uploads/profile_pics/' . htmlspecialchars($reply['profile_pic'])
       : ($reply['gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
-  
+
   // Format reply for response
   $formatted_reply = [
     'id' => $reply['id'],
@@ -114,10 +119,10 @@ try {
 
   header('Content-Type: application/json');
   echo json_encode([
-    'success' => true, 
+    'success' => true,
     'reply' => $formatted_reply
   ]);
-  
+
 } catch (Exception $e) {
   header('Content-Type: application/json');
   echo json_encode(['success' => false, 'error' => $e->getMessage()]);

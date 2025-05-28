@@ -109,6 +109,19 @@ try {
 
     $comment_id = $pdo->lastInsertId();
 
+    // Create notification for the media owner
+    try {
+        require_once '../includes/NotificationHelper.php';
+        $notificationHelper = new NotificationHelper($pdo);
+        $notificationResult = $notificationHelper->createCommentNotification($user_id, null, $media_id, $comment_id, $content);
+
+        // Log the notification creation attempt
+        error_log("Media comment notification attempt: user_id=$user_id, media_id=$media_id, comment_id=$comment_id, result=" . ($notificationResult ? 'success' : 'failed'));
+
+    } catch (Exception $e) {
+        error_log("Error creating media comment notification: " . $e->getMessage());
+    }
+
     // Get the newly created comment with user info
     $stmt = $pdo->prepare("
         SELECT mc.*,
