@@ -1,13 +1,15 @@
 // Utility functions for the dashboard
+// Prevent redeclaration if already loaded
+if (typeof Utils === 'undefined') {
 class Utils {
   // Show notification
   static showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.innerHTML = message;
-    
+
     document.body.appendChild(notification);
-    
+
     // Auto-remove after 3 seconds
     setTimeout(() => {
       notification.classList.add('notification-hide');
@@ -16,7 +18,7 @@ class Utils {
       }, 300);
     }, 3000);
   }
-  
+
   // Delete a post
   static async deletePost(postId) {
     try {
@@ -29,14 +31,14 @@ class Utils {
           post_id: postId
         })
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         // Remove post from UI
         const postElement = document.querySelector(`.post-delete-btn[data-post-id="${postId}"]`).closest('.post');
         postElement.remove();
-        
+
         // Show success message
         Utils.showNotification('Post deleted successfully!', 'success');
       } else {
@@ -48,7 +50,7 @@ class Utils {
       Utils.showNotification('Error deleting post. Please try again.', 'error');
     }
   }
-  
+
   // Admin: Remove a post
   static async openRemoveDialog(postId) {
     const reason = prompt('Please enter a reason for removing this post:');
@@ -64,15 +66,15 @@ class Utils {
             reason: reason
           })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
           // Reload the newsfeed to show the updated post
           if (window.loadNewsfeed) {
             window.loadNewsfeed();
           }
-          
+
           // Show success message
           Utils.showNotification('Post removed successfully!', 'success');
         } else {
@@ -85,7 +87,7 @@ class Utils {
       }
     }
   }
-  
+
   // Admin: Flag a post
   static async openFlagDialog(postId) {
     const reason = prompt('Please enter a reason for flagging this post:');
@@ -101,15 +103,15 @@ class Utils {
             reason: reason
           })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
           // Reload the newsfeed to show the updated post
           if (window.loadNewsfeed) {
             window.loadNewsfeed();
           }
-          
+
           // Show success message
           Utils.showNotification('Post flagged successfully!', 'success');
         } else {
@@ -126,3 +128,4 @@ class Utils {
 
 // Export for use in other files
 window.Utils = Utils;
+}

@@ -92,7 +92,8 @@ async function checkUnreadDeliveredMessages() {
 // Function to check for unread notifications
 async function checkUnreadNotifications() {
     try {
-        const response = await fetch('api/get_notifications.php?limit=1');
+        // Use a dedicated endpoint for just checking unread count
+        const response = await fetch('api/get_unread_notification_count.php');
 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);

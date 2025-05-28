@@ -289,7 +289,15 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
     <link rel="stylesheet" href="assets/css/comments.css">
     <link rel="stylesheet" href="assets/css/view_album.css">
     <style>
-    /* Ensure reaction picker is visible and properly positioned */
+    /* Fix reaction picker positioning - position it right above the React button */
+    .reactions-section {
+        position: relative;
+    }
+
+    .post-react-btn {
+        position: relative;
+    }
+
     #simple-reaction-picker {
         z-index: 9999 !important;
         display: none;
@@ -301,11 +309,14 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
         box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         width: auto !important;
         max-width: 90vw;
-    }
-
-    /* Fix for reaction picker positioning */
-    .post-react-btn {
-        position: relative;
+        /* Position it directly above the React button */
+        bottom: 100% !important;
+        left: 0 !important;
+        margin-bottom: 10px !important;
+        /* Reset any other positioning */
+        top: auto !important;
+        right: auto !important;
+        transform: none !important;
     }
 
     /* Ensure reaction options are visible and interactive */
@@ -313,6 +324,8 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
         transition: transform 0.15s ease-out;
         cursor: pointer;
         z-index: 10000;
+        display: inline-block;
+        margin: 0 2px;
     }
 
     .reaction-option:hover {
@@ -322,6 +335,11 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
     /* Ensure reaction picker stays visible when hovered */
     #simple-reaction-picker:hover {
         display: flex !important;
+    }
+
+    /* Make sure the reactions section has enough space */
+    .reactions-section .d-flex {
+        margin-bottom: 50px; /* Give space for the picker above */
     }
     </style>
 </head>
@@ -381,7 +399,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                     <i class="fas fa-photo-video me-1"></i> Back to Albums
                                 </a>
                             <?php else: ?>
-                                <a href="view_profile.php?id=<?php echo $album['user_id']; ?>#media-gallery-section" class="btn btn-sm btn-outline-dark ms-2">
+                                <a href="user_albums.php?id=<?php echo $album['user_id']; ?>" class="btn btn-sm btn-outline-dark ms-2">
                                     <i class="fas fa-images me-1"></i> View Albums
                                 </a>
                                 <a href="view_profile.php?id=<?php echo $album['user_id']; ?>" class="btn btn-sm btn-outline-dark ms-2">
@@ -557,7 +575,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                                     <i class="fas fa-arrow-left"></i> Back to Albums
                                 </a>
                             <?php else: ?>
-                                <a href="view_profile.php?id=<?php echo $album['user_id']; ?>#media-gallery-section" class="btn btn-sm btn-outline-dark">
+                                <a href="user_albums.php?id=<?php echo $album['user_id']; ?>" class="btn btn-sm btn-outline-dark">
                                     <i class="fas fa-images"></i> View Albums
                                 </a>
                                 <a href="view_profile.php?id=<?php echo $album['user_id']; ?>" class="btn btn-sm btn-outline-dark ms-2">

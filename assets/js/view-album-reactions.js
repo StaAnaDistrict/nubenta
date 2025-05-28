@@ -157,13 +157,12 @@ window.SimpleReactionSystem = {
 
   // Update picker position on scroll/resize
   updatePickerPosition: function() {
+    // CSS handles positioning now, so we don't need to manually reposition
+    // Just ensure the picker is still visible if it should be
     const picker = document.getElementById('simple-reaction-picker');
     if (picker && picker.style.display !== 'none') {
-      const mediaId = picker.getAttribute('data-post-id');
-      const button = document.querySelector(`.post-react-btn[data-post-id="${mediaId}"]`);
-      if (button) {
-        this.showReactionPicker(mediaId, button);
-      }
+      // Picker position is handled by CSS, no manual positioning needed
+      return;
     }
   },
 
@@ -242,19 +241,11 @@ window.SimpleReactionSystem = {
       return;
     }
 
-    // Create picker container - match the exact style from dashboardv2.php
+    // Create picker container - let CSS handle positioning
     picker = document.createElement('div');
     picker.id = 'simple-reaction-picker';
     picker.style.display = 'none';
-    picker.style.position = 'absolute';
-    picker.style.zIndex = '9999';
-    picker.style.backgroundColor = '#242526';
-    picker.style.borderRadius = '30px';
-    picker.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
-    picker.style.padding = '8px 12px';
-    picker.style.display = 'none';
-    picker.style.width = 'auto';
-    picker.style.maxWidth = '90vw';
+    // Don't set positioning styles here - let CSS handle it
 
     // Create navigation buttons
     const prevButton = document.createElement('span');
@@ -406,18 +397,21 @@ window.SimpleReactionSystem = {
     // Set the media ID
     picker.setAttribute('data-post-id', mediaId);
 
-    // Get button position
-    const buttonRect = button.getBoundingClientRect();
+    // Find the reactions section container
+    const reactionsSection = button.closest('.reactions-section');
+    if (reactionsSection) {
+      // Append picker to the reactions section for proper relative positioning
+      reactionsSection.appendChild(picker);
+    }
 
-    // Calculate position - place it above the button
-    const top = buttonRect.top - 50;
-    const left = buttonRect.left;
+    // Reset any inline positioning styles that might override CSS
+    picker.style.top = '';
+    picker.style.left = '';
+    picker.style.right = '';
+    picker.style.bottom = '';
+    picker.style.transform = '';
 
-    // Position the picker
-    picker.style.top = `${top}px`;
-    picker.style.left = `${left}px`;
-
-    // Show the picker
+    // Show the picker (CSS will handle positioning)
     picker.style.display = 'flex';
 
     // Reset to first page
@@ -490,21 +484,39 @@ window.SimpleReactionSystem = {
   // Send reaction to server
   async sendReactionToServer(mediaId, reactionTypeId, toggleOff = false) {
     try {
-      this.debug(`Sending reaction to server: Media ID ${mediaId}, Reaction Type ID ${reactionTypeId}, Toggle Off: ${toggleOff}`);
+      this.debug(`Sending reaction to server: ID ${mediaId}, Reaction Type ID ${reactionTypeId}, Toggle Off: ${toggleOff}`);
 
-      // Log the request body for debugging
-      const requestBody = {
-        media_id: mediaId,
-        reaction_type_id: reactionTypeId,
-        toggle_off: toggleOff
-      };
-      this.debug('Request body:', requestBody);
+      // Determine if this is a media or post reaction based on content type
+      const reactBtn = document.querySelector(`.post-react-btn[data-post-id="${mediaId}"]`);
+      const contentType = reactBtn ? reactBtn.getAttribute('data-content-type') : 'media';
+
+      let requestBody, apiEndpoint;
+
+      if (contentType === 'post') {
+        // Handle post reactions
+        requestBody = {
+          post_id: mediaId,
+          reaction_type_id: reactionTypeId,
+          toggle_off: toggleOff
+        };
+        apiEndpoint = 'api/post_reaction.php';
+      } else {
+        // Handle media reactions
+        requestBody = {
+          media_id: mediaId,
+          reaction_type_id: reactionTypeId,
+          toggle_off: toggleOff
+        };
+        apiEndpoint = 'api/post_media_reaction.php';
+      }
+
+      this.debug(`Using ${contentType} reaction API:`, apiEndpoint, requestBody);
 
       // Add a timestamp to prevent caching
       const timestamp = new Date().getTime();
 
       // Send the actual request to the correct API endpoint
-      const response = await fetch(`api/post_media_reaction.php?_=${timestamp}`, {
+      const response = await fetch(`${apiEndpoint}?_=${timestamp}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -635,21 +647,32 @@ window.SimpleReactionSystem = {
     });
   },
 
-  // Load reactions for a specific media item
-  async loadReactions(mediaId) {
-    // Skip if mediaId is null or undefined
-    if (!mediaId) {
-      this.debug('Skipping loadReactions - no media ID provided');
+  // Load reactions for a specific media item or post
+  async loadReactions(itemId) {
+    // Skip if itemId is null or undefined
+    if (!itemId) {
+      this.debug('Skipping loadReactions - no item ID provided');
       return;
     }
 
     try {
-      this.debug(`Loading reactions for media ${mediaId}`);
+      this.debug(`Loading reactions for item ${itemId}`);
+
+      // Determine if this is a media or post reaction based on content type
+      const reactBtn = document.querySelector(`.post-react-btn[data-post-id="${itemId}"]`);
+      const contentType = reactBtn ? reactBtn.getAttribute('data-content-type') : 'media';
 
       // Add timestamp to prevent caching
       const timestamp = new Date().getTime();
-      const url = `api/get_media_reactions.php?media_id=${mediaId}&_=${timestamp}`;
-      this.debug(`Fetching from URL: ${url}`);
+      let url;
+
+      if (contentType === 'post') {
+        url = `api/get_reactions.php?post_id=${itemId}&_=${timestamp}`;
+      } else {
+        url = `api/get_media_reactions.php?media_id=${itemId}&_=${timestamp}`;
+      }
+
+      this.debug(`Fetching ${contentType} reactions from URL: ${url}`);
 
       const response = await fetch(url);
 
@@ -658,8 +681,8 @@ window.SimpleReactionSystem = {
         throw new Error(`Network response was not ok: ${response.status}`);
       }
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
+      const responseContentType = response.headers.get('content-type');
+      if (!responseContentType || !responseContentType.includes('application/json')) {
         const text = await response.text();
         console.error('Received non-JSON response:', text);
         throw new Error('Server returned non-JSON response');
@@ -670,25 +693,25 @@ window.SimpleReactionSystem = {
 
       if (data.success) {
         // Update UI to show reactions
-        this.displayReactions(mediaId, data.reaction_count, data.user_reaction);
+        this.displayReactions(itemId, data.reaction_count, data.user_reaction);
       } else {
         console.error('Error loading reactions:', data.error);
-        this.handleApiFailure(mediaId, 'load');
+        this.handleApiFailure(itemId, 'load');
       }
     } catch (error) {
-      console.error(`Error loading reactions for media ${mediaId}:`, error);
-      this.handleApiFailure(mediaId, 'load');
+      console.error(`Error loading reactions for item ${itemId}:`, error);
+      this.handleApiFailure(itemId, 'load');
     }
   },
 
-  // Display reactions for a media item
-  displayReactions(mediaId, reactionCount, userReaction) {
-    console.log(`Displaying reactions for media ${mediaId}:`, reactionCount, userReaction);
+  // Display reactions for a media item or post
+  displayReactions(itemId, reactionCount, userReaction) {
+    console.log(`Displaying reactions for item ${itemId}:`, reactionCount, userReaction);
 
     // Find the react button
-    const reactBtn = document.querySelector(`.post-react-btn[data-post-id="${mediaId}"]`);
+    const reactBtn = document.querySelector(`.post-react-btn[data-post-id="${itemId}"]`);
     if (!reactBtn) {
-      console.error(`React button not found for media ID: ${mediaId}`);
+      console.error(`React button not found for item ID: ${itemId}`);
       return;
     }
 
@@ -720,20 +743,23 @@ window.SimpleReactionSystem = {
       }
     }
 
-    // Find the reaction summary container
-    let summaryContainer = document.querySelector(`.reaction-summary[data-media-id="${mediaId}"]`);
+    // Find the reaction summary container (try both media-id and post-id)
+    let summaryContainer = document.querySelector(`.reaction-summary[data-media-id="${itemId}"]`);
+    if (!summaryContainer) {
+      summaryContainer = document.querySelector(`.reaction-summary[data-post-id="${itemId}"]`);
+    }
 
     // If not found, try alternative container
     if (!summaryContainer) {
-      summaryContainer = document.getElementById(`reactions-container-${mediaId}`);
+      summaryContainer = document.getElementById(`reactions-container-${itemId}`);
     }
 
     if (summaryContainer) {
       // Update reaction summary
-      this.updateReactionSummary(mediaId, reactionCount, summaryContainer);
+      this.updateReactionSummary(itemId, reactionCount, summaryContainer);
     } else {
       // Create new reaction summary
-      this.createReactionSummary(mediaId, reactionCount);
+      this.createReactionSummary(itemId, reactionCount);
     }
   },
 

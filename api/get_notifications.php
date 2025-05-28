@@ -104,12 +104,19 @@ try {
                     $link = "posts.php?id={$notification['post_id']}&highlight=reactions&source=notification";
                 } elseif ($notification['media_id']) {
                     $message .= " to your media";
-                    // Get media owner for proper view_album.php link
-                    $mediaStmt = $pdo->prepare("SELECT user_id FROM user_media WHERE id = ?");
-                    $mediaStmt->execute([$notification['media_id']]);
-                    $mediaOwner = $mediaStmt->fetch(PDO::FETCH_ASSOC);
-                    $ownerId = $mediaOwner ? $mediaOwner['user_id'] : $userId;
-                    $link = "view_album.php?id={$ownerId}&media_id={$notification['media_id']}&source=notification";
+                    // Find which album contains this media
+                    $albumStmt = $pdo->prepare("
+                        SELECT am.album_id
+                        FROM album_media am
+                        WHERE am.media_id = ?
+                        LIMIT 1
+                    ");
+                    $albumStmt->execute([$notification['media_id']]);
+                    $albumData = $albumStmt->fetch(PDO::FETCH_ASSOC);
+
+                    // If media is in a specific album, use that album ID, otherwise use default album (id=1)
+                    $albumId = $albumData ? $albumData['album_id'] : 1;
+                    $link = "view_album.php?id={$albumId}&media_id={$notification['media_id']}&source=notification";
                 }
                 break;
 
@@ -125,12 +132,19 @@ try {
                     }
                 } elseif ($notification['media_id']) {
                     $message .= " on your media";
-                    // Get media owner for proper view_album.php link
-                    $mediaStmt = $pdo->prepare("SELECT user_id FROM user_media WHERE id = ?");
-                    $mediaStmt->execute([$notification['media_id']]);
-                    $mediaOwner = $mediaStmt->fetch(PDO::FETCH_ASSOC);
-                    $ownerId = $mediaOwner ? $mediaOwner['user_id'] : $userId;
-                    $link = "view_album.php?id={$ownerId}&media_id={$notification['media_id']}&source=notification";
+                    // Find which album contains this media
+                    $albumStmt = $pdo->prepare("
+                        SELECT am.album_id
+                        FROM album_media am
+                        WHERE am.media_id = ?
+                        LIMIT 1
+                    ");
+                    $albumStmt->execute([$notification['media_id']]);
+                    $albumData = $albumStmt->fetch(PDO::FETCH_ASSOC);
+
+                    // If media is in a specific album, use that album ID, otherwise use default album (id=1)
+                    $albumId = $albumData ? $albumData['album_id'] : 1;
+                    $link = "view_album.php?id={$albumId}&media_id={$notification['media_id']}&source=notification";
                 }
 
                 if ($notification['content']) {

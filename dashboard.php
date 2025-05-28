@@ -46,6 +46,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <link rel="stylesheet" href="assets/css/reactions.css">
     <link rel="stylesheet" href="assets/css/simple-reactions.css">
     <link rel="stylesheet" href="assets/css/comments.css">
+    <link rel="stylesheet" href="assets/css/media-reactions.css">
     <script>
         // Set global variables for JavaScript modules
         window.isAdmin = <?php echo (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin') ? 'true' : 'false'; ?>;
@@ -140,6 +141,32 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             max-height: 70vh;
             max-width: 100%;
             object-fit: contain;
+        }
+
+        /* Modal-specific reaction picker positioning */
+        #mediaModal .reactions-section {
+            position: relative;
+        }
+
+        #mediaModal .post-react-btn {
+            position: relative;
+        }
+
+        #mediaModal #simple-reaction-picker {
+            position: absolute !important;
+            bottom: 100% !important;
+            left: 0 !important;
+            margin-bottom: 10px !important;
+            z-index: 10000 !important;
+            /* Reset any conflicting styles */
+            top: auto !important;
+            right: auto !important;
+            transform: none !important;
+        }
+
+        /* Ensure modal reactions section has space for picker */
+        #mediaModal .reactions-section .d-flex {
+            margin-bottom: 50px;
         }
     </style>
 </head>
@@ -241,10 +268,11 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         window.reactionSystemInitialized = false;
     </script>
 
-    <!-- Load only simple-reactions.js -->
-    <script src="assets/js/simple-reactions.js"></script>
+    <!-- Load view-album-reactions.js for consistent behavior -->
+    <script src="assets/js/view-album-reactions.js"></script>
 
     <!-- Disable other reaction-related scripts -->
+    <!-- <script src="assets/js/simple-reactions.js"></script> -->
     <!-- <script src="assets/js/reactions-v2.js"></script> -->
     <!-- <script src="assets/js/reaction-integration.js"></script> -->
     <!-- <script src="assets/js/reaction-init.js"></script> -->
@@ -367,9 +395,12 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             ${post.media && !post.is_removed ? renderPostMedia(post.media, post.is_flagged, post.id) : ''}
                         </div>
                         <div class="post-actions d-flex mt-3">
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}">
-                                <i class="far fa-smile me-1"></i> React
-                            </button>
+                            <div class="reactions-section">
+                                <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}" data-content-type="post">
+                                    <i class="far fa-smile me-1"></i> React
+                                </button>
+                                <div class="reaction-summary" data-post-id="${post.id}" style="display: none; margin-top: 10px;"></div>
+                            </div>
                             <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
                                 <i class="far fa-comment me-1"></i> <span class="comment-text">Comment</span> <span class="comment-count-badge"></span>
                             </button>
@@ -400,14 +431,65 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 setupPostActionListeners();
 
                 // Initialize reaction system for the newly loaded posts
-                if (window.ReactionSystem) {
-                    console.log("Loading reactions for visible posts");
+                console.log("Checking SimpleReactionSystem availability:", !!window.SimpleReactionSystem);
+                if (window.SimpleReactionSystem) {
+                    console.log("Loading reactions for visible posts using SimpleReactionSystem");
                     try {
-                        await window.ReactionSystem.loadReactionsForVisiblePosts();
+                        // Load reactions for all visible posts
+                        document.querySelectorAll('.post').forEach(post => {
+                            const postId = post.getAttribute('data-post-id');
+                            if (postId) {
+                                console.log("Loading reactions for post:", postId);
+                                window.SimpleReactionSystem.loadReactions(postId);
+                            }
+                        });
                     } catch (error) {
                         console.error("Error loading reactions for visible posts:", error);
                     }
+                } else {
+                    console.error("SimpleReactionSystem not available!");
                 }
+
+                // Debug: Check if reaction buttons exist
+                const reactButtons = document.querySelectorAll('.post-react-btn');
+                console.log("Found reaction buttons:", reactButtons.length);
+                reactButtons.forEach((btn, index) => {
+                    console.log(`Button ${index}:`, {
+                        postId: btn.getAttribute('data-post-id'),
+                        contentType: btn.getAttribute('data-content-type'),
+                        hasReactionsSection: !!btn.closest('.reactions-section')
+                    });
+                });
+
+                // Add a global test function
+                window.testReactions = function() {
+                    console.log("=== TESTING REACTIONS ===");
+                    console.log("SimpleReactionSystem available:", !!window.SimpleReactionSystem);
+
+                    if (window.SimpleReactionSystem) {
+                        console.log("SimpleReactionSystem source:", window.SimpleReactionSystem._source);
+                        console.log("SimpleReactionSystem initialized:", window.SimpleReactionSystem.initialized);
+
+                        // Try to manually show picker on first button
+                        const firstBtn = document.querySelector('.post-react-btn');
+                        if (firstBtn) {
+                            console.log("Testing with first button:", firstBtn);
+                            const postId = firstBtn.getAttribute('data-post-id');
+                            console.log("Post ID:", postId);
+
+                            // Try to show picker
+                            try {
+                                window.SimpleReactionSystem.showReactionPicker(postId, firstBtn);
+                                console.log("Picker shown successfully");
+                            } catch (error) {
+                                console.error("Error showing picker:", error);
+                            }
+                        } else {
+                            console.log("No reaction buttons found");
+                        }
+                    }
+                    console.log("=== END TEST ===");
+                };
 
                 // Load comment counts for all posts
                 document.querySelectorAll('.post').forEach(post => {
@@ -1918,12 +2000,13 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 console.log('Reactions container found:', reactionsContainer);
 
                 if (reactionsContainer) {
-                    // Create reaction buttons with detailed reaction breakdown
+                    // Create reaction buttons with detailed reaction breakdown (using view_album.php structure)
                     let reactionsHTML = `
-                        <div class="d-flex align-items-center mb-2">
-                            <button class="btn btn-sm btn-outline-light me-2 modal-react-btn post-react-btn" data-media-id="${mediaId}" data-post-id="media-${mediaId}">
-                                <i class="far fa-smile me-1"></i> React
-                            </button>
+                        <div class="reactions-section">
+                            <div class="d-flex align-items-center mb-2">
+                                <button class="btn btn-sm btn-outline-light me-2 modal-react-btn post-react-btn" data-media-id="${mediaId}" data-post-id="${mediaId}" data-content-type="media">
+                                    <i class="far fa-smile me-1"></i> React
+                                </button>
                     `;
 
                     if (data.reaction_count.total > 0) {
@@ -1942,46 +2025,63 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                         }
                     }
 
-                    reactionsHTML += '</div>';
+                    reactionsHTML += `
+                            </div>
+                            <!-- Add a container for reaction summary -->
+                            <div class="reaction-summary" data-media-id="${mediaId}" style="display: none; align-items: center; margin-top: 10px;"></div>
+                        </div>
+                    `;
 
                     reactionsContainer.innerHTML = reactionsHTML;
                     console.log('Reactions HTML set:', reactionsHTML);
 
-                    // Set up reaction button click handler using existing system
+                    // Set up reaction button using SimpleReactionSystem (same as view_album.php)
                     const reactBtn = reactionsContainer.querySelector('.modal-react-btn');
                     if (reactBtn) {
-                        console.log('Setting up reaction button click handler');
+                        console.log('Setting up reaction button with SimpleReactionSystem');
 
                         // Use the existing reaction system's hover handler
                         reactBtn.addEventListener('mouseover', function(e) {
                             console.log('React button hovered in modal');
-                            if (window.ReactionSystem && typeof window.ReactionSystem.showReactionPicker === 'function') {
-                                // Temporarily set a post ID for the existing system
-                                this.setAttribute('data-post-id', `media-${mediaId}`);
-                                window.ReactionSystem.showReactionPicker(`media-${mediaId}`, this);
-                            } else {
-                                showModalReactionPicker(mediaId, this);
+                            if (window.SimpleReactionSystem && typeof window.SimpleReactionSystem.showReactionPicker === 'function') {
+                                // Set the media ID as post ID for the existing system
+                                this.setAttribute('data-post-id', mediaId);
+                                this.setAttribute('data-content-type', 'media');
+                                window.SimpleReactionSystem.showReactionPicker(mediaId, this);
                             }
                         });
 
                         reactBtn.addEventListener('click', function(e) {
                             e.preventDefault();
                             console.log('React button clicked in modal');
-                            showModalReactionPicker(mediaId, this);
+                            if (window.SimpleReactionSystem && typeof window.SimpleReactionSystem.showReactionPicker === 'function') {
+                                this.setAttribute('data-post-id', mediaId);
+                                this.setAttribute('data-content-type', 'media');
+                                window.SimpleReactionSystem.showReactionPicker(mediaId, this);
+                            }
                         });
+
+                        // Load reactions for this media
+                        if (window.SimpleReactionSystem) {
+                            window.SimpleReactionSystem.loadReactions(mediaId);
+                        }
                     } else {
                         console.log('React button not found, creating one');
-                        // Create react button if it doesn't exist
+                        // Create react button if it doesn't exist (using view_album.php structure)
                         const reactButtonHTML = `
-                            <div class="d-flex align-items-center mb-2">
-                                <button class="btn btn-sm btn-outline-light me-2 modal-react-btn post-react-btn"
-                                        data-media-id="${mediaId}"
-                                        data-post-id="media-${mediaId}">
-                                    <i class="far fa-smile me-1"></i> React
-                                </button>
-                                <span class="text-muted reaction-count-display">
-                                    ${data.reaction_count.total > 0 ? `${data.reaction_count.total} reaction${data.reaction_count.total > 1 ? 's' : ''}` : 'No reactions yet'}
-                                </span>
+                            <div class="reactions-section">
+                                <div class="d-flex align-items-center mb-2">
+                                    <button class="btn btn-sm btn-outline-light me-2 modal-react-btn post-react-btn"
+                                            data-media-id="${mediaId}"
+                                            data-post-id="${mediaId}"
+                                            data-content-type="media">
+                                        <i class="far fa-smile me-1"></i> React
+                                    </button>
+                                    <span class="text-muted reaction-count-display">
+                                        ${data.reaction_count.total > 0 ? `${data.reaction_count.total} reaction${data.reaction_count.total > 1 ? 's' : ''}` : 'No reactions yet'}
+                                    </span>
+                                </div>
+                                <div class="reaction-summary" data-media-id="${mediaId}" style="display: none; align-items: center; margin-top: 10px;"></div>
                             </div>
                         `;
                         reactionsContainer.insertAdjacentHTML('afterbegin', reactButtonHTML);
@@ -1989,11 +2089,29 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                         // Set up the newly created button
                         const newReactBtn = reactionsContainer.querySelector('.modal-react-btn');
                         if (newReactBtn) {
+                            newReactBtn.addEventListener('mouseover', function(e) {
+                                console.log('React button hovered in modal');
+                                if (window.SimpleReactionSystem && typeof window.SimpleReactionSystem.showReactionPicker === 'function') {
+                                    this.setAttribute('data-post-id', mediaId);
+                                    this.setAttribute('data-content-type', 'media');
+                                    window.SimpleReactionSystem.showReactionPicker(mediaId, this);
+                                }
+                            });
+
                             newReactBtn.addEventListener('click', function(e) {
                                 e.preventDefault();
                                 console.log('React button clicked in modal');
-                                showModalReactionPicker(mediaId, this);
+                                if (window.SimpleReactionSystem && typeof window.SimpleReactionSystem.showReactionPicker === 'function') {
+                                    this.setAttribute('data-post-id', mediaId);
+                                    this.setAttribute('data-content-type', 'media');
+                                    window.SimpleReactionSystem.showReactionPicker(mediaId, this);
+                                }
                             });
+
+                            // Load reactions for this media
+                            if (window.SimpleReactionSystem) {
+                                window.SimpleReactionSystem.loadReactions(mediaId);
+                            }
                         }
                     }
                 } else {
@@ -2159,83 +2277,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         }
     }
 
-    // Function to show reaction picker for media
-    function showModalReactionPicker(mediaId, button) {
-        console.log('Showing reaction picker for media:', mediaId);
-
-        // Try to use the existing reaction system first
-        if (window.ReactionSystem && typeof window.ReactionSystem.showReactionPicker === 'function') {
-            console.log('Using existing ReactionSystem');
-
-            // Temporarily modify the button to work with existing system
-            const originalPostId = button.getAttribute('data-post-id');
-            button.setAttribute('data-post-id', `media-${mediaId}`);
-
-            // Override the reaction handler temporarily
-            const originalHandler = window.ReactionSystem.handleReaction;
-            window.ReactionSystem.handleReaction = function(postId, reactionId, reactionName) {
-                if (postId.startsWith('media-')) {
-                    const actualMediaId = postId.replace('media-', '');
-                    console.log('Handling media reaction:', actualMediaId, reactionId, reactionName);
-                    reactToMedia(actualMediaId, reactionId, reactionName);
-                } else {
-                    // Call original handler for regular posts
-                    originalHandler.call(this, postId, reactionId, reactionName);
-                }
-            };
-
-            // Show the picker
-            window.ReactionSystem.showReactionPicker(`media-${mediaId}`, button);
-
-            // Restore original handler after a delay
-            setTimeout(() => {
-                window.ReactionSystem.handleReaction = originalHandler;
-                if (originalPostId) {
-                    button.setAttribute('data-post-id', originalPostId);
-                } else {
-                    button.removeAttribute('data-post-id');
-                }
-            }, 5000);
-
-            return;
-        }
-
-        // Fallback to manual picker if ReactionSystem not available
-        console.log('Using fallback reaction picker');
-        const picker = document.getElementById('simple-reaction-picker');
-        if (!picker) {
-            console.error('Reaction picker not found');
-            return;
-        }
-
-        picker.setAttribute('data-media-id', mediaId);
-        picker.removeAttribute('data-post-id');
-
-        // Position picker above the button
-        const rect = button.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-        const pickerTop = rect.top + scrollTop - picker.offsetHeight - 15;
-        const pickerLeft = rect.left + (rect.width / 2) - (picker.offsetWidth / 2);
-
-        picker.style.left = `${pickerLeft}px`;
-        picker.style.top = `${pickerTop}px`;
-        picker.style.display = 'flex';
-
-        // Update reaction option click handlers for media
-        picker.querySelectorAll('.reaction-option').forEach(option => {
-            const newOption = option.cloneNode(true);
-            option.parentNode.replaceChild(newOption, option);
-
-            newOption.addEventListener('click', function() {
-                const reactionId = this.getAttribute('data-reaction-id');
-                const reactionName = this.getAttribute('data-reaction-name');
-                console.log('Reaction clicked:', reactionId, reactionName);
-                reactToMedia(mediaId, reactionId, reactionName);
-                picker.style.display = 'none';
-            });
-        });
-    }
+    // REMOVED: Old showModalReactionPicker function - now using SimpleReactionSystem
 
     // Function to react to media
     async function reactToMedia(mediaId, reactionId, reactionName) {
@@ -2272,57 +2314,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
     // REMOVED: submitMediaCommentForMedia - using view_album.php system instead
 
-    // NEW: Show reaction picker for media (like view_album.php)
-    function showModalReactionPickerForMedia(mediaId, button) {
-        console.log('Showing reaction picker for media (view_album style):', mediaId);
-
-        // Try to use the existing reaction system first
-        if (window.SimpleReactionSystem && typeof window.SimpleReactionSystem.showReactionPicker === 'function') {
-            console.log('Using SimpleReactionSystem for media');
-
-            // Set the media ID as post ID for the existing system
-            button.setAttribute('data-post-id', mediaId);
-            window.SimpleReactionSystem.showReactionPicker(mediaId, button);
-
-            return;
-        }
-
-        // Fallback to manual picker if SimpleReactionSystem not available
-        console.log('Using fallback reaction picker for media');
-        const picker = document.getElementById('simple-reaction-picker');
-        if (!picker) {
-            console.error('Reaction picker not found');
-            return;
-        }
-
-        picker.setAttribute('data-media-id', mediaId);
-        picker.removeAttribute('data-post-id');
-
-        // Position picker above the button
-        const rect = button.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-        const pickerTop = rect.top + scrollTop - picker.offsetHeight - 15;
-        const pickerLeft = rect.left + (rect.width / 2) - (picker.offsetWidth / 2);
-
-        picker.style.left = `${pickerLeft}px`;
-        picker.style.top = `${pickerTop}px`;
-        picker.style.display = 'flex';
-
-        // Update reaction option click handlers for media
-        picker.querySelectorAll('.reaction-option').forEach(option => {
-            const newOption = option.cloneNode(true);
-            option.parentNode.replaceChild(newOption, option);
-
-            newOption.addEventListener('click', function() {
-                const reactionId = this.getAttribute('data-reaction-id');
-                const reactionName = this.getAttribute('data-reaction-name');
-                console.log('Reaction clicked for media:', reactionId, reactionName);
-                reactToMediaForMedia(mediaId, reactionId, reactionName);
-                picker.style.display = 'none';
-            });
-        });
-    }
+    // REMOVED: Old showModalReactionPickerForMedia function - now using SimpleReactionSystem
 
     // REMOVED: initializeUnifiedModalSystem - using view_album.php system instead
 

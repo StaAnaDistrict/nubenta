@@ -1157,59 +1157,9 @@ class MediaUploader {
                 $mediaIds[] = $this->pdo->lastInsertId();
             }
 
-            // If we have media IDs and want to organize them in an album
-            if (!empty($mediaIds)) {
-                // Check if "Posts" album exists for this user
-                $albumStmt = $this->pdo->prepare("
-                    SELECT id FROM user_media_albums
-                    WHERE user_id = ? AND album_name = 'Posts'
-                ");
-                $albumStmt->execute([$userId]);
-                $postsAlbum = $albumStmt->fetch(PDO::FETCH_ASSOC);
-
-                if ($postsAlbum) {
-                    // Add media to existing album
-                    foreach ($mediaIds as $mediaId) {
-                        $stmt = $this->pdo->prepare("
-                            INSERT INTO album_media
-                            (album_id, media_id, created_at)
-                            VALUES (?, ?, NOW())
-                        ");
-                        $stmt->execute([
-                            $postsAlbum['id'],
-                            $mediaId
-                        ]);
-                    }
-                } else {
-                    // Create a new "Posts" album
-                    $stmt = $this->pdo->prepare("
-                        INSERT INTO user_media_albums
-                        (user_id, album_name, description, privacy, created_at)
-                        VALUES (?, ?, ?, ?, NOW())
-                    ");
-                    $stmt->execute([
-                        $userId,
-                        'Posts',
-                        'Media shared in posts',
-                        'public'
-                    ]);
-
-                    $albumId = $this->pdo->lastInsertId();
-
-                    // Add media to the new album
-                    foreach ($mediaIds as $mediaId) {
-                        $stmt = $this->pdo->prepare("
-                            INSERT INTO album_media
-                            (album_id, media_id, created_at)
-                            VALUES (?, ?, NOW())
-                        ");
-                        $stmt->execute([
-                            $albumId,
-                            $mediaId
-                        ]);
-                    }
-                }
-            }
+            // Media is now tracked in user_media table
+            // Default gallery (id=1) will show all user media automatically
+            // No need to create additional "Posts" albums
 
             $this->pdo->commit();
             return true;
