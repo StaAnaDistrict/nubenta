@@ -1545,49 +1545,53 @@ try {
     </script>
 
     <script>
+    // Send message function (restored to working version)
     async function startMessage(userId) {
         try {
             console.log('Starting message with user ID:', userId);
 
-            // Check thread status for both users
-            const checkResponse = await fetch(`api/check_thread_status.php?user_id=${userId}`);
-            console.log('Thread status response:', checkResponse);
+            // Show loading indicator
+            const originalText = event.target.textContent;
+            event.target.textContent = 'Loading...';
+            event.target.disabled = true;
 
-            if (!checkResponse.ok) {
-                throw new Error(`HTTP error! status: ${checkResponse.status}`);
+            // Use a simplified approach - try to create/get thread directly
+            const response = await fetch('api/start_conversation.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const checkData = await checkResponse.json();
-            console.log('Thread status data:', checkData);
+            const data = await response.json();
+            console.log('Start conversation response:', data);
 
-            if (checkData.success) {
-                if (checkData.exists) {
-                    if (!checkData.deleted_by_current_user) {
-                        // Thread exists and wasn't deleted by current user, open it
-                        console.log('Opening existing thread:', checkData.thread_id);
-                        window.location.href = `messages.php?thread=${checkData.thread_id}`;
-                        return;
-                    }
-                    // Thread exists but was deleted by current user
-                    // We'll create a new thread but preserve the old one for the other user
-                    console.log('Creating new thread while preserving:', checkData.thread_id);
-                    window.location.href = `messages.php?new_chat=${userId}&preserve_thread=${checkData.thread_id}`;
-                    return;
-                }
-
-                // No thread exists, start new chat
-                console.log('Starting new chat with user:', userId);
-                window.location.href = `messages.php?new_chat=${userId}`;
+            if (data.success && data.thread_id) {
+                // Successfully got/created thread, redirect to it
+                console.log('Redirecting to thread:', data.thread_id);
+                window.location.href = `messages.php?thread=${data.thread_id}`;
             } else {
-                console.error('Error in thread status check:', checkData.error);
-                alert('Error checking thread status: ' + (checkData.error || 'Unknown error'));
+                throw new Error(data.error || 'Failed to start conversation');
             }
+
         } catch (error) {
             console.error('Error starting message:', error);
             alert('Error starting message: ' + error.message);
+
+            // Restore button
+            event.target.textContent = originalText;
+            event.target.disabled = false;
         }
     }
     </script>
 </body>
 <script src="assets/js/profile-tabs.js"></script>
+<script src="assets/js/popup-chat.js?v=<?= time() ?>"></script>
 </html>

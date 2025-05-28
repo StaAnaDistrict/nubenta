@@ -284,6 +284,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <script src="assets/js/share.js"></script>
     <script src="assets/js/activity-tracker.js"></script>
     <script src="assets/js/newsfeed-loader.js"></script>
+    <script src="assets/js/popup-chat.js?v=<?= time() ?>"></script>
     <script src="assets/js/dashboard-init.js"></script>
 
     <!-- Add this script at the end to ensure our system is used -->
