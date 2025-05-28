@@ -7,6 +7,7 @@
 
 session_start();
 require_once 'db.php';
+require_once 'includes/MediaParser.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user'])) {
@@ -478,14 +479,38 @@ try {
         const blurClass = isBlurred ? 'blurred-image' : '';
         let mediaArray;
 
-        try {
-            mediaArray = typeof media === 'string' ? JSON.parse(media) : media;
-        } catch (e) {
-            mediaArray = [media];
+        // Universal media parsing (matches PHP MediaParser logic)
+        if (typeof media === 'string') {
+            // Handle null or empty values
+            if (!media || media === '[]' || media === 'null') {
+                return '';
+            }
+
+            try {
+                // Try to decode as JSON first
+                const jsonDecoded = JSON.parse(media);
+                if (Array.isArray(jsonDecoded)) {
+                    // It's a JSON array - filter out empty values
+                    mediaArray = jsonDecoded.filter(path => path && path.trim() !== '');
+                } else {
+                    // JSON but not array, treat as single string
+                    const trimmedPath = media.trim();
+                    mediaArray = trimmedPath ? [trimmedPath] : [];
+                }
+            } catch (e) {
+                // If JSON decode failed, treat as single string path
+                const trimmedPath = media.trim();
+                mediaArray = trimmedPath ? [trimmedPath] : [];
+            }
+        } else if (Array.isArray(media)) {
+            // Already an array - filter out empty values
+            mediaArray = media.filter(path => path && path.trim() !== '');
+        } else {
+            return '';
         }
 
-        if (!Array.isArray(mediaArray)) {
-            mediaArray = [mediaArray];
+        if (!mediaArray || mediaArray.length === 0) {
+            return '';
         }
 
         // For single media item

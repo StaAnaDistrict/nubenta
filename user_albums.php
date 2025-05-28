@@ -26,7 +26,7 @@ if ($userId <= 0) {
 // Get user details
 $stmt = $pdo->prepare("
     SELECT id, first_name, last_name, profile_pic
-    FROM users 
+    FROM users
     WHERE id = ?
 ");
 $stmt->execute([$userId]);
@@ -57,11 +57,11 @@ if ($userId !== $currentUser['id']) {
 if ($userId === $currentUser['id'] || $currentUser['role'] === 'admin') {
     // Show all albums for owner or admin
     $stmt = $pdo->prepare("
-        SELECT a.*, 
+        SELECT a.*,
                COUNT(am.media_id) as media_count,
-               (SELECT media_url FROM user_media um 
-                JOIN album_media am2 ON um.id = am2.media_id 
-                WHERE am2.album_id = a.id AND um.media_type LIKE 'image%' 
+               (SELECT media_url FROM user_media um
+                JOIN album_media am2 ON um.id = am2.media_id
+                WHERE am2.album_id = a.id AND um.media_type LIKE 'image%'
                 ORDER BY am2.created_at DESC LIMIT 1) as cover_image
         FROM user_media_albums a
         LEFT JOIN album_media am ON a.id = am.album_id
@@ -73,13 +73,13 @@ if ($userId === $currentUser['id'] || $currentUser['role'] === 'admin') {
 } else {
     // Show only public albums for non-friends, or public+friends for friends
     $privacyCondition = $areFriends ? "(a.privacy = 'public' OR a.privacy = 'friends')" : "a.privacy = 'public'";
-    
+
     $stmt = $pdo->prepare("
-        SELECT a.*, 
+        SELECT a.*,
                COUNT(am.media_id) as media_count,
-               (SELECT media_url FROM user_media um 
-                JOIN album_media am2 ON um.id = am2.media_id 
-                WHERE am2.album_id = a.id AND um.media_type LIKE 'image%' 
+               (SELECT media_url FROM user_media um
+                JOIN album_media am2 ON um.id = am2.media_id
+                WHERE am2.album_id = a.id AND um.media_type LIKE 'image%'
                 ORDER BY am2.created_at DESC LIMIT 1) as cover_image
         FROM user_media_albums a
         LEFT JOIN album_media am ON a.id = am.album_id
@@ -122,7 +122,12 @@ $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center">
                         <?php if (!empty($user['profile_pic'])): ?>
-                            <img src="<?= htmlspecialchars($user['profile_pic']) ?>" class="rounded-circle me-3" width="50" height="50" alt="Profile picture">
+                            <?php
+                            $profilePicPath = (strpos($user['profile_pic'], 'uploads/') === 0)
+                                ? $user['profile_pic']
+                                : 'uploads/profile_pics/' . $user['profile_pic'];
+                            ?>
+                            <img src="<?= htmlspecialchars($profilePicPath) ?>" class="rounded-circle me-3" width="50" height="50" alt="Profile picture">
                         <?php else: ?>
                             <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
                                 <i class="fas fa-user"></i>
@@ -176,7 +181,7 @@ $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <i class="fas fa-photo-video fa-3x text-muted"></i>
                                         </div>
                                     <?php endif; ?>
-                                    
+
                                     <!-- Privacy indicator -->
                                     <div class="position-absolute top-0 end-0 p-2">
                                         <span class="badge bg-dark">
@@ -184,7 +189,7 @@ $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <?= ucfirst($album['privacy']) ?>
                                         </span>
                                     </div>
-                                    
+
                                     <!-- Media count -->
                                     <div class="position-absolute bottom-0 start-0 p-2">
                                         <span class="badge bg-dark">
@@ -193,7 +198,7 @@ $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                         </span>
                                     </div>
                                 </div>
-                                
+
                                 <div class="card-body">
                                     <h5 class="card-title"><?= htmlspecialchars($album['album_name']) ?></h5>
                                     <?php if (!empty($album['description'])): ?>
@@ -204,7 +209,7 @@ $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                         Created <?= date('M j, Y', strtotime($album['created_at'])) ?>
                                     </small>
                                 </div>
-                                
+
                                 <div class="card-footer bg-transparent">
                                     <a href="view_album.php?id=<?= $album['id'] ?>" class="btn btn-dark w-100">
                                         <i class="fas fa-eye me-1"></i> View Album
@@ -232,7 +237,7 @@ $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .album-card {
             transition: transform 0.2s ease-in-out;
         }
-        
+
         .album-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);

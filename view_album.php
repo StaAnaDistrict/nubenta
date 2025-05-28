@@ -270,8 +270,9 @@ if ($mediaId > 0) {
     }
 }
 
-// Set page title
-$pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
+// Set page title and display name
+$displayAlbumName = ($album['album_name'] === 'Default Gallery') ? 'My Gallery' : $album['album_name'];
+$pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
 ?>
 
 <!DOCTYPE html>
@@ -554,14 +555,19 @@ $pageTitle = $currentMedia ? "Viewing Media" : $album['album_name'];
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
                             <?php if (!empty($album['profile_picture'])): ?>
-                                <img src="<?php echo htmlspecialchars($album['profile_picture']); ?>" class="rounded-circle me-2" width="40" height="40" alt="Profile picture">
+                                <?php
+                                $profilePicPath = (strpos($album['profile_picture'], 'uploads/') === 0)
+                                    ? $album['profile_picture']
+                                    : 'uploads/profile_pics/' . $album['profile_picture'];
+                                ?>
+                                <img src="<?php echo htmlspecialchars($profilePicPath); ?>" class="rounded-circle me-2" width="40" height="40" alt="Profile picture">
                             <?php else: ?>
                                 <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
                                     <i class="fas fa-user"></i>
                                 </div>
                             <?php endif; ?>
                             <div>
-                                <h5 class="mb-0"><?php echo htmlspecialchars($album['album_name']); ?></h5>
+                                <h5 class="mb-0"><?php echo htmlspecialchars($displayAlbumName); ?></h5>
                                 <small class="text-muted">
                                     By <?php echo htmlspecialchars($album['username']); ?> •
                                     <?php echo count($media); ?> item<?php echo count($media) != 1 ? 's' : ''; ?>

@@ -3,6 +3,9 @@
  * MediaUploader Class
  * Handles uploading and managing user media files
  */
+
+require_once __DIR__ . '/MediaParser.php';
+
 class MediaUploader {
     private $pdo;
     private $uploadDir = 'uploads/media/';

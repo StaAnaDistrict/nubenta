@@ -5,6 +5,7 @@
 
 session_start();
 require_once '../db.php';
+require_once '../includes/MediaParser.php';
 
 header('Content-Type: application/json');
 
@@ -28,12 +29,12 @@ try {
     $userStmt = $pdo->prepare("SELECT id, first_name, last_name FROM users WHERE id = ?");
     $userStmt->execute([$profileUserId]);
     $profileUser = $userStmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if (!$profileUser) {
         echo json_encode(['success' => false, 'error' => 'User not found']);
         exit();
     }
-    
+
     // Check friendship status for privacy
     $canViewPosts = true;
     if ($profileUserId != $currentUserId) {
@@ -47,19 +48,19 @@ try {
         $friendStmt->execute([$currentUserId, $profileUserId, $profileUserId, $currentUserId]);
         $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
         $areFriends = $friendship['is_friend'] > 0;
-        
+
         // For now, allow viewing if they are friends or posts are public
         // This can be enhanced with more privacy controls
     }
-    
+
     if (!$canViewPosts) {
         echo json_encode(['success' => false, 'error' => 'Access denied']);
         exit();
     }
-    
+
     // Get user's posts
     $postsQuery = "
-        SELECT p.*, 
+        SELECT p.*,
                CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author,
                u.profile_pic,
                u.gender,
@@ -71,11 +72,11 @@ try {
         ORDER BY p.created_at DESC
         LIMIT 20
     ";
-    
+
     $stmt = $pdo->prepare($postsQuery);
     $stmt->execute([$profileUserId, $currentUserId]);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Format posts for display
     $formattedPosts = [];
     foreach ($posts as $post) {
@@ -86,7 +87,7 @@ try {
         } elseif ($post['gender'] === 'Female') {
             $profilePic = 'assets/images/FemaleDefaultProfilePicture.png';
         }
-        
+
         // Handle media
         $media = null;
         if (!empty($post['media'])) {
@@ -99,7 +100,7 @@ try {
                 // It's a single media file
                 $media = [$post['media']];
             }
-            
+
             // Ensure proper paths
             $media = array_map(function($item) {
                 if (is_string($item) && !str_starts_with($item, 'uploads/')) {
@@ -108,7 +109,7 @@ try {
                 return $item;
             }, $media);
         }
-        
+
         $formattedPosts[] = [
             'id' => $post['id'],
             'user_id' => $post['user_id'],
@@ -125,7 +126,7 @@ try {
             'flag_reason' => $post['flag_reason'] ?? ''
         ];
     }
-    
+
     echo json_encode([
         'success' => true,
         'posts' => $formattedPosts,
@@ -135,7 +136,7 @@ try {
             'name' => trim($profileUser['first_name'] . ' ' . $profileUser['last_name'])
         ]
     ]);
-    
+
 } catch (PDOException $e) {
     error_log("Database error in get_user_posts.php: " . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Database error occurred']);

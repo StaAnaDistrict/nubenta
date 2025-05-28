@@ -1,7 +1,8 @@
 <?php
 ini_set('display_errors',1); error_reporting(E_ALL);
 session_start();
-require_once 'db.php';                // PDO $pdo
+require_once 'db.php';
+require_once 'includes/MediaParser.php';                // PDO $pdo
 
 if(!isset($_SESSION['user'])){header('Location:login.php');exit;}
 $current = $_SESSION['user'];
@@ -56,8 +57,8 @@ $albumStmt = $pdo->prepare("
     SELECT a.*,
            COUNT(DISTINCT am.media_id) AS media_count,
            m.media_url AS cover_image,
-           CASE WHEN a.id = 1 THEN 'My Gallery' ELSE a.album_name END AS display_name,
-           CASE WHEN a.id = 1 THEN 'Default media gallery containing all uploaded photos and videos' ELSE a.description END AS display_description
+           CASE WHEN a.album_name = 'Default Gallery' THEN 'My Gallery' ELSE a.album_name END AS display_name,
+           CASE WHEN a.album_name = 'Default Gallery' THEN 'Default media gallery containing all uploaded photos and videos' ELSE a.description END AS display_description
     FROM user_media_albums a
     LEFT JOIN album_media am ON a.id = am.album_id
     LEFT JOIN user_media m ON a.cover_image_id = m.id
@@ -840,14 +841,38 @@ try {
         const blurClass = isBlurred ? 'blurred-image' : '';
         let mediaArray;
 
-        try {
-            mediaArray = typeof media === 'string' ? JSON.parse(media) : media;
-        } catch (e) {
-            mediaArray = [media];
+        // Universal media parsing (matches PHP MediaParser logic)
+        if (typeof media === 'string') {
+            // Handle null or empty values
+            if (!media || media === '[]' || media === 'null') {
+                return '';
+            }
+
+            try {
+                // Try to decode as JSON first
+                const jsonDecoded = JSON.parse(media);
+                if (Array.isArray(jsonDecoded)) {
+                    // It's a JSON array - filter out empty values
+                    mediaArray = jsonDecoded.filter(path => path && path.trim() !== '');
+                } else {
+                    // JSON but not array, treat as single string
+                    const trimmedPath = media.trim();
+                    mediaArray = trimmedPath ? [trimmedPath] : [];
+                }
+            } catch (e) {
+                // If JSON decode failed, treat as single string path
+                const trimmedPath = media.trim();
+                mediaArray = trimmedPath ? [trimmedPath] : [];
+            }
+        } else if (Array.isArray(media)) {
+            // Already an array - filter out empty values
+            mediaArray = media.filter(path => path && path.trim() !== '');
+        } else {
+            return '';
         }
 
-        if (!Array.isArray(mediaArray)) {
-            mediaArray = [mediaArray];
+        if (!mediaArray || mediaArray.length === 0) {
+            return '';
         }
 
         // For single media item - constrained size
@@ -909,14 +934,38 @@ try {
         const blurClass = isBlurred ? 'blurred-image' : '';
         let mediaArray;
 
-        try {
-            mediaArray = typeof media === 'string' ? JSON.parse(media) : media;
-        } catch (e) {
-            mediaArray = [media];
+        // Universal media parsing (matches PHP MediaParser logic)
+        if (typeof media === 'string') {
+            // Handle null or empty values
+            if (!media || media === '[]' || media === 'null') {
+                return '';
+            }
+
+            try {
+                // Try to decode as JSON first
+                const jsonDecoded = JSON.parse(media);
+                if (Array.isArray(jsonDecoded)) {
+                    // It's a JSON array - filter out empty values
+                    mediaArray = jsonDecoded.filter(path => path && path.trim() !== '');
+                } else {
+                    // JSON but not array, treat as single string
+                    const trimmedPath = media.trim();
+                    mediaArray = trimmedPath ? [trimmedPath] : [];
+                }
+            } catch (e) {
+                // If JSON decode failed, treat as single string path
+                const trimmedPath = media.trim();
+                mediaArray = trimmedPath ? [trimmedPath] : [];
+            }
+        } else if (Array.isArray(media)) {
+            // Already an array - filter out empty values
+            mediaArray = media.filter(path => path && path.trim() !== '');
+        } else {
+            return '';
         }
 
-        if (!Array.isArray(mediaArray)) {
-            mediaArray = [mediaArray];
+        if (!mediaArray || mediaArray.length === 0) {
+            return '';
         }
 
         // For single media item

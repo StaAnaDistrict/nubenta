@@ -8,6 +8,7 @@ ini_set('display_startup_errors', 0);
 
 session_start();
 require_once 'db.php';
+require_once 'includes/MediaParser.php';
 
 // Clear any output that might have been generated
 ob_clean();
@@ -1120,29 +1121,34 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         const blurClass = isFlagged ? 'blurred-image' : '';
         let mediaArray;
 
-        // Try to parse as JSON if it's a string
+        // Universal media parsing (matches PHP MediaParser logic)
         if (typeof mediaUrl === 'string') {
-            try {
-                // Check if it looks like JSON
-                if (mediaUrl.startsWith('[') || mediaUrl.startsWith('{')) {
-                    mediaArray = JSON.parse(mediaUrl);
-                    console.log("Parsed JSON media:", mediaArray);
+            // Handle null or empty values
+            if (!mediaUrl || mediaUrl === '[]' || mediaUrl === 'null') {
+                return '';
+            }
 
-                    // Fix escaped slashes in JSON strings
-                    if (Array.isArray(mediaArray)) {
-                        mediaArray = mediaArray.map(path => path.replace(/\\\//g, '/'));
-                    }
+            try {
+                // Try to decode as JSON first
+                const jsonDecoded = JSON.parse(mediaUrl);
+                if (Array.isArray(jsonDecoded)) {
+                    // It's a JSON array - filter out empty values
+                    mediaArray = jsonDecoded.filter(path => path && path.trim() !== '');
+                    console.log("Parsed as JSON array:", mediaArray);
                 } else {
-                    // Single path
-                    mediaArray = [mediaUrl];
+                    // JSON but not array, treat as single string
+                    const trimmedPath = mediaUrl.trim();
+                    mediaArray = trimmedPath ? [trimmedPath] : [];
                 }
             } catch (e) {
-                console.log("Not valid JSON, treating as single path:", mediaUrl);
-                mediaArray = [mediaUrl];
+                // If JSON decode failed, treat as single string path
+                const trimmedPath = mediaUrl.trim();
+                mediaArray = trimmedPath ? [trimmedPath] : [];
+                console.log("Not JSON, treating as single string:", mediaArray);
             }
         } else if (Array.isArray(mediaUrl)) {
-            // Already an array
-            mediaArray = mediaUrl.map(path => typeof path === 'string' ? path.replace(/\\\//g, '/') : path);
+            // Already an array - filter out empty values
+            mediaArray = mediaUrl.filter(path => path && path.trim() !== '');
         } else {
             console.error("Invalid media format:", mediaUrl);
             return '';
