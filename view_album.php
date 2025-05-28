@@ -560,7 +560,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                                     ? $album['profile_picture']
                                     : 'uploads/profile_pics/' . $album['profile_picture'];
                                 ?>
-                                <img src="<?php echo htmlspecialchars($profilePicPath); ?>" class="rounded-circle me-2" width="40" height="40" alt="Profile picture">
+                                <img src="<?php echo htmlspecialchars($profilePicPath); ?>" class="rounded-circle me-2" width="40" height="40" style="object-fit: cover;" alt="Profile picture">
                             <?php else: ?>
                                 <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
                                     <i class="fas fa-user"></i>
@@ -823,7 +823,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
 
                     html += '</div>';
                     html += '<div class="mt-3 d-flex justify-content-end">';
-                    html += '<button type="button" class="btn btn-primary" id="addSelectedMedia">Add Selected Media</button>';
+                    html += '<button type="button" class="btn btn-dark" id="addSelectedMedia">Add Selected Media</button>';
                     html += '</div>';
 
                     mediaSelector.innerHTML = html;
@@ -833,9 +833,9 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                         checkbox.addEventListener('change', function() {
                             const mediaItem = this.closest('.media-item');
                             if (this.checked) {
-                                mediaItem.classList.add('border-primary', 'border-2');
+                                mediaItem.classList.add('border-dark', 'border-2');
                             } else {
-                                mediaItem.classList.remove('border-primary', 'border-2');
+                                mediaItem.classList.remove('border-dark', 'border-2');
                             }
                         });
                     });

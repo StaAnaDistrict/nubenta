@@ -127,7 +127,7 @@ $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 ? $user['profile_pic']
                                 : 'uploads/profile_pics/' . $user['profile_pic'];
                             ?>
-                            <img src="<?= htmlspecialchars($profilePicPath) ?>" class="rounded-circle me-3" width="50" height="50" alt="Profile picture">
+                            <img src="<?= htmlspecialchars($profilePicPath) ?>" class="rounded-circle me-3" width="50" height="50" style="object-fit: cover;" alt="Profile picture">
                         <?php else: ?>
                             <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
                                 <i class="fas fa-user"></i>

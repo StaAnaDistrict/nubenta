@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_album'])) {
     $description = trim($_POST['description'] ?? '');
     $privacy = $_POST['privacy'] ?? 'public';
     $coverImageId = !empty($_POST['cover_image_id']) ? intval($_POST['cover_image_id']) : null;
-    
+
     if (empty($albumName)) {
         $_SESSION['flash_message'] = [
             'type' => 'danger',
@@ -59,13 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_album'])) {
         ];
     } else {
         $success = $mediaUploader->updateAlbum($albumId, $user['id'], $albumName, $description, $privacy, $coverImageId);
-        
+
         if ($success) {
             $_SESSION['flash_message'] = [
                 'type' => 'success',
                 'message' => 'Album updated successfully'
             ];
-            
+
             // Redirect to view the album
             header("Location: view_album.php?id=" . $albumId);
             exit();
@@ -95,12 +95,12 @@ $pageTitle = "Edit Album: " . htmlspecialchars($album['album_name']);
             cursor: pointer;
             transition: all 0.2s ease;
         }
-        
+
         .cover-image-item:hover {
             transform: translateY(-5px);
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
-        
+
         .cover-image-radio {
             cursor: pointer;
         }
@@ -129,7 +129,7 @@ $pageTitle = "Edit Album: " . htmlspecialchars($album['album_name']);
                 </div>
                 <?php unset($_SESSION['flash_message']); ?>
             <?php endif; ?>
-            
+
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Edit Album: <?php echo htmlspecialchars($album['album_name']); ?></h5>
@@ -155,7 +155,7 @@ $pageTitle = "Edit Album: " . htmlspecialchars($album['album_name']);
                                 <option value="private" <?php echo ($album['privacy'] === 'private') ? 'selected' : ''; ?>>Only Me</option>
                             </select>
                         </div>
-                        
+
                         <?php if (!empty($albumMedia)): ?>
                             <div class="mb-3">
                                 <label class="form-label">Choose Cover Image</label>
@@ -163,7 +163,7 @@ $pageTitle = "Edit Album: " . htmlspecialchars($album['album_name']);
                                     <?php foreach ($albumMedia as $media): ?>
                                         <?php if ($media['media_type'] === 'image'): ?>
                                             <div class="col-4 col-md-3 col-lg-2">
-                                                <div class="card h-100 cover-image-item <?php echo ($album['cover_image_id'] == $media['id']) ? 'border-primary border-2' : ''; ?>" data-media-id="<?php echo $media['id']; ?>">
+                                                <div class="card h-100 cover-image-item <?php echo ($album['cover_image_id'] == $media['id']) ? 'border-dark border-2' : ''; ?>" data-media-id="<?php echo $media['id']; ?>">
                                                     <div class="position-relative">
                                                         <img src="<?php echo htmlspecialchars($media['media_url']); ?>" class="card-img-top" alt="Media" style="height: 100px; object-fit: cover;">
                                                         <div class="position-absolute top-0 end-0 p-1">
@@ -179,10 +179,10 @@ $pageTitle = "Edit Album: " . htmlspecialchars($album['album_name']);
                                 </div>
                             </div>
                         <?php endif; ?>
-                        
+
                         <div class="d-flex justify-content-between mt-4">
                             <a href="manage_albums.php" class="btn btn-secondary">Cancel</a>
-                            <button type="submit" name="update_album" class="btn btn-primary">Save Changes</button>
+                            <button type="submit" name="update_album" class="btn btn-dark">Save Changes</button>
                         </div>
                     </form>
                 </div>
@@ -202,26 +202,26 @@ $pageTitle = "Edit Album: " . htmlspecialchars($album['album_name']);
             // Handle cover image selection
             const coverImageItems = document.querySelectorAll('.cover-image-item');
             const coverImageRadios = document.querySelectorAll('.cover-image-radio');
-            
+
             coverImageItems.forEach(item => {
                 item.addEventListener('click', function(e) {
                     // Don't toggle if the radio itself was clicked
                     if (e.target.type === 'radio') return;
-                    
+
                     const mediaId = this.getAttribute('data-media-id');
                     const radio = document.querySelector(`#cover_${mediaId}`);
-                    
+
                     // Select radio
                     radio.checked = true;
-                    
+
                     // Update UI
                     coverImageItems.forEach(item => {
-                        item.classList.remove('border-primary', 'border-2');
+                        item.classList.remove('border-dark', 'border-2');
                     });
-                    this.classList.add('border-primary', 'border-2');
+                    this.classList.add('border-dark', 'border-2');
                 });
             });
-            
+
             // Function to toggle sidebar on mobile
             function toggleSidebar() {
                 document.querySelector('.left-sidebar').classList.toggle('show');
