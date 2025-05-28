@@ -162,7 +162,9 @@ try {
                            COALESCE(fr.accepted_at, fr.created_at) as activity_time,
                            fr.id as activity_id,
                            'accepted' as extra_info,
-                           NULL as other_friend_name
+                           NULL as other_friend_name,
+                           u.id as friend_user_id,
+                           NULL as other_friend_user_id
                     FROM friend_requests fr
                     JOIN users u ON (u.id = CASE WHEN fr.sender_id = :user_id1 THEN fr.receiver_id ELSE fr.sender_id END)
                     WHERE (fr.sender_id = :user_id2 OR fr.receiver_id = :user_id3)
@@ -180,7 +182,9 @@ try {
                            COALESCE(fr.accepted_at, fr.created_at) as activity_time,
                            fr.id as activity_id,
                            'connected' as extra_info,
-                           CONCAT_WS(' ', friend2.first_name, friend2.middle_name, friend2.last_name) as other_friend_name
+                           CONCAT_WS(' ', friend2.first_name, friend2.middle_name, friend2.last_name) as other_friend_name,
+                           friend1.id as friend_user_id,
+                           friend2.id as other_friend_user_id
                     FROM friend_requests fr
                     JOIN users friend1 ON friend1.id = fr.sender_id
                     JOIN users friend2 ON friend2.id = fr.receiver_id
@@ -313,7 +317,9 @@ try {
                 'comment_id' => null,
                 'media_id' => null,
                 'reaction_type' => null,
-                'other_friend_name' => $social_activity['other_friend_name'] ?? null
+                'other_friend_name' => $social_activity['other_friend_name'] ?? null,
+                'friend_user_id' => $social_activity['friend_user_id'] ?? null,
+                'other_friend_user_id' => $social_activity['other_friend_user_id'] ?? null
             ]
         ];
         $all_posts[] = $fake_post;
@@ -373,7 +379,9 @@ try {
                 'comment_id' => $post['friend_activity']['comment_id'],
                 'media_id' => $post['friend_activity']['media_id'],
                 'reaction_type' => $post['friend_activity']['reaction_type'],
-                'other_friend_name' => $post['friend_activity']['other_friend_name'] ?? null
+                'other_friend_name' => $post['friend_activity']['other_friend_name'] ?? null,
+                'friend_user_id' => $post['friend_activity']['friend_user_id'] ?? null,
+                'other_friend_user_id' => $post['friend_activity']['other_friend_user_id'] ?? null
             ];
         }
 

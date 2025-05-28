@@ -438,8 +438,8 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             activityIcon = 'fas fa-user-plus';
                             borderColor = '#28a745'; // Green for new connections
                         } else if (post.friend_activity.type === 'friend_connection') {
-                            activityText = `<strong>${post.friend_activity.friend_name}</strong> is now friends with <strong>${post.friend_activity.other_friend_name}</strong>`;
-                            clickAction = `onclick="viewProfile('${post.friend_activity.other_friend_name}')"`;
+                            activityText = `<strong onclick="viewProfile(${post.friend_activity.friend_user_id})" style="cursor: pointer; color: #007bff;">${post.friend_activity.friend_name}</strong> is now friends with <strong onclick="viewProfile(${post.friend_activity.other_friend_user_id})" style="cursor: pointer; color: #007bff;">${post.friend_activity.other_friend_name}</strong>`;
+                            clickAction = ``; // Remove the overall click action
                             activityIcon = 'fas fa-users';
                             borderColor = '#17a2b8'; // Blue for friend connections
                         } else if (post.friend_activity.type === 'profile_update') {
@@ -2723,10 +2723,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     };
 
     // Function to view user profile
-    window.viewProfile = function(userName) {
-        console.log('Viewing profile for:', userName);
-        // Redirect to profile page - you can customize this URL
-        window.location.href = `view_profile.php?user=${encodeURIComponent(userName)}`;
+    window.viewProfile = function(userId) {
+        console.log('Viewing profile for user ID:', userId);
+        // Redirect to profile page using user ID
+        window.location.href = `view_profile.php?id=${userId}`;
     };
 
     // Function to open media modal with reaction highlighted
@@ -2859,13 +2859,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
           });
         });
       });
-    </script>
-
-    // Disable the setupCommentInteractions function
-    function setupCommentInteractions(commentsContainer, postId) {
-      console.log('Comment interactions setup disabled - using CommentSystem instead');
-      // Do nothing - let CommentSystem handle it
-    }
     </script>
     <script>
     // Disable any existing comment-related functions to prevent conflicts
