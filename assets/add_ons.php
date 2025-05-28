@@ -44,7 +44,7 @@ $elementTitle = isset($topElementTitle) ? $topElementTitle : null;
         <?php
         // Reset element title for bottom element
         $elementTitle = isset($bottomElementTitle) ? $bottomElementTitle : null;
-        include_once 'api/add_ons_bottom_element.php';
+        include_once 'api/add_ons_bottom_element_html.php';
         ?>
     <?php endif; ?>
 </aside>
