@@ -74,6 +74,14 @@ $userId = isset($currentUser) && isset($currentUser['id']) ? $currentUser['id'] 
 
 #activity-feed-container {
     text-align: left;
+    /* Hide scrollbars while keeping scroll functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+#activity-feed-container::-webkit-scrollbar {
+    display: none;
 }
 
 .no-activities {
