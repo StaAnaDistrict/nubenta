@@ -289,7 +289,7 @@ header {
   color: white;
 }
 
-.post-action-btn i, 
+.post-action-btn i,
 .post-action-btn svg {
   margin-right: 5px;
 }
@@ -303,13 +303,13 @@ header {
   .post-actions {
     justify-content: space-between;
   }
-  
+
   .post-action-btn {
     flex: 1;
     font-size: 12px;
     padding: 6px 8px;
   }
-  
+
   .profile-pic {
     width: 40px;
     height: 40px;
@@ -359,14 +359,17 @@ header {
 .post-media {
   width: 100%;
   border-radius: 8px;
-  object-fit: cover;
+  object-fit: contain;
+  max-height: 400px;
+  background-color: #f8f9fa;
 }
 
-/* For images in a grid */
+/* For images in a grid - show full content without cropping */
 .post-media-container .row .col-6 .post-media,
 .post-media-container .row .col-12 .post-media {
   height: 200px;
-  object-fit: cover;
+  object-fit: contain;
+  background-color: #f8f9fa;
 }
 
 /* Comment form styles */
@@ -402,7 +405,7 @@ header {
     grid-template-columns: 1fr;
     padding: 10px;
   }
-  
+
   .left-sidebar {
     display: none;
     position: fixed;
@@ -415,15 +418,15 @@ header {
     padding-top: 60px;
     overflow-y: auto;
   }
-  
+
   .left-sidebar.show {
     display: block;
   }
-  
+
   .right-sidebar {
     display: none;
   }
-  
+
   .hamburger {
     display: block;
   }
