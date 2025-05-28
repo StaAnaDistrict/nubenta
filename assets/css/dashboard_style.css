@@ -16,7 +16,7 @@ header {
 /* 🧱 Grid Layout Base */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 250px 1fr 300px;
+  grid-template-columns: 250px 1fr 330px;
   gap: 20px;
   padding: 20px;
   min-height: 100vh;
@@ -195,6 +195,18 @@ header {
 .post:hover {
   transform: translateY(-3px);
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* 🎯 Friend Activity Headers */
+.friend-activity-header {
+  transition: all 0.2s ease;
+  border-radius: 6px !important;
+}
+
+.friend-activity-header:hover {
+  background-color: #e9ecef !important;
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .post-header {
@@ -396,7 +408,7 @@ header {
 
 @media (max-width: 1200px) {
   .dashboard-grid {
-    grid-template-columns: 200px 1fr 250px;
+    grid-template-columns: 200px 1fr 275px;
   }
 }
 

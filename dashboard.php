@@ -349,6 +349,24 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             if (data.success && data.posts && data.posts.length > 0) {
                 console.log(`Loaded ${data.posts.length} posts`);
 
+                // DEBUG: Check for friend activities
+                if (data.debug) {
+                    console.log('DEBUG INFO:', data.debug);
+                } else {
+                    console.log('No debug info in response');
+                }
+
+                const postsWithActivity = data.posts.filter(post => post.friend_activity);
+                console.log(`Posts with friend activity: ${postsWithActivity.length}`);
+                if (postsWithActivity.length > 0) {
+                    console.log('First post with activity:', postsWithActivity[0]);
+                } else {
+                    console.log('No posts with friend activity found');
+                    // Check if any posts have the friend_activity property at all
+                    const hasActivityProp = data.posts.some(post => post.hasOwnProperty('friend_activity'));
+                    console.log('Any posts have friend_activity property:', hasActivityProp);
+                }
+
                 data.posts.forEach(post => {
                     // More detailed logging for debugging
                     console.group(`Post ${post.id}`);
@@ -371,8 +389,82 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     // Log the media data for debugging
                     console.log(`Post ${post.id} media:`, post.media);
 
+                    // Check if this is a friend activity post
+                    let activityHeader = '';
+                    if (post.friend_activity) {
+                        let activityText = '';
+                        let clickAction = '';
+                        let activityIcon = '';
+                        let borderColor = '#495057'; // Default dark gray
+
+                        if (post.friend_activity.type === 'comment') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> commented on this post`;
+                            clickAction = `onclick="highlightComment(${post.id}, ${post.friend_activity.comment_id})"`;
+                            activityIcon = 'fas fa-comment';
+                            borderColor = '#495057'; // Dark gray for comments
+                        } else if (post.friend_activity.type === 'comment_on_friend_post') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> commented on ${post.author}'s post`;
+                            clickAction = `onclick="highlightComment(${post.id}, ${post.friend_activity.comment_id})"`;
+                            activityIcon = 'fas fa-user-friends';
+                            borderColor = '#6c757d'; // Medium gray for friend post interactions
+                        } else if (post.friend_activity.type === 'reaction_on_friend_post') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> reacted ${post.friend_activity.reaction_type} to ${post.author}'s post`;
+                            clickAction = `onclick="showReactionDetails(${post.id})"`;
+                            activityIcon = 'fas fa-heart';
+                            borderColor = '#e83e8c'; // Pink for reactions on friend posts
+                        } else if (post.friend_activity.type === 'media_comment') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> commented on media in this post`;
+                            clickAction = `onclick="openMediaWithComment(${post.id}, ${post.friend_activity.media_id}, ${post.friend_activity.comment_id})"`;
+                            activityIcon = 'fas fa-photo-video';
+                            borderColor = '#0d223d'; // Dark blue for media (matching your project theme)
+                        } else if (post.friend_activity.type === 'post_reaction') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> reacted ${post.friend_activity.reaction_type} to this post`;
+                            clickAction = `onclick="showReactionDetails(${post.id})"`;
+                            activityIcon = 'fas fa-heart';
+                            borderColor = '#52637a'; // Muted blue-gray for reactions
+                        } else if (post.friend_activity.type === 'media_reaction') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> reacted ${post.friend_activity.reaction_type} to media in this post`;
+                            clickAction = `onclick="openMediaWithReaction(${post.id}, ${post.friend_activity.media_id})"`;
+                            activityIcon = 'fas fa-heart';
+                            borderColor = '#6f42c1'; // Purple for media reactions
+                        } else if (post.friend_activity.type === 'reaction') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> reacted ${post.friend_activity.reaction_type} to this post`;
+                            clickAction = `onclick="showReactionDetails(${post.id})"`;
+                            activityIcon = 'fas fa-heart';
+                            borderColor = '#52637a'; // Muted blue-gray for reactions (matching your project theme)
+                        } else if (post.friend_activity.type === 'friend_request') {
+                            activityText = `You are now connected with <strong>${post.friend_activity.friend_name}</strong>`;
+                            clickAction = `onclick="viewProfile('${post.friend_activity.friend_name}')"`;
+                            activityIcon = 'fas fa-user-plus';
+                            borderColor = '#28a745'; // Green for new connections
+                        } else if (post.friend_activity.type === 'friend_connection') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> is now friends with <strong>${post.friend_activity.other_friend_name}</strong>`;
+                            clickAction = `onclick="viewProfile('${post.friend_activity.other_friend_name}')"`;
+                            activityIcon = 'fas fa-users';
+                            borderColor = '#17a2b8'; // Blue for friend connections
+                        } else if (post.friend_activity.type === 'profile_update') {
+                            activityText = `<strong>${post.friend_activity.friend_name}</strong> updated their profile`;
+                            clickAction = `onclick="viewProfile('${post.friend_activity.friend_name}')"`;
+                            activityIcon = 'fas fa-user-edit';
+                            borderColor = '#17a2b8'; // Blue for profile updates
+                        }
+
+                        activityHeader = `
+                            <div class="friend-activity-header mb-2 p-2 rounded" ${clickAction}
+                                 style="background-color: #f8f9fa; border-left: 4px solid ${borderColor}; cursor: pointer; transition: background-color 0.2s;">
+                                <img src="${post.friend_activity.friend_profile_pic}" alt="Friend" class="rounded-circle me-2" width="24" height="24">
+                                <small style="color: ${borderColor};">
+                                    <i class="${activityIcon} me-1"></i>
+                                    ${activityText}
+                                    <span class="text-muted ms-2">${new Date(post.friend_activity.activity_time).toLocaleString()}</span>
+                                </small>
+                            </div>
+                        `;
+                    }
+
                     // Create post HTML with clickable profile elements
                     let postHTML = `
+                        ${activityHeader}
                         <div class="post-header">
                             <a href="view_profile.php?id=${post.user_id}" class="text-decoration-none">
                                 <img src="${post.profile_pic || 'assets/images/default-profile.png'}" alt="Profile" class="profile-pic me-3"
@@ -394,32 +486,34 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
                             ${post.media && !post.is_removed ? renderPostMedia(post.media, post.is_flagged, post.id) : ''}
                         </div>
-                        <div class="post-actions d-flex mt-3">
-                            <div class="reactions-section">
-                                <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}" data-content-type="post">
-                                    <i class="far fa-smile me-1"></i> React
+                        ${!post.is_system_post ? `
+                            <div class="post-actions d-flex mt-3">
+                                <div class="reactions-section">
+                                    <button class="btn btn-sm btn-outline-secondary me-2 post-react-btn" data-post-id="${post.id}" data-content-type="post">
+                                        <i class="far fa-smile me-1"></i> React
+                                    </button>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
+                                    <i class="far fa-comment me-1"></i> <span class="comment-text">Comment</span> <span class="comment-count-badge"></span>
                                 </button>
+                                <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}">
+                                    <i class="far fa-share-square me-1"></i> Share
+                                </button>
+                                ${post.is_own_post ? `
+                                    <button class="btn btn-sm btn-outline-danger me-2 post-delete-btn" data-post-id="${post.id}">
+                                        <i class="far fa-trash-alt me-1"></i> Delete
+                                    </button>
+                                ` : ''}
+                                ${isAdmin ? `
+                                    <button class="btn btn-sm btn-outline-danger me-2 post-admin-remove-btn" data-post-id="${post.id}">
+                                        <i class="fas fa-trash me-1"></i> Remove
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning post-admin-flag-btn" data-post-id="${post.id}">
+                                        <i class="fas fa-flag me-1"></i> Flag
+                                    </button>
+                                ` : ''}
                             </div>
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
-                                <i class="far fa-comment me-1"></i> <span class="comment-text">Comment</span> <span class="comment-count-badge"></span>
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}">
-                                <i class="far fa-share-square me-1"></i> Share
-                            </button>
-                            ${post.is_own_post ? `
-                                <button class="btn btn-sm btn-outline-danger me-2 post-delete-btn" data-post-id="${post.id}">
-                                    <i class="far fa-trash-alt me-1"></i> Delete
-                                </button>
-                            ` : ''}
-                            ${isAdmin ? `
-                                <button class="btn btn-sm btn-outline-danger me-2 post-admin-remove-btn" data-post-id="${post.id}">
-                                    <i class="fas fa-trash me-1"></i> Remove
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning post-admin-flag-btn" data-post-id="${post.id}">
-                                    <i class="fas fa-flag me-1"></i> Flag
-                                </button>
-                            ` : ''}
-                        </div>
+                        ` : ''}
                         <div class="reaction-summary" data-post-id="${post.id}" style="display: none; margin-top: 10px;"></div>
                     `;
 
@@ -435,12 +529,15 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 if (window.SimpleReactionSystem) {
                     console.log("Loading reactions for visible posts using SimpleReactionSystem");
                     try {
-                        // Load reactions for all visible posts
+                        // Load reactions for all visible posts (excluding system posts)
                         document.querySelectorAll('.post').forEach(post => {
                             const postId = post.getAttribute('data-post-id');
-                            if (postId) {
+                            // Skip system posts (they start with 'social_')
+                            if (postId && !postId.startsWith('social_')) {
                                 console.log("Loading reactions for post:", postId);
                                 window.SimpleReactionSystem.loadReactions(postId);
+                            } else if (postId && postId.startsWith('social_')) {
+                                console.log("Skipping reaction loading for system post:", postId);
                             }
                         });
                     } catch (error) {
@@ -450,16 +547,11 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     console.error("SimpleReactionSystem not available!");
                 }
 
-                // Debug: Check if reaction buttons exist
+                // Debug: Check if reaction buttons exist (reduced logging)
                 const reactButtons = document.querySelectorAll('.post-react-btn');
-                console.log("Found reaction buttons:", reactButtons.length);
-                reactButtons.forEach((btn, index) => {
-                    console.log(`Button ${index}:`, {
-                        postId: btn.getAttribute('data-post-id'),
-                        contentType: btn.getAttribute('data-content-type'),
-                        hasReactionsSection: !!btn.closest('.reactions-section')
-                    });
-                });
+                if (reactButtons.length === 0) {
+                    console.warn("No reaction buttons found");
+                }
 
                 // Add a global test function
                 window.testReactions = function() {
@@ -491,12 +583,15 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     console.log("=== END TEST ===");
                 };
 
-                // Load comment counts for all posts
+                // Load comment counts for all posts (excluding system posts)
                 document.querySelectorAll('.post').forEach(post => {
                     const postId = post.getAttribute('data-post-id');
-                    if (postId) {
+                    // Skip system posts (they start with 'social_')
+                    if (postId && !postId.startsWith('social_')) {
                         console.log("Loading initial comment count for post:", postId);
                         loadCommentCount(postId);
+                    } else if (postId && postId.startsWith('social_')) {
+                        console.log("Skipping comment count loading for system post:", postId);
                     }
                 });
 
@@ -556,7 +651,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     // Function to load comment count for a post
     async function loadCommentCount(postId) {
         try {
-            console.log(`Loading comment count for post ${postId}`);
             const response = await fetch(`api/get_comment_count.php?post_id=${postId}`);
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -2537,6 +2631,128 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             console.log('Post element not found for scrolling');
         }
     };
+
+    // Function to highlight a specific comment
+    window.highlightComment = function(postId, commentId) {
+        console.log('Highlighting comment:', commentId, 'in post:', postId);
+
+        // First, open the comments section
+        const commentBtn = document.querySelector(`.post-comment-btn[data-post-id="${postId}"]`);
+        if (commentBtn) {
+            commentBtn.click();
+
+            // Wait for comments to load, then highlight
+            setTimeout(() => {
+                const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
+                if (commentElement) {
+                    commentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    commentElement.style.backgroundColor = '#fff3cd';
+                    commentElement.style.border = '2px solid #ffc107';
+                    commentElement.style.borderRadius = '8px';
+
+                    setTimeout(() => {
+                        commentElement.style.backgroundColor = '';
+                        commentElement.style.border = '';
+                        commentElement.style.borderRadius = '';
+                    }, 5000);
+                }
+            }, 1500);
+        }
+    };
+
+    // Function to open media modal with specific comment highlighted
+    window.openMediaWithComment = function(postId, mediaId, commentId) {
+        console.log('Opening media:', mediaId, 'with comment:', commentId, 'from post:', postId);
+
+        // Open the media modal first
+        openMediaModal(postId, 0); // Open first media item
+
+        // Wait for modal to load, then highlight comment
+        setTimeout(() => {
+            const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
+            if (commentElement) {
+                commentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                commentElement.style.backgroundColor = '#e1f5fe';
+                commentElement.style.border = '2px solid #17a2b8';
+                commentElement.style.borderRadius = '8px';
+
+                setTimeout(() => {
+                    commentElement.style.backgroundColor = '';
+                    commentElement.style.border = '';
+                    commentElement.style.borderRadius = '';
+                }, 5000);
+            }
+        }, 2000);
+    };
+
+    // Function to show reaction details
+    window.showReactionDetails = function(postId) {
+        console.log('Showing reaction details for post:', postId);
+
+        // Find the post element and scroll to it
+        const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+        if (postElement) {
+            postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Highlight the reaction summary
+            const reactionSummary = postElement.querySelector('.reaction-summary');
+            if (reactionSummary && reactionSummary.style.display !== 'none') {
+                reactionSummary.style.backgroundColor = '#ffebee';
+                reactionSummary.style.border = '2px solid #dc3545';
+                reactionSummary.style.borderRadius = '8px';
+
+                setTimeout(() => {
+                    reactionSummary.style.backgroundColor = '';
+                    reactionSummary.style.border = '';
+                    reactionSummary.style.borderRadius = '';
+                }, 3000);
+            } else {
+                // If no reactions visible, highlight the react button
+                const reactButton = postElement.querySelector('.post-react-btn');
+                if (reactButton) {
+                    reactButton.style.backgroundColor = '#ffebee';
+                    reactButton.style.border = '2px solid #dc3545';
+
+                    setTimeout(() => {
+                        reactButton.style.backgroundColor = '';
+                        reactButton.style.border = '';
+                    }, 3000);
+                }
+            }
+        }
+    };
+
+    // Function to view user profile
+    window.viewProfile = function(userName) {
+        console.log('Viewing profile for:', userName);
+        // Redirect to profile page - you can customize this URL
+        window.location.href = `view_profile.php?user=${encodeURIComponent(userName)}`;
+    };
+
+    // Function to open media modal with reaction highlighted
+    window.openMediaWithReaction = function(postId, mediaId) {
+        console.log('Opening media:', mediaId, 'with reaction highlighted from post:', postId);
+
+        // Open the media modal first
+        openMediaModal(postId, 0); // Open first media item
+
+        // Wait for modal to load, then highlight reaction area
+        setTimeout(() => {
+            const reactionArea = document.querySelector('.media-reaction-area, .reaction-summary');
+            if (reactionArea) {
+                reactionArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                reactionArea.style.backgroundColor = '#f3e5f5';
+                reactionArea.style.border = '2px solid #6f42c1';
+                reactionArea.style.borderRadius = '8px';
+
+                setTimeout(() => {
+                    reactionArea.style.backgroundColor = '';
+                    reactionArea.style.border = '';
+                    reactionArea.style.borderRadius = '';
+                }, 5000);
+            }
+        }, 2000);
+    };
     </script>
     <script>
       // Initialize only when document is fully loaded
@@ -2598,37 +2814,21 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         } else if (scrollToPostId) {
             console.log('Scrolling to post:', scrollToPostId, 'from notification');
 
-            // Enhanced post scrolling with multiple attempts
-            let attempts = 0;
-            const maxAttempts = 10;
-
-            function attemptScrollToPost() {
-                attempts++;
-                console.log(`Attempt ${attempts} to scroll to post ${scrollToPostId}`);
-
+            // Simple post scrolling with limited attempts
+            setTimeout(() => {
                 const postElement = document.querySelector(`[data-post-id="${scrollToPostId}"]`);
                 if (postElement) {
-                    console.log('Post found, scrolling...');
                     scrollToPost(scrollToPostId);
 
-                    // Also expand the comments section for the post
+                    // Auto-expand comments
                     setTimeout(() => {
                         const commentBtn = postElement.querySelector('.post-comment-btn');
                         if (commentBtn) {
-                            console.log('Auto-expanding comments for post:', scrollToPostId);
                             commentBtn.click();
                         }
                     }, 1000);
-                } else if (attempts < maxAttempts) {
-                    console.log(`Post ${scrollToPostId} not found yet, retrying in 1 second...`);
-                    setTimeout(attemptScrollToPost, 1000);
-                } else {
-                    console.log(`Failed to find post ${scrollToPostId} after ${maxAttempts} attempts`);
                 }
-            }
-
-            // Start attempting after initial load
-            setTimeout(attemptScrollToPost, 2000);
+            }, 3000);
         }
 
         // Add event listeners for comment buttons
@@ -2660,69 +2860,6 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         });
       });
     </script>
-    <script>
-    // Completely revised initialization code
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('Dashboard v2 loaded');
-
-      // Ensure we only initialize once
-      if (window.dashboardInitialized) {
-        console.log('Dashboard already initialized, skipping');
-        return;
-      }
-
-      // Remove any existing event listeners to prevent duplicates
-      document.querySelectorAll('.post-comment-btn').forEach(btn => {
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-      });
-
-      // Remove the setupDeleteButtons function if it exists
-      if (window.setupDeleteButtons) {
-        window.setupDeleteButtons = function() {
-          console.log('Delete buttons setup disabled - using CommentSystem instead');
-        };
-      }
-
-      // Initialize comment system
-      if (typeof CommentSystem !== 'undefined') {
-        console.log('Initializing CommentSystem');
-        // Force recreation of CommentSystem
-        window.commentSystemInitialized = false;
-        window.CommentSystem = new CommentSystem();
-      }
-
-      // Set initialization flag
-      window.dashboardInitialized = true;
-
-      // Add event listeners for comment buttons
-      document.querySelectorAll('.post-comment-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-
-          const postId = this.getAttribute('data-post-id');
-          console.log("Comment button clicked for post:", postId);
-
-          // Toggle comment section visibility
-          const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
-          if (postElement) {
-            const commentsSection = postElement.querySelector('.comments-section');
-            if (commentsSection) {
-              if (commentsSection.classList.contains('d-none')) {
-                commentsSection.classList.remove('d-none');
-              } else {
-                commentsSection.classList.add('d-none');
-              }
-              return;
-            }
-
-            // If comments section doesn't exist, create it
-            toggleCommentForm(postId);
-          }
-        });
-      });
-    });
 
     // Disable the setupCommentInteractions function
     function setupCommentInteractions(commentsContainer, postId) {
@@ -2800,61 +2937,8 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
       // Run immediately
       removeDebugButtons();
 
-      // Run again after a short delay to catch dynamically added buttons
-      setTimeout(removeDebugButtons, 500);
+      // Run once more after a delay
       setTimeout(removeDebugButtons, 1000);
-      setTimeout(removeDebugButtons, 2000);
-
-      // Create a MutationObserver to remove any debug buttons that might be added dynamically
-      const observer = new MutationObserver(mutations => {
-        let shouldRemove = false;
-
-        mutations.forEach(mutation => {
-          if (mutation.addedNodes.length) {
-            mutation.addedNodes.forEach(node => {
-              if (node.nodeType === 1) { // Element node
-                // Check if it's a debug button
-                if ((node.textContent && node.textContent.toLowerCase().includes('debug')) ||
-                    (node.id && node.id.toLowerCase().includes('debug')) ||
-                    (node.className && node.className.toLowerCase().includes('debug'))) {
-                  shouldRemove = true;
-                }
-
-                // Check if it's a fixed position button in the bottom right
-                if (node.tagName === 'BUTTON' && node.style && node.style.position === 'fixed') {
-                  const style = window.getComputedStyle(node);
-                  if ((style.bottom.includes('px') && parseInt(style.bottom) < 50) &&
-                      (style.right.includes('px') && parseInt(style.right) < 50)) {
-                    shouldRemove = true;
-                  }
-                }
-
-                // Also check for any buttons inside the added node
-                if (node.querySelectorAll) {
-                  const buttons = node.querySelectorAll('button');
-                  buttons.forEach(button => {
-                    if ((button.textContent && button.textContent.toLowerCase().includes('debug')) ||
-                        (button.id && button.id.toLowerCase().includes('debug')) ||
-                        (button.className && button.className.toLowerCase().includes('debug'))) {
-                      shouldRemove = true;
-                    }
-                  });
-                }
-              }
-            });
-          }
-        });
-
-        if (shouldRemove) {
-          removeDebugButtons();
-        }
-      });
-
-      // Start observing the entire document
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
     });
     </script>
 </body>
