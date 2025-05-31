@@ -41,44 +41,47 @@ try {
         exit;
     }
     
-    // Look for existing thread between these two users
+    // Look for existing thread between these two users using the messages table
     $stmt = $pdo->prepare("
-        SELECT DISTINCT t.id as thread_id
-        FROM threads t
-        JOIN thread_participants tp1 ON t.id = tp1.thread_id AND tp1.user_id = ?
-        JOIN thread_participants tp2 ON t.id = tp2.thread_id AND tp2.user_id = ?
-        WHERE t.id IN (
-            SELECT thread_id 
-            FROM thread_participants 
-            GROUP BY thread_id 
-            HAVING COUNT(DISTINCT user_id) = 2
-        )
-        ORDER BY t.created_at DESC
+        SELECT DISTINCT m.thread_id
+        FROM messages m
+        WHERE ((m.sender_id = ? AND m.receiver_id = ?)
+        OR (m.sender_id = ? AND m.receiver_id = ?))
+        AND m.deleted_by_sender = 0 
+        AND m.deleted_by_receiver = 0
+        ORDER BY m.sent_at DESC
         LIMIT 1
     ");
     
-    $stmt->execute([$currentUserId, $otherUserId]);
+    $stmt->execute([$currentUserId, $otherUserId, $otherUserId, $currentUserId]);
     $existingThread = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($existingThread) {
-        // Thread exists, check if it was deleted by current user
-        $settingsCheck = $pdo->prepare("
-            SELECT is_deleted_for_user 
-            FROM user_conversation_settings 
-            WHERE conversation_id = ? AND user_id = ?
-        ");
-        $settingsCheck->execute([$existingThread['thread_id'], $currentUserId]);
-        $settings = $settingsCheck->fetch(PDO::FETCH_ASSOC);
+        // Check if user_conversation_settings table exists
+        $tableCheck = $pdo->prepare("SHOW TABLES LIKE 'user_conversation_settings'");
+        $tableCheck->execute();
+        $tableExists = $tableCheck->fetch();
         
-        if ($settings && $settings['is_deleted_for_user']) {
-            // Thread was deleted by current user, restore it
-            $restoreStmt = $pdo->prepare("
-                UPDATE user_conversation_settings 
-                SET is_deleted_for_user = 0 
+        if ($tableExists) {
+            // Thread exists, check if it was deleted by current user
+            $settingsCheck = $pdo->prepare("
+                SELECT is_deleted_for_user 
+                FROM user_conversation_settings 
                 WHERE conversation_id = ? AND user_id = ?
             ");
-            $restoreStmt->execute([$existingThread['thread_id'], $currentUserId]);
-            error_log("Restored deleted thread for user: " . $existingThread['thread_id']);
+            $settingsCheck->execute([$existingThread['thread_id'], $currentUserId]);
+            $settings = $settingsCheck->fetch(PDO::FETCH_ASSOC);
+            
+            if ($settings && $settings['is_deleted_for_user']) {
+                // Thread was deleted by current user, restore it
+                $restoreStmt = $pdo->prepare("
+                    UPDATE user_conversation_settings 
+                    SET is_deleted_for_user = 0 
+                    WHERE conversation_id = ? AND user_id = ?
+                ");
+                $restoreStmt->execute([$existingThread['thread_id'], $currentUserId]);
+                error_log("Restored deleted thread for user: " . $existingThread['thread_id']);
+            }
         }
         
         error_log("Using existing thread: " . $existingThread['thread_id']);
@@ -94,39 +97,27 @@ try {
     $pdo->beginTransaction();
     
     try {
-        // Create new thread
+        // Create new thread in chat_threads table
         $createThread = $pdo->prepare("
-            INSERT INTO threads (title, created_at, created_by)
-            VALUES ('', NOW(), ?)
+            INSERT INTO chat_threads (type, created_at)
+            VALUES ('one_on_one', NOW())
         ");
-        $createThread->execute([$currentUserId]);
+        $createThread->execute();
         $threadId = $pdo->lastInsertId();
         
-        // Add both participants
-        $addParticipants = $pdo->prepare("
-            INSERT INTO thread_participants (thread_id, user_id)
-            VALUES (?, ?), (?, ?)
-        ");
-        $addParticipants->execute([$threadId, $currentUserId, $threadId, $otherUserId]);
+        // Check if user_conversation_settings table exists
+        $tableCheck = $pdo->prepare("SHOW TABLES LIKE 'user_conversation_settings'");
+        $tableCheck->execute();
+        $tableExists = $tableCheck->fetch();
         
-        // Create conversation settings for both users
-        $createSettings = $pdo->prepare("
-            INSERT INTO user_conversation_settings (conversation_id, user_id, is_deleted_for_user)
-            VALUES (?, ?, 0), (?, ?, 0)
-        ");
-        $createSettings->execute([$threadId, $currentUserId, $threadId, $otherUserId]);
-        
-        // Verify thread was created properly
-        $verifyStmt = $pdo->prepare("
-            SELECT COUNT(*) as participant_count
-            FROM thread_participants
-            WHERE thread_id = ?
-        ");
-        $verifyStmt->execute([$threadId]);
-        $verification = $verifyStmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($verification['participant_count'] != 2) {
-            throw new Exception("Thread creation verification failed");
+        if ($tableExists) {
+            // Create conversation settings for both users
+            $createSettings = $pdo->prepare("
+                INSERT INTO user_conversation_settings (conversation_id, user_id, is_deleted_for_user)
+                VALUES (?, ?, 0), (?, ?, 0)
+                ON DUPLICATE KEY UPDATE is_deleted_for_user = 0
+            ");
+            $createSettings->execute([$threadId, $currentUserId, $threadId, $otherUserId]);
         }
         
         $pdo->commit();

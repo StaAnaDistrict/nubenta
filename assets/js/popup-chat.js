@@ -11,6 +11,8 @@ class PopupChatManager {
         this.windowWidth = 300;
         this.windowHeight = 400;
         this.windowSpacing = 10;
+        this.lastGlobalMessageCheck = '1970-01-01 00:00:00'; // Track last global message check
+        this.globalPollingInterval = null; // Store polling interval
         this.init();
     }
 
@@ -30,6 +32,9 @@ class PopupChatManager {
 
         // Add CSS styles
         this.addStyles();
+
+        // Start global message polling for auto-popup
+        this.startGlobalMessagePolling();
 
         console.log('PopupChatManager initialized successfully');
     }
@@ -55,11 +60,11 @@ class PopupChatManager {
                 bottom: 0;
                 width: 300px;
                 height: 400px;
-                background: #fff;
-                border: 1px solid #ddd;
+                background: #1a1a1a;
+                border: 1px solid #333;
                 border-bottom: none;
                 border-radius: 8px 8px 0 0;
-                box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
                 display: flex;
                 flex-direction: column;
                 pointer-events: auto;
@@ -71,7 +76,7 @@ class PopupChatManager {
             }
 
             .chat-window-header {
-                background: #2c3e50;
+                background: #000;
                 color: white;
                 padding: 8px 12px;
                 border-radius: 8px 8px 0 0;
@@ -80,6 +85,7 @@ class PopupChatManager {
                 align-items: center;
                 cursor: pointer;
                 user-select: none;
+                border-bottom: 1px solid #333;
             }
 
             .chat-window-title {
@@ -87,6 +93,7 @@ class PopupChatManager {
                 font-weight: 500;
                 display: flex;
                 align-items: center;
+                color: #fff;
             }
 
             .chat-online-indicator {
@@ -105,7 +112,7 @@ class PopupChatManager {
             .chat-control-btn {
                 background: none;
                 border: none;
-                color: white;
+                color: #ccc;
                 cursor: pointer;
                 padding: 2px 4px;
                 border-radius: 3px;
@@ -114,7 +121,8 @@ class PopupChatManager {
             }
 
             .chat-control-btn:hover {
-                background: rgba(255,255,255,0.2);
+                background: rgba(255,255,255,0.1);
+                color: #fff;
             }
 
             .chat-window-body {
@@ -128,7 +136,7 @@ class PopupChatManager {
                 flex: 1;
                 padding: 8px;
                 overflow-y: auto;
-                background: #f8f9fa;
+                background: #1a1a1a;
                 font-size: 13px;
             }
 
@@ -150,50 +158,94 @@ class PopupChatManager {
             }
 
             .chat-message.own .chat-message-bubble {
-                background: #007bff;
+                background: #2c2c2c;
                 color: white;
+                border: 1px solid #444;
             }
 
             .chat-message:not(.own) .chat-message-bubble {
-                background: #e9ecef;
-                color: #333;
+                background: #333;
+                color: #fff;
+                border: 1px solid #444;
+            }
+
+            .chat-timestamp-separator {
+                text-align: center;
+                font-size: 11px;
+                color: #888;
+                margin: 12px 0 8px 0;
+                padding: 4px 8px;
+                background: rgba(255,255,255,0.05);
+                border-radius: 10px;
+                display: inline-block;
+                margin-left: auto;
+                margin-right: auto;
+                width: fit-content;
+            }
+
+            .chat-message-status-container {
+                text-align: right;
+                margin-top: 2px;
             }
 
             .chat-message-time {
                 font-size: 10px;
-                color: #666;
+                color: #888;
                 margin-top: 2px;
                 text-align: right;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 4px;
+            }
+
+            .chat-message-status {
+                font-size: 10px;
+                color: #888;
+            }
+
+            .chat-message-status.delivered {
+                color: #28a745;
+            }
+
+            .chat-message-status.read {
+                color: #28a745;
             }
 
             .chat-input-container {
-                border-top: 1px solid #ddd;
+                border-top: 1px solid #333;
                 padding: 8px;
-                background: white;
+                background: #1a1a1a;
             }
 
             .chat-input {
                 width: 100%;
-                border: 1px solid #ddd;
+                border: 1px solid #444;
                 border-radius: 15px;
                 padding: 6px 12px;
                 font-size: 13px;
                 resize: none;
                 outline: none;
                 max-height: 60px;
+                background: #2a2a2a;
+                color: #fff;
             }
 
             .chat-input:focus {
-                border-color: #007bff;
+                border-color: #666;
+            }
+
+            .chat-input::placeholder {
+                color: #888;
             }
 
             .chat-typing-indicator {
                 padding: 4px 12px;
                 font-size: 11px;
-                color: #666;
+                color: #888;
+                background: #1a1a1a;
+                border-top: 1px solid #333;
                 font-style: italic;
-                background: #f8f9fa;
-                border-top: 1px solid #eee;
             }
 
             .chat-unread-badge {
@@ -213,16 +265,16 @@ class PopupChatManager {
             }
 
             .chat-messages::-webkit-scrollbar-track {
-                background: #f1f1f1;
+                background: #2a2a2a;
             }
 
             .chat-messages::-webkit-scrollbar-thumb {
-                background: #c1c1c1;
+                background: #555;
                 border-radius: 2px;
             }
 
             .chat-messages::-webkit-scrollbar-thumb:hover {
-                background: #a8a8a8;
+                background: #777;
             }
         `;
         document.head.appendChild(styles);
@@ -268,6 +320,12 @@ class PopupChatManager {
         console.log('🔧 Initializing chat window...');
         try {
             await chatWindow.init();
+            
+            // Set current thread for activity tracking
+            if (window.userActivityTracker && chatWindow.threadId) {
+                window.userActivityTracker.setCurrentThread(chatWindow.threadId);
+            }
+            
             console.log('✅ Chat window initialized successfully for:', userName);
             console.log('🎉 Chat window should now be visible!');
         } catch (error) {
@@ -333,6 +391,86 @@ class PopupChatManager {
             throw error;
         }
     }
+
+    // Start global message polling for auto-popup functionality
+    startGlobalMessagePolling() {
+        console.log('🌐 Starting global message polling for auto-popup...');
+        
+        // Poll every 5 seconds for new messages
+        this.globalPollingInterval = setInterval(async () => {
+            await this.checkForNewMessagesGlobally();
+        }, 5000);
+    }
+
+    // Check for new messages globally and auto-open chat windows
+    async checkForNewMessagesGlobally() {
+        try {
+            const response = await fetch(`api/get_new_messages_global.php?since=${encodeURIComponent(this.lastGlobalMessageCheck)}`);
+            const data = await response.json();
+
+            if (data.success && data.messages && data.messages.length > 0) {
+                console.log('🌐 Found', data.messages.length, 'new global messages');
+
+                // Group messages by sender
+                const messagesBySender = {};
+                data.messages.forEach(message => {
+                    if (!message.is_own) { // Only auto-open for messages from others
+                        if (!messagesBySender[message.sender_id]) {
+                            messagesBySender[message.sender_id] = {
+                                sender_name: message.sender_name,
+                                sender_profile_pic: message.sender_profile_pic,
+                                messages: []
+                            };
+                        }
+                        messagesBySender[message.sender_id].messages.push(message);
+                    }
+                });
+
+                // Auto-open chat windows for new message senders
+                for (const [senderId, senderData] of Object.entries(messagesBySender)) {
+                    if (!this.chatWindows.has(parseInt(senderId))) {
+                        console.log('🚀 Auto-opening chat for:', senderData.sender_name);
+                        try {
+                            const chatWindow = await this.openChat(
+                                parseInt(senderId), 
+                                senderData.sender_name, 
+                                senderData.sender_profile_pic
+                            );
+                            
+                            // Auto-minimize the window to be less intrusive
+                            if (chatWindow && !chatWindow.isMinimized) {
+                                chatWindow.toggleMinimize();
+                            }
+                            
+                            // Play notification sound
+                            if (chatWindow && chatWindow.playNotificationSound) {
+                                chatWindow.playNotificationSound();
+                            }
+                        } catch (error) {
+                            console.error('❌ Failed to auto-open chat for:', senderData.sender_name, error);
+                        }
+                    }
+                }
+
+                // Update last check time
+                this.lastGlobalMessageCheck = data.latest_timestamp;                
+                // Trigger navigation badge update
+                if (typeof checkUnreadDeliveredMessages === 'function') {
+                    checkUnreadDeliveredMessages();
+                }            }
+        } catch (error) {
+            console.error('❌ Error in global message polling:', error);
+        }
+    }
+
+    // Stop global message polling (cleanup)
+    stopGlobalMessagePolling() {
+        if (this.globalPollingInterval) {
+            clearInterval(this.globalPollingInterval);
+            this.globalPollingInterval = null;
+            console.log('🛑 Stopped global message polling');
+        }
+    }
 }
 
 /**
@@ -349,6 +487,7 @@ class ChatWindow {
         this.unreadCount = 0;
         this.isTyping = false;
         this.lastMessageTime = null;
+        this.lastDisplayedMessageTime = null; // For timestamp display logic
         this.element = null;
         this.messagesContainer = null;
         this.inputElement = null;
@@ -466,25 +605,39 @@ class ChatWindow {
             this.manager.closeChat(this.userId);
         });
 
-        // Input handling
-        this.inputElement.addEventListener('keydown', (e) => {
-            console.log('⌨️ Key pressed:', e.key, 'Shift:', e.shiftKey);
-            if (e.key === 'Enter' && !e.shiftKey) {
-                console.log('✅ Enter key detected, sending message...');
-                e.preventDefault();
-                this.sendMessage();
-            }
-        });
+        // Input handling - ensure this works
+        if (this.inputElement) {
+            this.inputElement.addEventListener('keydown', (e) => {
+                console.log('⌨️ Key pressed:', e.key, 'Shift:', e.shiftKey);
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    console.log('✅ Enter key detected, sending message...');
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            });
+        } else {
+            console.error('❌ Input element not found during event listener attachment');
+        }
 
-        this.inputElement.addEventListener('input', () => {
-            this.handleTyping();
-        });
+        // Additional input event handlers
+        if (this.inputElement) {
+            this.inputElement.addEventListener('input', () => {
+                this.handleTyping();
+            });
 
-        // Auto-resize textarea
-        this.inputElement.addEventListener('input', () => {
-            this.inputElement.style.height = 'auto';
-            this.inputElement.style.height = Math.min(this.inputElement.scrollHeight, 60) + 'px';
-        });
+            // Auto-resize textarea
+            this.inputElement.addEventListener('input', () => {
+                this.inputElement.style.height = 'auto';
+                this.inputElement.style.height = Math.min(this.inputElement.scrollHeight, 60) + 'px';
+            });
+            
+            // Track when user focuses on input (indicates reading messages)
+            this.inputElement.addEventListener('focus', () => {
+                if (window.userActivityTracker && this.threadId) {
+                    window.userActivityTracker.setCurrentThread(this.threadId);
+                }
+            });
+        }
 
         // Focus handling
         this.element.addEventListener('click', () => {
@@ -533,20 +686,76 @@ class ChatWindow {
     }
 
     addMessageToUI(message) {
+        // Check if we should show timestamp (more than 1 minute gap from last message)
+        const shouldShowTime = this.shouldShowTimestamp(message.created_at);
+        
+        // Add timestamp above message if needed
+        if (shouldShowTime) {
+            const timestampDiv = document.createElement('div');
+            timestampDiv.className = 'chat-timestamp-separator';
+            timestampDiv.textContent = this.formatTime(message.created_at);
+            this.messagesContainer.appendChild(timestampDiv);
+        }
+        
         const messageDiv = document.createElement('div');
         messageDiv.className = `chat-message ${message.is_own ? 'own' : ''}`;
+        messageDiv.dataset.messageId = message.id; // Store message ID for status updates
 
         const bubble = document.createElement('div');
         bubble.className = 'chat-message-bubble';
         bubble.textContent = message.content;
-
-        const time = document.createElement('div');
-        time.className = 'chat-message-time';
-        time.textContent = this.formatTime(message.created_at);
-
         messageDiv.appendChild(bubble);
-        messageDiv.appendChild(time);
+        
+        // Add status indicator for own messages (separate from timestamp)
+        if (message.is_own) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'chat-message-status-container';
+            
+            const status = document.createElement('span');
+            status.className = 'chat-message-status';
+            status.innerHTML = this.getStatusIcon(message);
+            statusDiv.appendChild(status);
+            
+            messageDiv.appendChild(statusDiv);
+        }
+        
         this.messagesContainer.appendChild(messageDiv);
+        
+        // Update last message time for timestamp logic
+        this.lastDisplayedMessageTime = message.created_at;
+    }
+
+    getStatusIcon(message) {
+        if (message.read_at) {
+            return '✓✓'; // Double checkmark for read
+        } else if (message.delivered_at) {
+            return '✓'; // Single checkmark for delivered
+        } else {
+            return '⏳'; // Clock for pending
+        }
+    }
+
+    updateMessageStatus(messageId, status) {
+        const messageElement = this.messagesContainer.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const statusElement = messageElement.querySelector('.chat-message-status');
+            if (statusElement) {
+                statusElement.innerHTML = status === 'read' ? '✓✓' : '✓';
+                statusElement.className = `chat-message-status ${status}`;
+            }
+        }
+    }
+
+    shouldShowTimestamp(messageTime) {
+        if (!this.lastDisplayedMessageTime) {
+            return true; // Always show timestamp for first message
+        }
+        
+        const lastTime = new Date(this.lastDisplayedMessageTime);
+        const currentTime = new Date(messageTime);
+        const timeDiff = (currentTime - lastTime) / 1000 / 60; // difference in minutes
+        
+        return timeDiff > 1; // Show timestamp if more than 1 minute gap
     }
 
     async sendMessage() {

@@ -327,7 +327,7 @@ try {
                             <button class="btn btn-outline-primary">Follow</button>
                         </div>
                         <div class="action-column">
-                            <button class="btn btn-outline-primary mb-2">Add Testimonial</button>
+                            <button class="btn btn-outline-primary mb-2" onclick="openWriteTestimonialModal(<?= $profileId ?>)">Add Testimonial</button>
                             <button class="btn btn-outline-primary mb-2">View Photos</button>
                             <button class="btn btn-outline-primary mb-2">View Videos</button>
                             <button class="btn btn-outline-primary">View Website</button>
@@ -630,6 +630,31 @@ try {
             </div>
         </div>
 
+        <!-- Testimonials Section -->
+        <div class="profile-section" id="testimonials-section">
+            <h3 class="section-title">Testimonials</h3>
+            <div id="testimonials-container">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading testimonials...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading testimonials...</p>
+                </div>
+            </div>
+            <div class="testimonials-actions mt-3 pt-3 border-top" style="display: none;">
+                <div class="d-flex justify-content-between">
+                    <a href="testimonials.php" class="btn btn-outline-primary">
+                        <i class="fas fa-list me-1"></i>View All Testimonials
+                    </a>
+                    <?php if ($current['id'] !== $profileId): ?>
+                        <button class="btn btn-primary" onclick="openWriteTestimonialModal(<?= $profileId ?>)">
+                            <i class="fas fa-star me-1"></i>Write a Testimonial
+                        </button>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
         <!-- Contents Section -->
         <div class="profile-section" id="contents-section">
             <h3 class="section-title">Contents</h3>
@@ -676,7 +701,8 @@ try {
 
         // Load user posts in Contents section
         loadUserPosts();
-
+        // Load testimonials
+        loadTestimonials();
         // Handle anchor scrolling to specific posts
         handlePostAnchorScrolling();
 
@@ -1590,7 +1616,217 @@ try {
             event.target.disabled = false;
         }
     }
-    </script>
+    
+    // Function to load testimonials for the profile
+    async function loadTestimonials() {
+        const profileUserId = <?= $profileId ?>;
+        const currentUserId = <?= isset($_SESSION['user']['id']) ? $_SESSION['user']['id'] : 0 ?>;
+        const testimonialsContainer = document.getElementById('testimonials-container');
+        const testimonialsActions = document.querySelector('.testimonials-actions');
+
+        try {
+            console.log('Loading testimonials for user:', profileUserId);
+
+            const response = await fetch(`api/get_testimonials.php?type=approved&user_id=${profileUserId}&limit=5`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success && data.testimonials && data.testimonials.length > 0) {
+                console.log(`Loaded ${data.testimonials.length} testimonials for user ${profileUserId}`);
+
+                let testimonialsHTML = '<div class="row">';
+                data.testimonials.forEach(testimonial => {
+                    testimonialsHTML += renderTestimonial(testimonial);
+                });
+                testimonialsHTML += '</div>';
+
+                testimonialsContainer.innerHTML = testimonialsHTML;
+                // Always show actions for profile owner, and for others if they can write testimonials
+                testimonialsActions.style.display = 'block';
+
+            } else {
+                testimonialsContainer.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-star fa-3x mb-3 text-muted"></i>
+                        <p class="text-muted mb-0">No testimonials yet.</p>
+                        ${profileUserId == currentUserId ? '<small class="text-muted">Testimonials from friends will appear here.</small>' : '<small class="text-muted">Be the first to write a testimonial!</small>'}
+                    </div>
+                `;
+                
+                // Show actions even if no testimonials yet
+                testimonialsActions.style.display = 'block';
+            }
+
+        } catch (error) {
+            console.error('Error loading testimonials:', error);
+            testimonialsContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading testimonials: ${error.message}
+                </div>
+            `;
+        }
+    }
+
+    // Function to render a single testimonial
+    function renderTestimonial(testimonial) {
+        const statusBadge = testimonial.status === 'pending' ? 
+            '<span class="badge bg-warning text-dark ms-2">Pending</span>' : '';
+        
+        return `
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <img src="${testimonial.writer_profile_pic || 'assets/images/default-profile.png'}" 
+                                 alt="Profile" class="rounded-circle me-3"
+                                 style="width: 40px; height: 40px; object-fit: cover;">
+                            <div>
+                                <h6 class="mb-0">
+                                    <a href="view_profile.php?id=${testimonial.writer_user_id}" class="text-decoration-none">
+                                        ${testimonial.writer_name}
+                                    </a>
+                                    ${statusBadge}
+                                </h6>
+                                <small class="text-muted">
+                                    <i class="far fa-clock me-1"></i> 
+                                    ${new Date(testimonial.created_at).toLocaleDateString()}
+                                </small>
+                            </div>
+                        </div>
+                        <p class="card-text">${testimonial.content}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="text-warning">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                            </div>
+                            ${testimonial.status === 'pending' && testimonial.recipient_user_id == <?= $current['id'] ?> ? 
+                                `<div class="btn-group btn-group-sm">
+                                    <button class="btn btn-success btn-sm" onclick="approveTestimonial(${testimonial.testimonial_id})">
+                                        <i class="fas fa-check"></i> Approve
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="rejectTestimonial(${testimonial.testimonial_id})">
+                                        <i class="fas fa-times"></i> Reject
+                                    </button>
+                                </div>` : ''
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Function to open write testimonial modal
+    function openWriteTestimonialModal(recipientUserId) {
+        // Create modal HTML
+        const modalHTML = `
+            <div class="modal fade" id="writeTestimonialModal" tabindex="-1" aria-labelledby="writeTestimonialModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="writeTestimonialModalLabel">
+                                <i class="fas fa-star me-2"></i>Write a Testimonial
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="testimonialForm">
+                                <input type="hidden" id="recipientUserId" value="${recipientUserId}">
+                                <div class="mb-3">
+                                    <label for="testimonialContent" class="form-label">Your Testimonial</label>
+                                    <textarea class="form-control" id="testimonialContent" rows="4" 
+                                              placeholder="Share your experience with this person..." required></textarea>
+                                    <div class="form-text">Write a thoughtful testimonial about your experience with this person.</div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="submitTestimonial()">
+                                <i class="fas fa-paper-plane me-1"></i>Submit Testimonial
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove existing modal if any
+        const existingModal = document.getElementById('writeTestimonialModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('writeTestimonialModal'));
+        modal.show();
+    }
+
+    // Function to submit testimonial
+    async function submitTestimonial() {
+        const recipientUserId = document.getElementById('recipientUserId').value;
+        const content = document.getElementById('testimonialContent').value.trim();
+
+        if (!content) {
+            alert('Please write your testimonial before submitting.');
+            return;
+        }
+
+        try {
+            const response = await fetch('api/submit_testimonial.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    recipient_user_id: recipientUserId,
+                    content: content
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('writeTestimonialModal'));
+                modal.hide();
+
+                // Show success message
+                alert('Testimonial submitted successfully! It will be visible once approved.');
+
+                // Reload testimonials
+                loadTestimonials();
+            } else {
+                alert('Error submitting testimonial: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error submitting testimonial:', error);
+            alert('An error occurred while submitting your testimonial.');
+        }
+    }
+
+    // Function to approve testimonial
+    async function approveTestimonial(testimonialId) {
+        try {
+            const response = await fetch('api/manage_testimonial.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    testimonial_id: testimonialId,
+                    action: 'approve'
+         
 </body>
 <script src="assets/js/profile-tabs.js"></script>
 <script src="assets/js/popup-chat.js?v=<?= time() ?>"></script>

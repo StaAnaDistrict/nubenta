@@ -15,22 +15,26 @@ if (!isset($_SESSION['user'])) {
 $user_id = $_SESSION['user']['id'];
 
 try {
-    // Get messages that need delivery status update
+    // Get count of unread messages for this user
     $stmt = $pdo->prepare("
-        SELECT id, delivered_at, read_at
+        SELECT COUNT(*) as unread_count
         FROM messages
         WHERE receiver_id = ?
-        AND (delivered_at IS NOT NULL OR read_at IS NOT NULL)
-        AND updated_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE)
+        AND read_at IS NULL
+        AND deleted_by_receiver = 0
     ");
     $stmt->execute([$user_id]);
-    $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    $unread_count = $result['unread_count'] ?? 0;
+    $has_unread = $unread_count > 0;
 
     echo json_encode([
         'success' => true,
-        'messages' => $messages
+        'has_unread_delivered' => $has_unread,
+        'count' => $unread_count
     ]);
 } catch (PDOException $e) {
-    error_log("Error in check_message_delivery.php: " . $e->getMessage());
+    error_log("Error in check_unread_delivered.php: " . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Database error']);
 } 

@@ -26,73 +26,18 @@ try {
     
     // Check if a thread already exists between these users
     $stmt = $pdo->prepare("
-        SELECT t.id, t.title, t.created_at,
-               u.first_name, u.last_name, u.profile_pic
-        FROM threads t
-        JOIN thread_participants tp1 ON t.id = tp1.thread_id
-        JOIN thread_participants tp2 ON t.id = tp2.thread_id
-        JOIN users u ON u.id = ?
-        WHERE tp1.user_id = ? 
-        AND tp2.user_id = ?
-        AND NOT EXISTS (
-            SELECT 1 FROM archived_threads at 
-            WHERE at.thread_id = t.id 
-            AND at.user_id IN (?, ?)
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM spam_threads st 
-            WHERE st.thread_id = t.id 
-            AND st.user_id IN (?, ?)
-        )
+        SELECT DISTINCT m.thread_id
+        FROM messages m
+        WHERE ((m.sender_id = ? AND m.receiver_id = ?)
+        OR (m.sender_id = ? AND m.receiver_id = ?))
+        AND m.deleted_by_sender = 0 
+        AND m.deleted_by_receiver = 0
         LIMIT 1
     ");
-    
-    $stmt->execute([
-        $otherUserId, 
-        $currentUserId, 
-        $otherUserId,
-        $currentUserId,
-        $otherUserId,
-        $currentUserId,
-        $otherUserId
-    ]);
+    $stmt->execute([$currentUserId, $otherUserId, $otherUserId, $currentUserId]);
     $existingThread = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($existingThread) {
-        // Return existing thread
-        header('Content-Type: application/json');
-        echo json_encode([
-            'thread' => [
-                'id' => $existingThread['id'],
-                'title' => $existingThread['title'],
-                'created_at' => $existingThread['created_at'],
-                'participant_name' => trim($existingThread['first_name'] . ' ' . $existingThread['last_name']),
-                'participant_id' => $otherUserId,
-                'profile_pic' => $existingThread['profile_pic'] ?: 'assets/images/default-avatar.png'
-            ]
-        ]);
-        exit;
-    }
-    
-    // Create new thread
-    $pdo->beginTransaction();
-    
-    try {
-        // Insert thread with created_by field
-        $stmt = $pdo->prepare("
-            INSERT INTO threads (title, created_at, created_by)
-            VALUES ('', NOW(), ?)
-        ");
-        $stmt->execute([$currentUserId]);
-        $threadId = $pdo->lastInsertId();
-        
-        // Add participants
-        $stmt = $pdo->prepare("
-            INSERT INTO thread_participants (thread_id, user_id)
-            VALUES (?, ?), (?, ?)
-        ");
-        $stmt->execute([$threadId, $currentUserId, $threadId, $otherUserId]);
-        
         // Get other user's info
         $stmt = $pdo->prepare("
             SELECT first_name, last_name, profile_pic
@@ -102,18 +47,57 @@ try {
         $stmt->execute([$otherUserId]);
         $otherUser = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        // Verify thread was created
+        // Return existing thread
+        header('Content-Type: application/json');
+        echo json_encode([
+            'thread' => [
+                'id' => $existingThread['thread_id'],
+                'title' => '',
+                'created_at' => date('Y-m-d H:i:s'),
+                'participant_name' => trim($otherUser['first_name'] . ' ' . $otherUser['last_name']),
+                'participant_id' => $otherUserId,
+                'profile_pic' => $otherUser['profile_pic'] ? 'uploads/profile_pics/' . $otherUser['profile_pic'] : 'assets/images/default-avatar.png'
+            ]
+        ]);
+        exit;
+    }
+    
+    // Create new thread
+    $pdo->beginTransaction();
+    
+    try {
+        // Insert thread
         $stmt = $pdo->prepare("
-            SELECT COUNT(*) as count
-            FROM thread_participants
-            WHERE thread_id = ?
+            INSERT INTO chat_threads (type, created_at)
+            VALUES ('one_on_one', NOW())
         ");
-        $stmt->execute([$threadId]);
-        $participantCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+        $stmt->execute();
+        $threadId = $pdo->lastInsertId();
         
-        if ($participantCount !== 2) {
-            throw new Exception("Thread creation verification failed");
+        // Check if user_conversation_settings table exists
+        $stmt = $pdo->prepare("SHOW TABLES LIKE 'user_conversation_settings'");
+        $stmt->execute();
+        $tableExists = $stmt->fetch();
+        
+        if ($tableExists) {
+            // Create user conversation settings for both users
+            $stmt = $pdo->prepare("
+                INSERT INTO user_conversation_settings 
+                (user_id, conversation_id, is_deleted_for_user) 
+                VALUES (?, ?, FALSE), (?, ?, FALSE)
+                ON DUPLICATE KEY UPDATE is_deleted_for_user = FALSE
+            ");
+            $stmt->execute([$currentUserId, $threadId, $otherUserId, $threadId]);
         }
+        
+        // Get other user's info
+        $stmt = $pdo->prepare("
+            SELECT first_name, last_name, profile_pic
+            FROM users
+            WHERE id = ?
+        ");
+        $stmt->execute([$otherUserId]);
+        $otherUser = $stmt->fetch(PDO::FETCH_ASSOC);
         
         $pdo->commit();
         
@@ -126,7 +110,7 @@ try {
                 'created_at' => date('Y-m-d H:i:s'),
                 'participant_name' => trim($otherUser['first_name'] . ' ' . $otherUser['last_name']),
                 'participant_id' => $otherUserId,
-                'profile_pic' => $otherUser['profile_pic'] ?: 'assets/images/default-avatar.png'
+                'profile_pic' => $otherUser['profile_pic'] ? 'uploads/profile_pics/' . $otherUser['profile_pic'] : 'assets/images/default-avatar.png'
             ]
         ]);
     } catch (Exception $e) {

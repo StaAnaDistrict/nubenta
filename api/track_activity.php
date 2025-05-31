@@ -1,83 +1,79 @@
 <?php
-require_once '../bootstrap.php';
+/**
+ * Track user activity for online status and message delivery
+ */
+
+session_start();
+require_once '../db.php';
+
 header('Content-Type: application/json');
 
-$userId = intval($_SESSION['user']['id'] ?? 0);
-if (!$userId) {
+if (!isset($_SESSION['user'])) {
     echo json_encode(['success' => false, 'error' => 'Not authenticated']);
     exit;
 }
 
+$userId = $_SESSION['user']['id'];
+$currentPage = $_SERVER['HTTP_REFERER'] ?? '';
+
 try {
-    error_log("track_activity.php: Starting activity tracking for user ID: " . $userId);
-
-    // First update user's last_seen for online status tracking
+    // Update or insert user activity
     $stmt = $pdo->prepare("
-        UPDATE users
-        SET last_seen = NOW()
-        WHERE id = ?
+        INSERT INTO user_activity (user_id, last_activity, current_page, is_online)
+        VALUES (?, NOW(), ?, 1)
+        ON DUPLICATE KEY UPDATE
+        last_activity = NOW(),
+        current_page = VALUES(current_page),
+        is_online = 1
     ");
-    $stmt->execute([$userId]);
-    error_log("track_activity.php: Updated last_seen for user " . $userId . ", rows affected: " . $stmt->rowCount());
-
-    // Debug: Check for undelivered messages
-    $stmt = $pdo->prepare("
-        SELECT id, thread_id, sender_id, receiver_id, delivered_at
-        FROM messages
-        WHERE receiver_id = ?
-        AND delivered_at IS NULL
-    ");
-    $stmt->execute([$userId]);
-    $undelivered = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    error_log("track_activity.php: Found " . count($undelivered) . " undelivered messages: " . print_r($undelivered, true));
-
-    // Then mark any undelivered messages as delivered
-    $stmt = $pdo->prepare("
-        UPDATE messages
-        SET delivered_at = NOW()
-        WHERE receiver_id = ?
-        AND delivered_at IS NULL
-    ");
-    $stmt->execute([$userId]);
-    $rowsAffected = $stmt->rowCount();
-    error_log("track_activity.php: Marked messages as delivered, rows affected: " . $rowsAffected);
-
-    // Verify the update
-    if ($rowsAffected > 0) {
-        $stmt = $pdo->prepare("
-            SELECT id, thread_id, sender_id, receiver_id, delivered_at
-            FROM messages
-            WHERE receiver_id = ?
-            AND delivered_at IS NOT NULL
-            ORDER BY delivered_at DESC
-            LIMIT 5
-        ");
-        $stmt->execute([$userId]);
-        $recentlyDelivered = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        error_log("track_activity.php: Recently delivered messages: " . print_r($recentlyDelivered, true));
-    }
-
-    // Get count of unread messages
+    $stmt->execute([$userId, $currentPage]);
+    
+    // Get unread message count for navigation badge
     $stmt = $pdo->prepare("
         SELECT COUNT(*) as unread_count
         FROM messages
-        WHERE receiver_id = ?
-        AND read_at IS NULL
+        WHERE receiver_id = ? 
+        AND read_at IS NULL 
+        AND deleted_by_receiver = 0
     ");
     $stmt->execute([$userId]);
-    $unreadCount = $stmt->fetch(PDO::FETCH_ASSOC)['unread_count'];
-    error_log("track_activity.php: Unread message count: " . $unreadCount);
-
+    $unreadCount = $stmt->fetchColumn() ?: 0;
+    
     echo json_encode([
         'success' => true,
-        'unread_count' => $unreadCount,
+        'unread_count' => (int)$unreadCount,
         'debug' => [
-            'undelivered_count' => count($undelivered),
-            'rows_affected' => $rowsAffected
+            'user_id' => $userId,
+            'current_page' => $currentPage,
+            'timestamp' => date('Y-m-d H:i:s')
         ]
     ]);
-
+    
 } catch (PDOException $e) {
-    error_log("Error in track_activity.php: " . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    error_log("Error tracking activity: " . $e->getMessage());
+    
+    // If user_activity table doesn't exist, still return unread count
+    try {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as unread_count
+            FROM messages
+            WHERE receiver_id = ? 
+            AND read_at IS NULL 
+            AND deleted_by_receiver = 0
+        ");
+        $stmt->execute([$userId]);
+        $unreadCount = $stmt->fetchColumn() ?: 0;
+        
+        echo json_encode([
+            'success' => true,
+            'unread_count' => (int)$unreadCount,
+            'warning' => 'Activity tracking unavailable - run setup_user_activity_table.php'
+        ]);
+    } catch (PDOException $e2) {
+        echo json_encode([
+            'success' => false,
+            'error' => 'Database error: ' . $e2->getMessage()
+        ]);
+    }
 }
+?>

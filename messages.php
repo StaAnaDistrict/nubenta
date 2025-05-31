@@ -942,19 +942,30 @@ document.addEventListener('DOMContentLoaded', function() {
 /* ------------------------------------------------- */
 /* 1. list threads                                   */
     async function loadThreads(){
-      const response = await fetch('api/chat_threads.php');
-      const rows = await response.json();
-      const list=document.getElementById('thread-list');
-      const currentThreadId = currentThread;
-      
-      // Store existing thread elements to preserve their state
-      const existingThreads = {};
-      list.querySelectorAll('.thread-item').forEach(el => {
-        existingThreads[el.dataset.threadId] = el;
-      });
-      
-      list.innerHTML='';
-      if (Array.isArray(rows)) {
+      try {
+        const response = await fetch('api/chat_threads.php');
+        const rows = await response.json();
+        
+        // Check if response is an error object
+        if (rows && rows.error) {
+          console.error('Error loading threads:', rows.error);
+          // Show empty threads list instead of breaking
+          const list = document.getElementById('thread-list');
+          list.innerHTML = '<div class="text-center text-muted p-3">Unable to load conversations</div>';
+          return;
+        }
+        
+        const list=document.getElementById('thread-list');
+        const currentThreadId = currentThread;
+        
+        // Store existing thread elements to preserve their state
+        const existingThreads = {};
+        list.querySelectorAll('.thread-item').forEach(el => {
+          existingThreads[el.dataset.threadId] = el;
+        });
+        
+        list.innerHTML='';
+        if (Array.isArray(rows)) {
       rows.forEach(t=>{
           // Check if this thread already exists
           let div = existingThreads[t.id];
@@ -1088,6 +1099,12 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       } else {
         console.error('Invalid threads format:', rows);
+        list.innerHTML = '<div class="text-center text-muted p-3">No conversations yet</div>';
+      }
+      } catch (error) {
+        console.error('Error loading threads:', error);
+        const list = document.getElementById('thread-list');
+        list.innerHTML = '<div class="text-center text-muted p-3">Unable to load conversations</div>';
       }
     }
 
@@ -1119,8 +1136,73 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(checkNewMessages, 5000);
 
 /* 2. open thread                                    */
-function openThread(t) {
+async function openThread(t) {
     console.log('openThread called with thread:', t);
+    
+    // Handle case where t is a user ID for new chat
+    if (typeof t === 'number' || (typeof t === 'object' && !t.participant_name && !t.title)) {
+        console.log('Handling new chat with user ID:', t);
+        const userId = typeof t === 'number' ? t : t.id;
+        
+        try {
+            // Check if thread exists
+            console.log('Checking for existing thread with user:', userId);
+            const checkResponse = await fetch(`api/check_existing_thread.php?user_id=${userId}`);
+            const checkData = await checkResponse.json();
+            console.log('Check existing thread response:', checkData);
+            
+            if (checkData.success && checkData.exists) {
+                // Thread exists, get thread details and open it
+                console.log('Found existing thread ID:', checkData.thread_id);
+                const threadResponse = await fetch('api/chat_threads.php');
+                const threads = await threadResponse.json();
+                
+                // Check if threads is an array and find the thread
+                if (Array.isArray(threads)) {
+                    const existingThread = threads.find(thread => thread.id === checkData.thread_id);
+                    if (existingThread) {
+                        console.log('Found existing thread:', existingThread);
+                        return openThread(existingThread);
+                    }
+                } else {
+                    console.error('Invalid threads format when looking for existing thread:', threads);
+                }
+            }
+            
+            // No existing thread, create new one
+            console.log('Creating new thread with user:', userId);
+            const response = await fetch('api/chat_start.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId
+                })
+            });
+            
+            const data = await response.json();
+            console.log('Chat start response:', data);
+            
+            if (data.thread) {
+                console.log('Created new thread:', data.thread);
+                // Reload threads to show the new one
+                await loadThreads();
+                return openThread(data.thread);
+            } else {
+                console.error('Failed to create chat:', data.error);
+                alert('Failed to create chat: ' + (data.error || 'Unknown error'));
+                return;
+            }
+        } catch (error) {
+            console.error('Error in openThread for new chat:', error);
+            alert('Error creating chat: ' + error.message);
+            return;
+        }
+    }
+    
+    // Handle normal thread object
+    console.log('Opening existing thread:', t);
     currentThread = t.id;
     const chatTitleElement = document.getElementById('chat-title');
     
@@ -1222,9 +1304,13 @@ loadThreads();          // initial load
             fetch('api/chat_threads.php')
                 .then(r => r.json())
                 .then(threads => {
-                    const thread = threads.find(t => t.id === parseInt(threadId));
-                    if (thread) {
-                        openThread(thread);
+                    if (Array.isArray(threads)) {
+                        const thread = threads.find(t => t.id === parseInt(threadId));
+                        if (thread) {
+                            openThread(thread);
+                        }
+                    } else {
+                        console.error('Invalid threads format when opening URL thread:', threads);
                     }
                 })
                 .catch(error => console.error('Error loading thread:', error));
@@ -1309,9 +1395,13 @@ loadThreads();          // initial load
     fetch('api/chat_threads.php')
                 .then(r => r.json())
                 .then(threads => {
-                    const thread = threads.find(t => t.id === threadId);
-                    if (thread) {
-                        openThread(thread);
+                    if (Array.isArray(threads)) {
+                        const thread = threads.find(t => t.id === threadId);
+                        if (thread) {
+                            openThread(thread);
+                        }
+                    } else {
+                        console.error('Invalid threads format when opening created thread:', threads);
                     }
                 })
                 .catch(error => console.error('Error loading new thread:', error));
@@ -1519,61 +1609,6 @@ loadThreads();          // initial load
                 }
             });
 
-            // Add this function to handle new chat
-            async function startNewChat(userId) {
-                try {
-                    // First check if thread exists
-                    const checkResponse = await fetch(`api/check_existing_thread.php?user_id=${userId}`);
-                    const checkData = await checkResponse.json();
-                    
-                    if (checkData.success) {
-                        if (checkData.exists) {
-                            // Thread exists, open it
-                            const threadResponse = await fetch('api/chat_threads.php');
-                            const threads = await threadResponse.json();
-                            const existingThread = threads.find(t => t.id === checkData.thread_id);
-                            if (existingThread) {
-                                openThread(existingThread);
-                                // Close the modal properly
-                                const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
-                                if (modal) {
-                                    modal.hide();
-                                }
-                                return;
-                            }
-                        }
-                        
-                        // No existing thread, create new one
-                        const response = await fetch('api/chat_start.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                user_id: userId
-                            })
-                        });
-                        
-                        const data = await response.json();
-                        if (data.thread) {
-                            openThread(data.thread);
-                            // Close the modal properly
-                            const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
-                            if (modal) {
-                                modal.hide();
-                            }
-                        } else {
-                            alert('Failed to create chat');
-                        }
-                    } else {
-                        alert('Error checking existing thread');
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('Error creating chat');
-                }
-            }
-
             // Update the user search result click handler
             function handleUserSelect(userId, userName) {
                 startNewChat(userId);
@@ -1581,6 +1616,32 @@ loadThreads();          // initial load
                 // $('#newChatModal').modal('hide');
             }
         });
+
+        // Add this function to handle new chat (moved outside DOMContentLoaded)
+        async function startNewChat(userId) {
+            try {
+                console.log('Starting new chat with user ID:', userId);
+                
+                // Close the modal first
+                const modal = bootstrap.Modal.getInstance(document.getElementById('newChatModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                // Use openThread to handle the new chat creation
+                await openThread(userId);
+                
+            } catch (error) {
+                console.error('Error in startNewChat:', error);
+                alert('Error creating chat: ' + error.message);
+            }
+        }
+
+        // Add debugging function to test new chat creation
+        window.testNewChat = function(userId) {
+            console.log('Testing new chat with user ID:', userId);
+            startNewChat(userId);
+        };
 
         /* 2. load messages for a thread                        */
         async function loadMessages(threadId) {
@@ -1706,12 +1767,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Thread exists, open it
                     const threadResponse = await fetch('api/chat_threads.php');
                     const threads = await threadResponse.json();
-                    const existingThread = threads.find(t => t.id === checkData.thread_id);
-                    if (existingThread) {
-                        openThread(existingThread);
-                        // Close the modal properly
-                        modalInstance.hide();
-                        return;
+                    
+                    if (Array.isArray(threads)) {
+                        const existingThread = threads.find(t => t.id === checkData.thread_id);
+                        if (existingThread) {
+                            openThread(existingThread);
+                            // Close the modal properly
+                            modalInstance.hide();
+                            return;
+                        }
+                    } else {
+                        console.error('Invalid threads format when opening existing thread:', threads);
                     }
                 }
                 

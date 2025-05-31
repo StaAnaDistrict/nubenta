@@ -247,33 +247,10 @@ const AlbumManager = {
         });
     },
     
-    // Show notification
+    // Show notification - REMOVED: User requested removal of blue notification system
     showNotification: function(message, type = 'info') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `alert alert-${type} alert-dismissible fade show`;
-        notification.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-        
-        // Add to notifications container
-        const notificationsContainer = document.getElementById('notifications');
-        if (notificationsContainer) {
-            notificationsContainer.appendChild(notification);
-        } else {
-            // Create notifications container if it doesn't exist
-            const container = document.createElement('div');
-            container.id = 'notifications';
-            container.className = 'position-fixed top-0 end-0 p-3';
-            container.style.zIndex = '9999';
-            container.appendChild(notification);
-            document.body.appendChild(container);
-        }
-        
-        // Remove notification after 5 seconds
-        setTimeout(() => {
-            notification.remove();
-        }, 5000);
+        // Blue notification system removed per user request
+        // Only log to console for debugging
+        console.log(`Album notification (${type}): ${message}`);
     }
 };

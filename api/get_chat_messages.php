@@ -47,6 +47,8 @@ try {
             m.id,
             m.body as content,
             m.sent_at as created_at,
+            m.delivered_at,
+            m.read_at,
             m.sender_id,
             CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as sender_name,
             u.profile_pic as sender_profile_pic,
@@ -63,8 +65,8 @@ try {
     $stmt->execute([$currentUserId, $threadId, $limit]);
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Reverse the order to show oldest first
-    $messages = array_reverse($messages);
+    // Messages are already in correct order (oldest first) from SQL query
+    // No need to reverse - this was causing the display issue
 
     // Format messages for popup chat
     $formattedMessages = [];
@@ -77,6 +79,8 @@ try {
             'id' => $message['id'],
             'content' => $message['content'],
             'created_at' => $message['created_at'],
+            'delivered_at' => $message['delivered_at'],
+            'read_at' => $message['read_at'],
             'sender_id' => $message['sender_id'],
             'sender_name' => $message['sender_name'],
             'sender_profile_pic' => $profilePic,

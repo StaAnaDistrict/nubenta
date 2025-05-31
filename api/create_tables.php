@@ -52,6 +52,8 @@ try {
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         delivered_at TIMESTAMP NULL,
         read_at TIMESTAMP NULL,
+        deleted_by_sender BOOLEAN DEFAULT FALSE,
+        deleted_by_receiver BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
@@ -62,6 +64,27 @@ try {
     
     $pdo->exec($sql);
     echo "Table messages created/verified successfully\n";
+
+    // Add missing columns to messages table if they don't exist
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM messages LIKE 'deleted_by_sender'");
+        if ($stmt->rowCount() == 0) {
+            $pdo->exec("ALTER TABLE messages ADD COLUMN deleted_by_sender BOOLEAN DEFAULT FALSE");
+            echo "Added deleted_by_sender column to messages table\n";
+        }
+    } catch (PDOException $e) {
+        echo "Note: deleted_by_sender column may already exist\n";
+    }
+
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM messages LIKE 'deleted_by_receiver'");
+        if ($stmt->rowCount() == 0) {
+            $pdo->exec("ALTER TABLE messages ADD COLUMN deleted_by_receiver BOOLEAN DEFAULT FALSE");
+            echo "Added deleted_by_receiver column to messages table\n";
+        }
+    } catch (PDOException $e) {
+        echo "Note: deleted_by_receiver column may already exist\n";
+    }
 
     // Check if user_conversation_settings table exists and drop it if it does
     $sql = "DROP TABLE IF EXISTS user_conversation_settings;";

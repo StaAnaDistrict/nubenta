@@ -63,3 +63,16 @@ footer {
   border-radius: 4px;
 }
 
+/* Notification badge styling */
+.notification-badge {
+  background: #dc3545;
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 10px;
+  margin-left: 6px;
+  min-width: 16px;
+  text-align: center;
+  display: inline-block;
+}
+
