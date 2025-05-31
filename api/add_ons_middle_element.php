@@ -265,7 +265,10 @@ try {
             'writer_user_id' => $activity['writer_user_id'] ?? null,
             'content' => $activity['content'],
             'rating' => $activity['rating'],
-            'timestamp' => strtotime($activity['activity_time'])
+            'timestamp' => strtotime($activity['activity_time']),
+            // Ensure we have both writer and recipient names for testimonial activities
+            'display_writer_name' => $activity['writer_name'] ?? $activity['friend_name'] ?? 'Unknown User',
+            'display_recipient_name' => $activity['recipient_name'] ?? $activity['friend_name'] ?? 'Unknown User'
         ];
     }
 
@@ -294,11 +297,21 @@ try {
 
     // Limit to 25 activities
     $all_activities = array_slice($all_activities, 0, 25);
+    
+    // Count pending testimonials for notification badge
+    $pendingTestimonialsStmt = $pdo->prepare("
+        SELECT COUNT(*) as count
+        FROM testimonials
+        WHERE recipient_user_id = ? AND status = 'pending'
+    ");
+    $pendingTestimonialsStmt->execute([$user_id]);
+    $pendingCount = $pendingTestimonialsStmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0;
 
     echo json_encode([
         'success' => true,
         'activities' => $all_activities,
-        'count' => count($all_activities)
+        'count' => count($all_activities),
+        'pending_testimonials_count' => $pendingCount
     ]);
 
 } catch (Exception $e) {

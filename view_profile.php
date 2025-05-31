@@ -459,6 +459,8 @@ try {
                                 error_log("Error getting ratings: " . $e->getMessage());
                             }
                             ?>
+                            
+                            <!-- Star rating is displayed above -->
                         </div>
                     </div>
                 </div>

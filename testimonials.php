@@ -327,6 +327,27 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             });
         });
 
+        // Function to render star rating based on rating value
+        function renderStarRating(rating) {
+            // Ensure rating is a valid number between 1-5
+            rating = parseInt(rating);
+            if (isNaN(rating) || rating < 1 || rating > 5) {
+                rating = 5; // Default to 5 if invalid
+            }
+            
+            let starsHtml = '';
+            
+            for (let i = 1; i <= 5; i++) {
+                if (i <= rating) {
+                    starsHtml += '<i class="fas fa-star" style="color: #2c3e50;"></i>';
+                } else {
+                    starsHtml += '<i class="far fa-star" style="color: #2c3e50;"></i>';
+                }
+            }
+            
+            return starsHtml;
+        }
+        
         // Function to load testimonials based on filter
         async function loadTestimonials(filter) {
             const containerId = filter + 'Testimonials';
@@ -395,7 +416,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     <div class="card testimonial-card h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center mb-3">
-                                <img src="${testimonial.writer_profile_pic || 'assets/images/MaleDefaultProfilePicture.png'}" 
+                                <img src="${testimonial.writer_profile_pic || (testimonial.writer_gender === 'Female' ? 'assets/images/FemaleDefaultProfilePicture.png' : 'assets/images/MaleDefaultProfilePicture.png')}"
                                      alt="Profile" class="rounded-circle me-3"
                                      style="width: 50px; height: 50px; object-fit: cover;">
                                 <div class="flex-grow-1">
@@ -418,11 +439,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
-                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
-                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
-                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
-                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
+                                    ${renderStarRating(testimonial.rating || 5)}
                                 </div>
                                 ${actionButtons}
                             </div>
@@ -463,12 +480,8 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             </div>
                             
                             <div class="d-flex justify-content-between align-items-center">
-                                <div class="text-warning">
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
+                                <div>
+                                    ${renderStarRating(testimonial.rating || 5)}
                                 </div>
                                 <small class="text-muted">Written by you</small>
                             </div>
@@ -482,7 +495,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         function getStatusBadge(status) {
             switch(status) {
                 case 'pending':
-                    return '<span class="badge bg-warning text-dark status-badge ms-2">Pending</span>';
+                    return '<span class="badge bg-warning status-badge ms-2">Pending</span>';
                 case 'approved':
                     return '<span class="badge bg-success status-badge ms-2">Approved</span>';
                 case 'rejected':
@@ -498,10 +511,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 return `
                     <div class="testimonial-actions">
                         <div class="btn-group btn-group-sm">
-                            <button class="btn btn-success" onclick="approveTestimonial(${testimonial.testimonial_id})">
+                            <button class="btn" style="background-color: #2c3e50; color: white;" onclick="approveTestimonial(${testimonial.testimonial_id})">
                                 <i class="fas fa-check"></i> Approve
                             </button>
-                            <button class="btn btn-danger" onclick="rejectTestimonial(${testimonial.testimonial_id})">
+                            <button class="btn btn-outline-secondary" onclick="rejectTestimonial(${testimonial.testimonial_id})">
                                 <i class="fas fa-times"></i> Reject
                             </button>
                         </div>

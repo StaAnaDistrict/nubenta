@@ -209,12 +209,12 @@ function renderActivityItem(activity) {
             break;
 
         case 'testimonial_written':
-            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> wrote a testimonial for <strong onclick="viewProfile(${activity.recipient_user_id})">${activity.recipient_name}</strong>`;
+            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> wrote a testimonial for <strong onclick="viewProfile(${activity.recipient_user_id})">${activity.display_recipient_name || activity.recipient_name || 'a user'}</strong>`;
             clickAction = `onclick="viewProfile(${activity.recipient_user_id})"`;
             break;
             
         case 'testimonial_received':
-            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> received a testimonial from <strong onclick="viewProfile(${activity.writer_user_id})">${activity.writer_name}</strong>`;
+            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> received a testimonial from <strong onclick="viewProfile(${activity.writer_user_id})">${activity.display_writer_name || activity.writer_name || 'a user'}</strong>`;
             clickAction = `onclick="viewProfile(${activity.friend_user_id})"`;
             break;
 

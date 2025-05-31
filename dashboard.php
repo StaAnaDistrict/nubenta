@@ -1067,8 +1067,35 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     // It's a JSON array - filter out empty values
                     mediaArray = jsonDecoded.filter(path => path && path.trim() !== '');
                     console.log("Parsed as JSON array:", mediaArray);
+                } else if (typeof jsonDecoded === 'object' && jsonDecoded !== null) {
+                    // It's a JSON object (possibly a user object with profile_pic)
+                    if (jsonDecoded.profile_pic) {
+                        // Handle profile picture from user object
+                        let profilePic = jsonDecoded.profile_pic;
+                        
+                        // Handle different profile pic path formats
+                        if (!profilePic.startsWith('uploads/profile_pics/') &&
+                            !profilePic.startsWith('uploads/') &&
+                            !profilePic.startsWith('assets/') &&
+                            !profilePic.startsWith('http://') &&
+                            !profilePic.startsWith('https://')) {
+                            // No path prefix, assume it's in uploads/profile_pics/
+                            profilePic = 'uploads/profile_pics/' + profilePic;
+                        }
+                        
+                        mediaArray = [profilePic];
+                        console.log("Parsed as JSON object with profile_pic:", mediaArray);
+                    } else {
+                        // Other object, try to extract any usable paths
+                        const paths = Object.values(jsonDecoded).filter(val =>
+                            typeof val === 'string' &&
+                            (val.match(/\.(jpg|jpeg|png|gif|mp4)$/i) || val.startsWith('uploads/') || val.startsWith('assets/'))
+                        );
+                        mediaArray = paths.length > 0 ? paths : [];
+                        console.log("Parsed as JSON object with paths:", mediaArray);
+                    }
                 } else {
-                    // JSON but not array, treat as single string
+                    // JSON but not array or object, treat as single string
                     const trimmedPath = mediaUrl.trim();
                     mediaArray = trimmedPath ? [trimmedPath] : [];
                 }
@@ -1081,6 +1108,27 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         } else if (Array.isArray(mediaUrl)) {
             // Already an array - filter out empty values
             mediaArray = mediaUrl.filter(path => path && path.trim() !== '');
+        } else if (typeof mediaUrl === 'object' && mediaUrl !== null) {
+            // Handle object directly (e.g., user object with profile_pic)
+            if (mediaUrl.profile_pic) {
+                let profilePic = mediaUrl.profile_pic;
+                
+                // Handle different profile pic path formats
+                if (!profilePic.startsWith('uploads/profile_pics/') &&
+                    !profilePic.startsWith('uploads/') &&
+                    !profilePic.startsWith('assets/') &&
+                    !profilePic.startsWith('http://') &&
+                    !profilePic.startsWith('https://')) {
+                    // No path prefix, assume it's in uploads/profile_pics/
+                    profilePic = 'uploads/profile_pics/' + profilePic;
+                }
+                
+                mediaArray = [profilePic];
+                console.log("Object with profile_pic:", mediaArray);
+            } else {
+                console.error("Invalid media object format:", mediaUrl);
+                return '';
+            }
         } else {
             console.error("Invalid media format:", mediaUrl);
             return '';

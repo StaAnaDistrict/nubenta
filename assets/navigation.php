@@ -239,4 +239,8 @@ window.checkUnreadNotifications = checkUnreadNotifications;
 #notificationsLink {
     position: relative;
 }
+
+#testimonialsLink {
+    position: relative;
+}
 </style>
