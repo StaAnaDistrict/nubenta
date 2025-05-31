@@ -1,15 +1,25 @@
 <?php
-session_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Prevent duplicate session_start notice
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once 'bootstrap.php';
 
-// Check if user is logged in
 if (!isset($_SESSION['user'])) {
-    header('Location: login.php');
-    exit;
+    header("Location: login.php");
+    exit();
 }
 
 $user = $_SESSION['user'];
-$currentPage = 'testimonials';
+$my_id = $user['id'];
+
+// Define default profile pictures
+$defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
+$defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
+
 ?>
 
 <!DOCTYPE html>
@@ -17,38 +27,116 @@ $currentPage = 'testimonials';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Testimonials - Nubenta</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/dashboard.css">
+    <title>Testimonials - Nubenta</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/dashboard_style.css">
     <style>
-        .testimonial-card {
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        /* Main content specific styles */
+        .main-content {
+            font-family: Arial, sans-serif;
+            color: #333;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
-        
+
+        /* Testimonial card styles */
+        .testimonial-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: white;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
         .testimonial-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
-        
-        .status-badge {
-            font-size: 0.75rem;
+        .testimonial-card img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
         }
-        
-        .testimonial-content {
-            line-height: 1.6;
+        .testimonial-card .flex-grow-1 {
+            min-width: 0;
         }
-        
-        .testimonial-meta {
-            font-size: 0.9rem;
+        .testimonial-card h5 {
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.4;
         }
-        
+        .testimonial-card .text-muted {
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .testimonial-actions {
+            margin-top: 8px;
+        }
         .testimonial-actions .btn {
-            font-size: 0.8rem;
+            padding: 4px 12px;
+            font-size: 13px;
+        }
+        .section-title {
+            margin: 30px 0 20px;
+            color: #1a1a1a;
+            font-weight: bold;
+            text-align: left;
+        }
+
+        /* Button styles */
+        .testimonial-card .btn-primary {
+            background-color: #2c3e50;
+            border-color: #2c3e50;
+        }
+        .testimonial-card .btn-primary:hover {
+            background-color: #1a252f;
+            border-color: #1a252f;
+        }
+        .testimonial-card .btn-outline-primary {
+            color: #2c3e50;
+            border-color: #2c3e50;
+        }
+        .testimonial-card .btn-outline-primary:hover {
+            background-color: #2c3e50;
+            border-color: #2c3e50;
+            color: white;
+        }
+        .testimonial-card .btn-outline-danger {
+            color: #dc3545;
+            border-color: #dc3545;
+        }
+        .testimonial-card .btn-outline-danger:hover {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            color: white;
+        }
+        .testimonial-card .btn-outline-secondary {
+            color: #6c757d;
+            border-color: #6c757d;
+        }
+        .testimonial-card .btn-outline-secondary:hover {
+            background-color: #6c757d;
+            border-color: #6c757d;
+            color: white;
+        }
+
+        /* User name link styles */
+        .user-name {
+            color: #2c3e50;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .user-name:hover {
+            color: #1a252f;
+            text-decoration: underline;
         }
         
+        /* Filter tabs */
         .filter-tabs {
             border-bottom: 2px solid #e9ecef;
             margin-bottom: 2rem;
@@ -68,14 +156,7 @@ $currentPage = 'testimonials';
             background: none;
         }
         
-        .page-header {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            padding: 2rem 0;
-            margin-bottom: 2rem;
-            border-radius: 10px;
-        }
-        
+        /* Stats cards */
         .stats-card {
             background: white;
             border-radius: 10px;
@@ -93,6 +174,15 @@ $currentPage = 'testimonials';
         .stats-label {
             color: #6c757d;
             font-size: 0.9rem;
+        }
+        
+        /* Page header */
+        .page-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 10px;
         }
     </style>
 </head>
@@ -216,7 +306,7 @@ $currentPage = 'testimonials';
         </aside>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -300,15 +390,15 @@ $currentPage = 'testimonials';
                     <div class="card testimonial-card h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center mb-3">
-                                <img src="${testimonial.writer_profile_pic || 'assets/images/default-profile.png'}" 
+                                <img src="${testimonial.writer_profile_pic || 'assets/images/MaleDefaultProfilePicture.png'}" 
                                      alt="Profile" class="rounded-circle me-3"
                                      style="width: 50px; height: 50px; object-fit: cover;">
                                 <div class="flex-grow-1">
-                                    <h6 class="mb-1">
-                                        <a href="view_profile.php?id=${testimonial.writer_user_id}" class="text-decoration-none">
+                                    <h5 class="mb-1">
+                                        <a href="view_profile.php?id=${testimonial.writer_user_id}" class="user-name">
                                             ${testimonial.writer_name}
                                         </a>
-                                    </h6>
+                                    </h5>
                                     <div class="testimonial-meta text-muted">
                                         <i class="far fa-clock me-1"></i>
                                         ${new Date(testimonial.created_at).toLocaleDateString()}
@@ -322,12 +412,12 @@ $currentPage = 'testimonials';
                             </div>
                             
                             <div class="d-flex justify-content-between align-items-center">
-                                <div class="text-warning">
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
-                                    <i class="fas fa-star"></i>
+                                <div>
+                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
+                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
+                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
+                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
+                                    <i class="fas fa-star" style="color: #2c3e50;"></i>
                                 </div>
                                 ${actionButtons}
                             </div>
@@ -346,15 +436,15 @@ $currentPage = 'testimonials';
                     <div class="card testimonial-card h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center mb-3">
-                                <img src="${testimonial.recipient_profile_pic || 'assets/images/default-profile.png'}" 
+                                <img src="${testimonial.recipient_profile_pic || 'assets/images/MaleDefaultProfilePicture.png'}" 
                                      alt="Profile" class="rounded-circle me-3"
                                      style="width: 50px; height: 50px; object-fit: cover;">
                                 <div class="flex-grow-1">
-                                    <h6 class="mb-1">
-                                        <a href="view_profile.php?id=${testimonial.recipient_user_id}" class="text-decoration-none">
+                                    <h5 class="mb-1">
+                                        <a href="view_profile.php?id=${testimonial.recipient_user_id}" class="user-name">
                                             ${testimonial.recipient_name}
                                         </a>
-                                    </h6>
+                                    </h5>
                                     <div class="testimonial-meta text-muted">
                                         <i class="far fa-clock me-1"></i>
                                         ${new Date(testimonial.created_at).toLocaleDateString()}

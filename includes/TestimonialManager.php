@@ -16,18 +16,58 @@ class TestimonialManager {
      */
     public function createTestimonial($data) {
         try {
-            $sql = "INSERT INTO testimonials (writer_user_id, recipient_user_id, content, media_url, media_type, external_media_url, status, created_at) 
-                    VALUES (:writer_user_id, :recipient_user_id, :content, :media_url, :media_type, :external_media_url, 'pending', NOW())";
+            // Check if testimonials table has rating column
+            $hasRatingColumn = false;
+            try {
+                $columnsStmt = $this->pdo->query("DESCRIBE testimonials");
+                $columns = $columnsStmt->fetchAll(PDO::FETCH_COLUMN);
+                $hasRatingColumn = in_array('rating', $columns);
+            } catch (PDOException $e) {
+                // Table might not exist yet
+                error_log("Error checking testimonials table structure: " . $e->getMessage());
+            }
             
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute([
-                ':writer_user_id' => $data['writer_user_id'],
-                ':recipient_user_id' => $data['recipient_user_id'],
-                ':content' => $data['content'],
-                ':media_url' => $data['media_url'],
-                ':media_type' => $data['media_type'],
-                ':external_media_url' => $data['external_media_url']
-            ]);
+            if ($hasRatingColumn) {
+                $sql = "INSERT INTO testimonials (writer_user_id, recipient_user_id, content, media_url, media_type, external_media_url, rating, status, created_at)
+                        VALUES (:writer_user_id, :recipient_user_id, :content, :media_url, :media_type, :external_media_url, :rating, 'pending', NOW())";
+                
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute([
+                    ':writer_user_id' => $data['writer_user_id'],
+                    ':recipient_user_id' => $data['recipient_user_id'],
+                    ':content' => $data['content'],
+                    ':media_url' => $data['media_url'],
+                    ':media_type' => $data['media_type'],
+                    ':external_media_url' => $data['external_media_url'],
+                    ':rating' => isset($data['rating']) ? $data['rating'] : 5
+                ]);
+            } else {
+                // Fallback to original query without rating
+                $sql = "INSERT INTO testimonials (writer_user_id, recipient_user_id, content, media_url, media_type, external_media_url, status, created_at)
+                        VALUES (:writer_user_id, :recipient_user_id, :content, :media_url, :media_type, :external_media_url, 'pending', NOW())";
+                
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute([
+                    ':writer_user_id' => $data['writer_user_id'],
+                    ':recipient_user_id' => $data['recipient_user_id'],
+                    ':content' => $data['content'],
+                    ':media_url' => $data['media_url'],
+                    ':media_type' => $data['media_type'],
+                    ':external_media_url' => $data['external_media_url']
+                ]);
+                
+                // If rating was provided but column doesn't exist, try to add the column
+                if (isset($data['rating'])) {
+                    try {
+                        $this->pdo->exec("ALTER TABLE testimonials ADD COLUMN rating TINYINT UNSIGNED NULL AFTER content");
+                        $this->pdo->prepare("UPDATE testimonials SET rating = ? WHERE testimonial_id = ?")->execute([
+                            $data['rating'], $this->pdo->lastInsertId()
+                        ]);
+                    } catch (PDOException $e) {
+                        error_log("Error adding rating column: " . $e->getMessage());
+                    }
+                }
+            }
             
             $testimonialId = $this->pdo->lastInsertId();
             

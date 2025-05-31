@@ -421,6 +421,44 @@ try {
                                     <?= $onlineStatus ?>
                                 </span>
                             </div>
+                            
+                            <?php
+                            // Calculate average rating from testimonials
+                            try {
+                                $ratingStmt = $pdo->prepare("
+                                    SELECT AVG(rating) as avg_rating, COUNT(*) as total_ratings
+                                    FROM testimonials
+                                    WHERE recipient_user_id = ? AND status = 'approved' AND rating IS NOT NULL
+                                ");
+                                $ratingStmt->execute([$profileId]);
+                                $ratingData = $ratingStmt->fetch(PDO::FETCH_ASSOC);
+                                
+                                if ($ratingData && $ratingData['total_ratings'] > 0) {
+                                    $avgRating = round($ratingData['avg_rating'], 1);
+                                    echo '<div class="info-line">';
+                                    echo '<span class="info-label">Rating:</span> ';
+                                    echo '<span class="text-muted">';
+                                    
+                                    // Display stars
+                                    for ($i = 1; $i <= 5; $i++) {
+                                        if ($i <= floor($avgRating)) {
+                                            echo '<i class="fas fa-star" style="color: #2c3e50;"></i>';
+                                        } elseif ($i - 0.5 <= $avgRating) {
+                                            echo '<i class="fas fa-star-half-alt" style="color: #2c3e50;"></i>';
+                                        } else {
+                                            echo '<i class="far fa-star" style="color: #2c3e50;"></i>';
+                                        }
+                                    }
+                                    
+                                    echo ' ' . $avgRating . ' (' . $ratingData['total_ratings'] . ' ratings)';
+                                    echo '</span>';
+                                    echo '</div>';
+                                }
+                            } catch (PDOException $e) {
+                                // Silently handle error
+                                error_log("Error getting ratings: " . $e->getMessage());
+                            }
+                            ?>
                         </div>
                     </div>
                 </div>
@@ -641,13 +679,13 @@ try {
                     <p class="mt-2 text-muted">Loading testimonials...</p>
                 </div>
             </div>
-            <div class="testimonials-actions mt-3 pt-3 border-top" style="display: none;">
+            <div class="testimonials-actions mt-3 pt-3 border-top" style="display: block;">
                 <div class="d-flex justify-content-between">
-                    <a href="testimonials.php" class="btn btn-outline-primary">
+                    <a href="testimonials.php" class="btn btn-outline-secondary" style="color: #2c3e50; border-color: #2c3e50;">
                         <i class="fas fa-list me-1"></i>View All Testimonials
                     </a>
                     <?php if ($current['id'] !== $profileId): ?>
-                        <button class="btn btn-primary" onclick="openWriteTestimonialModal(<?= $profileId ?>)">
+                        <button class="btn" style="background-color: #2c3e50; color: white;" onclick="openWriteTestimonialModal(<?= $profileId ?>)">
                             <i class="fas fa-star me-1"></i>Write a Testimonial
                         </button>
                     <?php endif; ?>
@@ -1648,11 +1686,14 @@ try {
                 testimonialsActions.style.display = 'block';
 
             } else {
+                // Get the user's first name for personalized message
+                const userName = '<?= explode(' ', $u['full_name'])[0] ?>';
+                
                 testimonialsContainer.innerHTML = `
                     <div class="text-center py-4">
                         <i class="fas fa-star fa-3x mb-3 text-muted"></i>
-                        <p class="text-muted mb-0">No testimonials yet.</p>
-                        ${profileUserId == currentUserId ? '<small class="text-muted">Testimonials from friends will appear here.</small>' : '<small class="text-muted">Be the first to write a testimonial!</small>'}
+                        <p class="text-muted mb-0">${profileUserId == currentUserId ? 'You have no testimonials yet.' : `${userName} has no existing testimonials yet, be the first!`}</p>
+                        ${profileUserId == currentUserId ? '<small class="text-muted">Testimonials from friends will appear here.</small>' : '<small class="text-muted">Write a testimonial to share your experience.</small>'}
                     </div>
                 `;
                 
@@ -1673,38 +1714,52 @@ try {
 
     // Function to render a single testimonial
     function renderTestimonial(testimonial) {
-        const statusBadge = testimonial.status === 'pending' ? 
+        const statusBadge = testimonial.status === 'pending' ?
             '<span class="badge bg-warning text-dark ms-2">Pending</span>' : '';
+        
+        // Get profile picture with fallback to gender-specific default
+        const profilePic = testimonial.writer_profile_pic ?
+            `uploads/profile_pics/${testimonial.writer_profile_pic}` :
+            (testimonial.writer_gender === 'Female' ?
+                'assets/images/FemaleDefaultProfilePicture.png' :
+                'assets/images/MaleDefaultProfilePicture.png');
+        
+        // Generate star rating based on rating value (default to 5 if not set)
+        const rating = testimonial.rating || 5;
+        let starsHtml = '';
+        for (let i = 1; i <= 5; i++) {
+            if (i <= rating) {
+                starsHtml += '<i class="fas fa-star" style="color: #2c3e50;"></i>';
+            } else {
+                starsHtml += '<i class="far fa-star" style="color: #2c3e50;"></i>';
+            }
+        }
         
         return `
             <div class="col-md-6 mb-3">
-                <div class="card h-100">
+                <div class="card h-100" style="border-color: #e9ecef;">
                     <div class="card-body">
                         <div class="d-flex align-items-center mb-3">
-                            <img src="${testimonial.writer_profile_pic || 'assets/images/default-profile.png'}" 
+                            <img src="${profilePic}"
                                  alt="Profile" class="rounded-circle me-3"
                                  style="width: 40px; height: 40px; object-fit: cover;">
                             <div>
                                 <h6 class="mb-0">
-                                    <a href="view_profile.php?id=${testimonial.writer_user_id}" class="text-decoration-none">
+                                    <a href="view_profile.php?id=${testimonial.writer_user_id}" class="text-decoration-none" style="color: #2c3e50;">
                                         ${testimonial.writer_name}
                                     </a>
                                     ${statusBadge}
                                 </h6>
                                 <small class="text-muted">
-                                    <i class="far fa-clock me-1"></i> 
+                                    <i class="far fa-clock me-1"></i>
                                     ${new Date(testimonial.created_at).toLocaleDateString()}
                                 </small>
                             </div>
                         </div>
                         <p class="card-text">${testimonial.content}</p>
                         <div class="d-flex justify-content-between align-items-center">
-                            <div class="text-warning">
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
-                                <i class="fas fa-star"></i>
+                            <div>
+                                ${starsHtml}
                             </div>
                             ${testimonial.status === 'pending' && testimonial.recipient_user_id == <?= $current['id'] ?> ? 
                                 `<div class="btn-group btn-group-sm">
@@ -1730,26 +1785,41 @@ try {
             <div class="modal fade" id="writeTestimonialModal" tabindex="-1" aria-labelledby="writeTestimonialModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
                     <div class="modal-content">
-                        <div class="modal-header">
+                        <div class="modal-header" style="background-color: #2c3e50; color: white;">
                             <h5 class="modal-title" id="writeTestimonialModalLabel">
                                 <i class="fas fa-star me-2"></i>Write a Testimonial
                             </h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: invert(1);"></button>
                         </div>
                         <div class="modal-body">
                             <form id="testimonialForm">
                                 <input type="hidden" id="recipientUserId" value="${recipientUserId}">
                                 <div class="mb-3">
                                     <label for="testimonialContent" class="form-label">Your Testimonial</label>
-                                    <textarea class="form-control" id="testimonialContent" rows="4" 
+                                    <textarea class="form-control" id="testimonialContent" rows="4"
                                               placeholder="Share your experience with this person..." required></textarea>
                                     <div class="form-text">Write a thoughtful testimonial about your experience with this person.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Rating</label>
+                                    <div class="rating-container">
+                                        <div class="star-rating">
+                                            <input type="radio" id="star5" name="rating" value="5" /><label for="star5" title="Excellent">5 stars</label>
+                                            <input type="radio" id="star4" name="rating" value="4" /><label for="star4" title="Very Good">4 stars</label>
+                                            <input type="radio" id="star3" name="rating" value="3" checked /><label for="star3" title="Good">3 stars</label>
+                                            <input type="radio" id="star2" name="rating" value="2" /><label for="star2" title="Fair">2 stars</label>
+                                            <input type="radio" id="star1" name="rating" value="1" /><label for="star1" title="Poor">1 star</label>
+                                        </div>
+                                        <div class="rating-text mt-2">
+                                            <span class="small text-muted">1 - Poor, 5 - Excellent</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </form>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-primary" onclick="submitTestimonial()">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn" style="background-color: #2c3e50; color: white;" onclick="submitTestimonial()">
                                 <i class="fas fa-paper-plane me-1"></i>Submit Testimonial
                             </button>
                         </div>
@@ -1776,6 +1846,16 @@ try {
     async function submitTestimonial() {
         const recipientUserId = document.getElementById('recipientUserId').value;
         const content = document.getElementById('testimonialContent').value.trim();
+        const ratingInputs = document.getElementsByName('rating');
+        let rating = 3; // Default rating
+        
+        // Get selected rating
+        for (const input of ratingInputs) {
+            if (input.checked) {
+                rating = parseInt(input.value);
+                break;
+            }
+        }
 
         if (!content) {
             alert('Please write your testimonial before submitting.');
@@ -1790,7 +1870,8 @@ try {
                 },
                 body: JSON.stringify({
                     recipient_user_id: recipientUserId,
-                    content: content
+                    content: content,
+                    rating: rating
                 })
             });
 
@@ -1826,7 +1907,61 @@ try {
                 body: JSON.stringify({
                     testimonial_id: testimonialId,
                     action: 'approve'
-         
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Show success message
+                alert('Testimonial approved successfully!');
+                
+                // Reload testimonials
+                loadTestimonials();
+            } else {
+                alert('Error approving testimonial: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error approving testimonial:', error);
+            alert('An error occurred while approving the testimonial.');
+        }
+    }
+    
+    // Function to reject testimonial
+    async function rejectTestimonial(testimonialId) {
+        if (!confirm('Are you sure you want to reject this testimonial? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('api/manage_testimonial.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    testimonial_id: testimonialId,
+                    action: 'reject'
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Show success message
+                alert('Testimonial rejected.');
+                
+                // Reload testimonials
+                loadTestimonials();
+            } else {
+                alert('Error rejecting testimonial: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error rejecting testimonial:', error);
+            alert('An error occurred while rejecting the testimonial.');
+        }
+    }
+</script>
 </body>
 <script src="assets/js/profile-tabs.js"></script>
 <script src="assets/js/popup-chat.js?v=<?= time() ?>"></script>
