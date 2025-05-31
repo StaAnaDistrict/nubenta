@@ -12,6 +12,30 @@ $userId = isset($currentUser) && isset($currentUser['id']) ? $currentUser['id'] 
 <div class="sidebar-section">
     <h4><?php echo $title; ?></h4>
 
+    <?php
+    // Check for pending testimonials
+    $pendingTestimonials = 0;
+    if ($userId) {
+        try {
+            require_once __DIR__ . '/../db.php';
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM testimonials WHERE recipient_user_id = ? AND status = 'pending'");
+            $stmt->execute([$userId]);
+            $pendingTestimonials = $stmt->fetchColumn();
+        } catch (PDOException $e) {
+            error_log("Error getting testimonials count: " . $e->getMessage());
+        }
+    }
+    ?>
+
+    <?php if ($pendingTestimonials > 0): ?>
+    <div class="alert" style="background-color: #2c3e50; color: white; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px;">
+        <a href="testimonials.php" style="color: white; text-decoration: none; display: flex; justify-content: space-between; align-items: center;">
+            <span><i class="fas fa-star me-2"></i>You have <?= $pendingTestimonials ?> pending testimonial<?= $pendingTestimonials > 1 ? 's' : '' ?></span>
+            <i class="fas fa-chevron-right"></i>
+        </a>
+    </div>
+    <?php endif; ?>
+
     <?php if ($userId): ?>
     <!-- If user is logged in, show activity feed -->
     <div id="activity-feed-container" style="max-height: 400px; overflow-y: auto;">
@@ -182,6 +206,16 @@ function renderActivityItem(activity) {
         case 'friend_connection':
             text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> is now friends with <strong onclick="viewProfile(${activity.other_friend_user_id})">${activity.other_friend_name}</strong>`;
             clickAction = '';
+            break;
+
+        case 'testimonial_written':
+            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> wrote a testimonial for <strong onclick="viewProfile(${activity.recipient_user_id})">${activity.recipient_name}</strong>`;
+            clickAction = `onclick="viewProfile(${activity.recipient_user_id})"`;
+            break;
+            
+        case 'testimonial_received':
+            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> received a testimonial from <strong onclick="viewProfile(${activity.writer_user_id})">${activity.writer_name}</strong>`;
+            clickAction = `onclick="viewProfile(${activity.friend_user_id})"`;
             break;
 
         default:

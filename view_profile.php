@@ -1725,7 +1725,7 @@ try {
                 'assets/images/MaleDefaultProfilePicture.png');
         
         // Generate star rating based on rating value (default to 5 if not set)
-        const rating = testimonial.rating || 5;
+        const rating = parseInt(testimonial.rating) || 5;
         let starsHtml = '';
         for (let i = 1; i <= 5; i++) {
             if (i <= rating) {

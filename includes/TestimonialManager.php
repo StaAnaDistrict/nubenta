@@ -122,9 +122,10 @@ class TestimonialManager {
      */
     public function getApprovedTestimonialsForProfile($userId, $limit = 10) {
         try {
-            $sql = "SELECT t.*, 
-                           u.first_name as writer_name, 
+            $sql = "SELECT t.*,
+                           CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as writer_name,
                            u.profile_pic as writer_profile_pic,
+                           u.gender as writer_gender,
                            u.id as writer_user_id
                     FROM testimonials t
                     JOIN users u ON t.writer_user_id = u.id
@@ -157,9 +158,10 @@ class TestimonialManager {
      */
     public function getAllTestimonialsForUser($userId, $limit = 50) {
         try {
-            $sql = "SELECT t.*, 
-                           u.first_name as writer_name, 
+            $sql = "SELECT t.*,
+                           CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as writer_name,
                            u.profile_pic as writer_profile_pic,
+                           u.gender as writer_gender,
                            u.id as writer_user_id
                     FROM testimonials t
                     JOIN users u ON t.writer_user_id = u.id
@@ -192,9 +194,10 @@ class TestimonialManager {
      */
     public function getTestimonialsWrittenByUser($userId) {
         try {
-            $sql = "SELECT t.*, 
-                           u.first_name as recipient_name, 
+            $sql = "SELECT t.*,
+                           CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as recipient_name,
                            u.profile_pic as recipient_profile_pic,
+                           u.gender as recipient_gender,
                            u.id as recipient_user_id
                     FROM testimonials t
                     JOIN users u ON t.recipient_user_id = u.id

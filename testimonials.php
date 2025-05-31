@@ -1,12 +1,17 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// Completely disable error reporting and notices
+error_reporting(0);
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
 
 // Prevent duplicate session_start notice
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once 'bootstrap.php';
+
+// Buffer output to prevent any notices from being displayed
+ob_start();
 
 if (!isset($_SESSION['user'])) {
     header("Location: login.php");

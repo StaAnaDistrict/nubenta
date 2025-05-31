@@ -159,6 +159,69 @@ try {
     $social_stmt->execute();
     $social_activities = $social_stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Get testimonial activities
+    $testimonial_activities = [];
+    $testimonial_stmt = $pdo->prepare("
+        (
+            -- 1. Friends writing testimonials for others
+            SELECT 'testimonial_written' as activity_type,
+                   CONCAT_WS(' ', writer.first_name, writer.middle_name, writer.last_name) as friend_name,
+                   writer.profile_pic as friend_profile_pic,
+                   writer.id as friend_user_id,
+                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as recipient_name,
+                   recipient.id as recipient_user_id,
+                   t.created_at as activity_time,
+                   t.testimonial_id,
+                   t.content,
+                   t.rating
+            FROM testimonials t
+            JOIN users writer ON t.writer_user_id = writer.id
+            JOIN users recipient ON t.recipient_user_id = recipient.id
+            WHERE t.writer_user_id IN (
+                SELECT CASE WHEN sender_id = :user_id1 THEN receiver_id WHEN receiver_id = :user_id2 THEN sender_id END
+                FROM friend_requests WHERE (sender_id = :user_id3 OR receiver_id = :user_id4) AND status = 'accepted'
+            )
+            AND t.writer_user_id != :user_id5
+            AND t.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        )
+        
+        UNION ALL
+        
+        (
+            -- 2. Friends receiving testimonials
+            SELECT 'testimonial_received' as activity_type,
+                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as friend_name,
+                   recipient.profile_pic as friend_profile_pic,
+                   recipient.id as friend_user_id,
+                   CONCAT_WS(' ', writer.first_name, writer.middle_name, writer.last_name) as writer_name,
+                   writer.id as writer_user_id,
+                   t.created_at as activity_time,
+                   t.testimonial_id,
+                   t.content,
+                   t.rating
+            FROM testimonials t
+            JOIN users writer ON t.writer_user_id = writer.id
+            JOIN users recipient ON t.recipient_user_id = recipient.id
+            WHERE t.recipient_user_id IN (
+                SELECT CASE WHEN sender_id = :user_id6 THEN receiver_id WHEN receiver_id = :user_id7 THEN sender_id END
+                FROM friend_requests WHERE (sender_id = :user_id8 OR receiver_id = :user_id9) AND status = 'accepted'
+            )
+            AND t.recipient_user_id != :user_id10
+            AND t.status = 'approved'
+            AND t.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        )
+        
+        ORDER BY activity_time DESC
+        LIMIT 15
+    ");
+    
+    for ($i = 1; $i <= 10; $i++) {
+        $testimonial_stmt->bindParam(":user_id$i", $user_id, PDO::PARAM_INT);
+    }
+    
+    $testimonial_stmt->execute();
+    $testimonial_activities = $testimonial_stmt->fetchAll(PDO::FETCH_ASSOC);
+
     // Combine and format all activities
     $all_activities = [];
 
@@ -179,6 +242,29 @@ try {
             'comment_id' => $activity['comment_id'],
             'media_id' => $activity['media_id'],
             'reaction_type' => $activity['reaction_type'],
+            'timestamp' => strtotime($activity['activity_time'])
+        ];
+    }
+    
+    // Format testimonial activities
+    foreach ($testimonial_activities as $activity) {
+        $profilePic = !empty($activity['friend_profile_pic'])
+            ? 'uploads/profile_pics/' . $activity['friend_profile_pic']
+            : 'assets/images/MaleDefaultProfilePicture.png';
+            
+        $all_activities[] = [
+            'type' => $activity['activity_type'],
+            'friend_name' => $activity['friend_name'],
+            'friend_profile_pic' => $profilePic,
+            'friend_user_id' => $activity['friend_user_id'],
+            'activity_time' => $activity['activity_time'],
+            'testimonial_id' => $activity['testimonial_id'],
+            'recipient_name' => $activity['recipient_name'] ?? null,
+            'recipient_user_id' => $activity['recipient_user_id'] ?? null,
+            'writer_name' => $activity['writer_name'] ?? null,
+            'writer_user_id' => $activity['writer_user_id'] ?? null,
+            'content' => $activity['content'],
+            'rating' => $activity['rating'],
             'timestamp' => strtotime($activity['activity_time'])
         ];
     }
