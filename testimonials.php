@@ -445,29 +445,29 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 const response = await fetch(apiUrl);
                 const data = await response.json();
 
+                // Corrected logic: Single 'if' to handle successful data retrieval
                 if (data.success && data.testimonials && data.testimonials.length > 0) {
-                    let testimonialsHTML = '<div class="row">';
-                    
                     console.log(`[Pending Tab Debug] Response for filter "${filter}", user ID "${userIdToLoad}":`, JSON.stringify(data, null, 2)); 
                     
-                    if (data.success && data.testimonials && data.testimonials.length > 0) {
-                        let testimonialsHTML = '<div class="row">';
-                        data.testimonials.forEach(testimonial => {
-                            if (filter === 'written') {
-                                testimonialsHTML += renderWrittenTestimonialCard(testimonial);
-                            } else {
-                                testimonialsHTML += renderTestimonialCard(testimonial, userIdToLoad, loggedInUserId, filter);
-                            }
-                        });
-                        testimonialsHTML += '</div>';
-                        container.innerHTML = testimonialsHTML;
-                    } else {
-                        if (filter === 'pending') {
-                            console.log(`[Pending Tab Debug] Displaying empty state for pending. Success: ${data.success}, Testimonials Array: ${data.testimonials ? 'Exists (length ' + data.testimonials.length + ')' : 'Missing/Null'}`);
+                    let testimonialsHTML = '<div class="row">'; // Initialize once
+                    data.testimonials.forEach(testimonial => {
+                        if (filter === 'written') {
+                            testimonialsHTML += renderWrittenTestimonialCard(testimonial);
+                        } else {
+                            // Pass loggedInUserId to renderTestimonialCard
+                            testimonialsHTML += renderTestimonialCard(testimonial, userIdToLoad, loggedInUserId, filter);
                         }
-                        container.innerHTML = getEmptyState(filter); 
+                    });
+                    testimonialsHTML += '</div>';
+                    container.innerHTML = testimonialsHTML;
+                } else {
+                    // This 'else' now correctly corresponds to the primary 'if' condition
+                    if (filter === 'pending') {
+                        console.log(`[Pending Tab Debug] Displaying empty state for pending. Success: ${data.success}, Testimonials Array: ${data.testimonials ? 'Exists (length ' + data.testimonials.length + ')' : 'Missing/Null'}, Error: ${data.error || 'None'}`);
                     }
-                } catch (error) {
+                    container.innerHTML = getEmptyState(filter); 
+                }
+            } catch (error) {
                     console.error(`[Pending Tab Debug] Error loading testimonials for filter "${filter}":`, error);
                     container.innerHTML = `
                         <div class="alert alert-danger">

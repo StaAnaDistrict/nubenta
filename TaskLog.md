@@ -1,4 +1,4 @@
-I have already updated my github repository. The current CHANGELOG.md is the last update you wrote according to the previous attempts to fix the issues mentioned. However, there are still issue(s) that need to be attended to.Please take into account that the project is a social networking system, hence, there are multiple users involved. For the purpose of these reviews and evaluation, we will refer to User A as the person who does the activity (react, comment, post, etc) and User B as the recipient of these activities. To begin with, 
+Upon your last fix, 1 issue was addressed but resulted to another issue, and the other issue still remains. Therefore, no complete fix is apparent. I have already updated my github repository. The current CHANGELOG.md is the last update you wrote according to the previous attempts to fix the issues mentioned. However, there are still issue(s) that need to be attended to.Please take into account that the project is a social networking system, hence, there are multiple users involved. For the purpose of these reviews and evaluation, we will refer to User A as the person who does the activity (react, comment, post, etc) and User B as the recipient of these activities. To begin with, 
 
 1. Inside @/dashboard.php:
 
@@ -8,7 +8,7 @@ I have already updated my github repository. The current CHANGELOG.md is the las
 
 2. inside @/testimonials.php 
 
-* upon opening testimonials.php, it no longer loads the testimonials. I get this error in the console log: "testimonials.php?user_id=1:1170 Uncaught SyntaxError: Unexpected token 'catch' (at testimonials.php?user_id=1:1170:19)"
+* upon opening testimonials.php while using User B's account, the testimonials are now loading. For context, there are 4 tabs inside testimonials.php's main content. We have All Testimonials, which shows all the pending and approved testimonials; we also have Pending Approval, which shows all the testimonials that are pending approval; Approved which shows all the testimonials that were approved already; and Testimonials I've Written which shows all the testimonials I've given to another user. The problem I am seeing now is inside the Pending Approval's display. It doesn't show anything. Why is this a problem? Because the notification badge of "Pending Approval" shows "1", which means there's 1 pending testimonial, and consequently within the All Testimonials tab, I can see that there's 1 testimonial that has a status of Pending. User B's account can't approve this pending testimonial in this said tab because such function should be inside the "Pending Approval" tab, which currently doesn't display said pending testimonial.
 
 Kindly fix and address these issues one by one, and do not assume that every modification you provide is already foolproof. It is essential to test it and record its performance in the @/CHANGELOG.md
 
