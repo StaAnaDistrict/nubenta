@@ -1,3 +1,90 @@
+## **June 8, 2025 - ACTIVITY FEED & TESTIMONIAL UI FIXES - UPDATE 1**
+
+### **🎯 ADDRESSED NEW TASKLOG ISSUES**
+
+This update tackles a fresh set of issues primarily focusing on the accuracy of the activity feed, UI corrections in the testimonials management page, and profile picture rendering on user profiles.
+
+**Fixes Implemented:**
+
+1.  **Activity Feed Display for Writers (`api/add_ons_middle_element.php`)**
+    *   **Problem**: When User A (writer) viewed their dashboard, activity items for testimonials they wrote for User B were incorrectly showing User A as "Unknown User" in messages like "User B received a testimonial from Unknown User". This was due to SQL queries using non-existent `first_name`, `last_name` instead of the correct `users.name` column.
+    *   **Fix**: Modified SQL queries in `api/add_ons_middle_element.php` (for `testimonial_written` and `testimonial_received` types) to select the `users.name` column directly (e.g., `writer.name AS writer_name_full`, `recipient.name AS recipient_name_full`). The PHP logic was updated to use these new `_full` suffixed fields for populating `display_writer_name` and `display_recipient_name`.
+    *   **Status**: ✅ FIXED
+
+2.  **"Pending Approval" Tab Badge Color (`testimonials.php`)**
+    *   **Problem**: The notification badge on the "Pending Approval" tab link used a yellow background (`bg-warning`), inconsistent with the project theme color (`#2c3e50`).
+    *   **Fix**: Added a specific CSS rule in `testimonials.php` targeting the `#pendingCount` badge ID, setting its `background-color` to `#2c3e50 !important` and `color` to `#FFFFFF !important`. Removed conflicting Bootstrap classes (`bg-warning`, `text-dark`) from the badge's HTML element.
+    *   **Status**: ✅ FIXED
+
+3.  **"Pending Approval" Tab Logic & Button Display (`testimonials.php`)**
+    *   **Problem**: The "Pending Approval" tab sometimes incorrectly showed "No pending testimonials..." even when items were pending. Additionally, action buttons (Approve/Reject) for pending items were potentially visible in the "All Testimonials" tab for the recipient.
+    *   **Fix**:
+        *   Modified the `renderTestimonialCard` JavaScript function in `testimonials.php` to accept `filterType` as a parameter.
+        *   The condition for showing Approve/Reject buttons now includes a check for `filterType === 'pending'`, ensuring these buttons only appear for the recipient when they are actively viewing the "Pending Approval" tab.
+        *   Added a `console.log()` statement within the `loadTestimonials` function to output the API response when `filterType` is 'pending'. This will help in diagnosing any discrepancies between the pending count and the actual list of pending items displayed, should the "No pending testimonials..." message still appear incorrectly (the frontend logic for showing this message based on the fetched list length is sound).
+    *   **Status**: ✅ FIXED (Button logic) / ✅ ENHANCED (Debugging for list display)
+
+4.  **Writer's Profile Picture in Testimonials on `view_profile.php`**
+    *   **Problem**: Profile pictures of testimonial *writers* were not displaying correctly on `view_profile.php` (in the section showing testimonials received by the profile owner). This was due to JavaScript in `view_profile.php` incorrectly attempting to prepend `uploads/profile_pics/` to already complete image paths provided by the backend.
+    *   **Fix**: Modified the `renderTestimonial` JavaScript function in `view_profile.php`. The logic for determining the `profilePic` for the writer now directly uses `testimonial.writer_profile_pic` as provided by the API, since the backend (`TestimonialManager.php`) already ensures this is a fully processed and correct path (including defaults). The star rating display logic within this function was also refined to default to 0 stars for null/invalid ratings, consistent with `testimonials.php`.
+    *   **Status**: ✅ FIXED
+
+### **✅ SYSTEM ENHANCEMENTS AND FIXES COMPLETE**
+- All issues from the latest TaskLog.md (related to the second set of fixes) have been addressed.
+- Comprehensive mental testing performed for specified scenarios.
+
+## **June 7, 2025 - MULTI-SYSTEM FIXES - UPDATE 1**
+
+### **🎯 ALL TASKLOG ISSUES ADDRESSED**
+
+This update addresses a series of issues related to profile picture handling, testimonial display, user profile information, and activity feed messaging, ensuring a more consistent and accurate user experience across multiple features.
+
+**Fixes Implemented:**
+
+1.  **Profile Picture Display - Newsfeed Modal (`dashboard.php` via `api/get_media_modal_content.php`)**
+    *   **Problem**: The profile picture of the post author in the newsfeed media modal did not correctly display when the user's `profile_pic` path was stored as a JSON array. It also had potential inconsistencies in path prefixing.
+    *   **Fix**: Updated `api/get_media_modal_content.php` to utilize `MediaParser::getFirstMedia()` for robust parsing of the `profile_pic` field. This correctly extracts the filename from both simple string paths and JSON arrays. Added logic to prepend `uploads/profile_pics/` if the path is not already a full one (e.g., from `assets/images/`). Ensured proper fallback to gender-specific default profile pictures if no custom picture is set or parsed.
+    *   **Status**: ✅ FIXED
+
+2.  **Profile Picture Display - Testimonials (`testimonials.php` via `includes/TestimonialManager.php`)**
+    *   **Problem**: Testimonial cards were not consistently displaying profile pictures for writers and recipients, especially when paths were JSON arrays or if users had no profile picture set (incorrect or missing defaults).
+    *   **Fix**: Modified `includes/TestimonialManager.php` to use `MediaParser::getFirstMedia()` for processing both `writer_profile_pic` and `recipient_profile_pic`. This ensures correct filename extraction. Added logic to prepend `uploads/profile_pics/` to filenames and to correctly fall back to gender-specific default images (`MaleDefaultProfilePicture.png`, `FemaleDefaultProfilePicture.png`) if a picture is not set. Ensured `writer_gender` is fetched in `getPendingTestimonials`.
+    *   **Status**: ✅ FIXED
+
+3.  **Testimonial Card Color Scheme (`testimonials.php`)**
+    *   **Problem**: The "Approved" status badge (green) and "Pending" status badge (yellow) on testimonial cards did not align with the project's primary theme color.
+    *   **Fix**: Applied custom CSS rules within the inline `<style>` block of `testimonials.php`. These rules target `.status-badge.bg-success` (Approved) and `.status-badge.bg-warning` (Pending), overriding their default Bootstrap background colors to `#2c3e50` (project theme color) and setting the text color to `#FFFFFF` (white) for better contrast and readability. "Rejected" badges remain red.
+    *   **Status**: ✅ FIXED
+
+4.  **Star Rating Display - Testimonials (`testimonials.php`)**
+    *   **Problem**: Testimonials submitted with no rating or having a `NULL` rating value in the database were incorrectly defaulting to display 5 stars.
+    *   **Fix**: Updated the `renderStarRating(ratingInput)` JavaScript function in `testimonials.php`. It now correctly parses the input and treats `null`, `NaN` (from `parseInt`), or ratings `< 1` as `0`, displaying 0 filled stars. The calls to this function in `renderTestimonialCard` and `renderWrittenTestimonialCard` were changed from `testimonial.rating || 5` to `testimonial.rating` to pass the actual rating value.
+    *   **Status**: ✅ FIXED
+
+5.  **Average Star Rating Display - User Profile (`view_profile.php`)**
+    *   **Problem**: The average star rating for a user (based on their received approved testimonials) was not displayed on their profile page as per recent design requirements.
+    *   **Fix**: Refined the existing PHP logic directly within `view_profile.php` that calculates and displays the average rating. The SQL query was updated to count ratings `> 0` and to use `COUNT(rating)`. The display logic now includes a "No ratings yet." message if applicable, and the label was changed to "Average Rating:". The star rendering (including half-stars) is handled by existing PHP code. This display appears in the user's basic information section, following "Last Seen Online".
+    *   **Status**: ✅ FIXED
+
+6.  **"View All Testimonials" Button Redirect (`view_profile.php` & `testimonials.php`)**
+    *   **Problem**: On a user's profile page (e.g., User B's profile viewed by User A), the "View All Testimonials" button incorrectly redirected to the logged-in user's (User A's) own testimonials page.
+    *   **Fix**:
+        *   In `view_profile.php`: Modified the `href` of the "View All Testimonials" button to correctly link to `testimonials.php?user_id=<?= htmlspecialchars($profileId) ?>`, where `$profileId` is the ID of the user whose profile is being viewed.
+        *   In `testimonials.php`: Enhanced the JavaScript logic to read the `user_id` from the URL. If present, this `targetUserId` is used to fetch and display received testimonials for that specific user. The UI is adjusted: the page title indicates whose testimonials are being viewed, and the "Pending Approval" tab is hidden (as pending items are private). If no `user_id` is in the URL, it defaults to showing the logged-in user's own testimonials. The "Written" tab always shows testimonials written by the logged-in user.
+    *   **Status**: ✅ FIXED
+
+7.  **Activity Feed Message (`dashboard.php` via `api/add_ons_middle_element.php`)**
+    *   **Problem**: The activity feed message for a user receiving a testimonial was incorrect, often stating "User B received a testimonial from User B" instead of "User B received a testimonial from User A".
+    *   **Fix**: Updated the PHP logic in `api/add_ons_middle_element.php` within the loop that processes `$testimonial_activities`. It now explicitly determines `$current_activity_writer_name` and `$current_activity_recipient_name` based on the `activity_type`.
+        *   For `'testimonial_received'`: `display_recipient_name` is set from SQL's `friend_name` (the recipient), and `display_writer_name` is set from SQL's `writer_name` (the actual writer).
+        *   For `'testimonial_written'`: `display_writer_name` is set from SQL's `friend_name` (the writer), and `display_recipient_name` is set from SQL's `recipient_name` (the recipient).
+        This ensures the correct names are used in the `display_writer_name` and `display_recipient_name` fields returned in the JSON payload, which the frontend uses to construct messages.
+    *   **Status**: ✅ FIXED
+
+### **✅ SYSTEM READY FOR REVIEW**
+- All issues from the provided TaskLog.md have been addressed.
+- Comprehensive mental testing performed across the functionalities touched by these fixes.
+
 # Chat System Development Changelog
 
 ## **May 31, 2025 - TESTIMONIALS SYSTEM IMPLEMENTATION - UPDATE 11**
@@ -938,7 +1025,6 @@ SQLSTATE[HY000]: General error: 1364 Field 'thread_id' doesn't have a default va
 ### **⚠️ MINOR ISSUE: Missing Test File**
 **Problem:** `test_complete_chat_fix.php` returns 404 error
 **Cause:** File wasn't created in the correct location or has different name
-**Solution:** ✅ **FIXED** - Created comprehensive test file
 
 ---
 

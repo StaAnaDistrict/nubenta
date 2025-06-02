@@ -189,6 +189,20 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             margin-bottom: 2rem;
             border-radius: 10px;
         }
+
+        /* Custom styles for status badges */
+        .status-badge.bg-success,
+        .status-badge.bg-warning {
+            background-color: #2c3e50 !important;
+            color: #FFFFFF !important; /* White text for better contrast */
+        }
+
+        /* Custom style for the "Pending Approval" tab count badge */
+        #pendingCount {
+            background-color: #2c3e50 !important;
+            color: #FFFFFF !important;
+            /* text-dark class will be removed from HTML to avoid conflict */
+        }
     </style>
 </head>
 <body>
@@ -233,7 +247,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" 
                             type="button" role="tab" aria-controls="pending" aria-selected="false">
-                        <i class="fas fa-clock me-1"></i>Pending Approval <span class="badge bg-warning text-dark ms-1" id="pendingCount">0</span>
+                        <i class="fas fa-clock me-1"></i>Pending Approval <span class="badge ms-1" id="pendingCount">0</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -315,24 +329,76 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            loadTestimonials('all');
-            loadTestimonialsStats();
+            // Determine whose testimonials to load (from URL or current user)
+            const urlParams = new URLSearchParams(window.location.search);
+            const profileUserIdFromUrl = urlParams.get('user_id');
+            const targetUserId = profileUserIdFromUrl ? parseInt(profileUserIdFromUrl) : <?= $user['id'] ?>;
+            const loggedInUserId = <?= $user['id'] ?>;
+
+            // Adjust heading if viewing someone else's testimonials
+            if (targetUserId !== loggedInUserId) {
+                // Fetch target user's name (simple example, might need a proper API call for name)
+                // For now, just change the title generically
+                const pageTitle = document.querySelector('.page-header h1');
+                if (pageTitle) {
+                    // This is a placeholder. A proper implementation would fetch the user's name.
+                    // For now, we'll just indicate it's another user's testimonials.
+                    // A more robust solution would be to pass the target user's name from PHP.
+                    pageTitle.innerHTML = `<i class="fas fa-star me-2"></i>Testimonials for User ${targetUserId}`;
+                }
+                 // Hide "Pending Approval" tab if viewing someone else's profile, as it's private
+                const pendingTabButton = document.getElementById('pending-tab');
+                if (pendingTabButton) {
+                    pendingTabButton.style.display = 'none';
+                }
+                // Also, if the "Pending" tab was active by default (e.g. due to URL hash), switch to "All"
+                if (window.location.hash === '#pending') {
+                    window.location.hash = '#all'; // Change hash to avoid trying to show hidden tab
+                    // If Bootstrap's tab system relies on hash, we might need to manually activate 'all' tab
+                    const allTabButton = document.getElementById('all-tab');
+                    if (allTabButton) {
+                        bootstrap.Tab.getOrCreateInstance(allTabButton).show();
+                    }
+                }
+            }
+
+
+            loadTestimonials('all', targetUserId);
+            loadTestimonialsStats(targetUserId); // Pass targetUserId to stats as well
             
             // Tab change event listeners
             document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
                 tab.addEventListener('shown.bs.tab', function(event) {
-                    const target = event.target.getAttribute('data-bs-target').replace('#', '');
-                    loadTestimonials(target);
+                    const targetTabPaneId = event.target.getAttribute('data-bs-target').replace('#', '');
+                    // For "Written" tab, always use loggedInUserId. For others, use targetUserId.
+                    const userIdForTab = (targetTabPaneId === 'written') ? loggedInUserId : targetUserId;
+                    loadTestimonials(targetTabPaneId, userIdForTab);
                 });
             });
+
+            // Ensure the correct user ID is used if a tab is already active from a hash URL
+            const activeTabFromHash = window.location.hash.replace('#', '');
+            if (activeTabFromHash) {
+                const tabButton = document.querySelector(`button[data-bs-target="#${activeTabFromHash}"]`);
+                if (tabButton) {
+                     const userIdForTab = (activeTabFromHash === 'written') ? loggedInUserId : targetUserId;
+                     loadTestimonials(activeTabFromHash, userIdForTab);
+                     // Ensure the tab is visually activated if not already
+                     bootstrap.Tab.getOrCreateInstance(tabButton).show();
+                }
+            }
         });
 
         // Function to render star rating based on rating value
-        function renderStarRating(rating) {
-            // Ensure rating is a valid number between 1-5
-            rating = parseInt(rating);
-            if (isNaN(rating) || rating < 1 || rating > 5) {
-                rating = 5; // Default to 5 if invalid
+        function renderStarRating(ratingInput) {
+            let rating = parseInt(ratingInput);
+
+            // If ratingInput is null, or parsing results in NaN, or rating is less than 1, treat as 0 stars.
+            // Allow ratings up to 5. Anything above 5 will be capped at 5.
+            if (ratingInput === null || isNaN(rating) || rating < 1) {
+                rating = 0; // Show 0 stars for null, NaN, undefined, or < 1
+            } else if (rating > 5) {
+                rating = 5; // Cap at 5 stars
             }
             
             let starsHtml = '';
@@ -348,17 +414,28 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             return starsHtml;
         }
         
-        // Function to load testimonials based on filter
-        async function loadTestimonials(filter) {
+        // Function to load testimonials based on filter and for a specific user
+        async function loadTestimonials(filter, userIdToLoad) {
             const containerId = filter + 'Testimonials';
             const container = document.getElementById(containerId);
             
+            // Hide pending tab if viewing another user's profile and the filter is for pending
+            const pendingTabButton = document.getElementById('pending-tab');
+            const loggedInUserId = <?= $user['id'] ?>;
+            if (userIdToLoad !== loggedInUserId && filter === 'pending' && pendingTabButton) {
+                 container.innerHTML = getEmptyState('pending_hidden'); // Special empty state
+                 return;
+            }
+
+
             try {
                 let apiUrl;
                 if (filter === 'written') {
-                    apiUrl = `api/get_testimonials.php?type=written&user_id=<?= $user['id'] ?>`;
+                    // "Written" testimonials are always for the logged-in user
+                    apiUrl = `api/get_testimonials.php?type=written&user_id=${loggedInUserId}`;
                 } else {
-                    apiUrl = `api/get_testimonials.php?type=received&filter=${filter}&user_id=<?= $user['id'] ?>`;
+                    // "Received" testimonials (all, pending, approved) are for userIdToLoad
+                    apiUrl = `api/get_testimonials.php?type=received&filter=${filter}&user_id=${userIdToLoad}`;
                 }
                 
                 const response = await fetch(apiUrl);
@@ -367,11 +444,14 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 if (data.success && data.testimonials && data.testimonials.length > 0) {
                     let testimonialsHTML = '<div class="row">';
                     
+                    console.log(`Response for filter "${filter}", user ID "${userIdToLoad}":`, data); // DEBUG
                     data.testimonials.forEach(testimonial => {
                         if (filter === 'written') {
+                            // Written testimonials don't have approve/reject actions shown here
                             testimonialsHTML += renderWrittenTestimonialCard(testimonial);
                         } else {
-                            testimonialsHTML += renderTestimonialCard(testimonial);
+                            // Pass loggedInUserId and filter type to determine button visibility
+                            testimonialsHTML += renderTestimonialCard(testimonial, userIdToLoad, loggedInUserId, filter);
                         }
                     });
                     
@@ -391,25 +471,49 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             }
         }
 
-        // Function to load testimonials statistics
-        async function loadTestimonialsStats() {
+        // Function to load testimonials statistics for a specific user
+        async function loadTestimonialsStats(userIdToLoad) {
+            const loggedInUserId = <?= $user['id'] ?>;
             try {
-                const response = await fetch(`api/get_testimonials.php?type=stats&user_id=<?= $user['id'] ?>`);
+                // Stats always refer to the user whose testimonials page we are on (userIdToLoad)
+                // However, pendingCount on the tab button should only be for the logged-in user.
+                const response = await fetch(`api/get_testimonials.php?type=stats&user_id=${userIdToLoad}`);
                 const data = await response.json();
 
                 if (data.success && data.stats) {
                     document.getElementById('totalTestimonials').textContent = data.stats.received.total_received;
-                    document.getElementById('pendingCount').textContent = data.stats.received.pending_received;
+                    // Update pendingCount badge only if viewing own profile's stats
+                    if (userIdToLoad === loggedInUserId) {
+                        document.getElementById('pendingCount').textContent = data.stats.received.pending_received;
+                    } else {
+                        // If viewing another user, their pending count isn't shown on the tab, so clear/hide it
+                         const pendingCountBadge = document.getElementById('pendingCount');
+                         if(pendingCountBadge) pendingCountBadge.textContent = '0'; // Or hide it: pendingCountBadge.style.display = 'none';
+                    }
                 }
             } catch (error) {
                 console.error('Error loading testimonials stats:', error);
             }
         }
 
-        // Function to render a testimonial card
-        function renderTestimonialCard(testimonial) {
+        // Function to render a testimonial card (for received testimonials)
+        // Added loggedInUserIdParam and filterType to control action button display
+        function renderTestimonialCard(testimonial, currentViewingUserId, loggedInUserIdParam, filterType) {
             const statusBadge = getStatusBadge(testimonial.status);
-            const actionButtons = getActionButtons(testimonial);
+            const loggedInUserId = loggedInUserIdParam; // Use passed parameter
+
+            // Show action buttons only if:
+            // 1. Testimonial is 'pending'
+            // 2. Logged-in user is the recipient
+            // 3. Logged-in user is viewing their own testimonials page (currentViewingUserId === loggedInUserId)
+            // 4. The current active tab/filter is 'pending'
+            const showActionButtons =
+                testimonial.status === 'pending' &&
+                loggedInUserId == testimonial.recipient_user_id &&
+                loggedInUserId == currentViewingUserId &&
+                filterType === 'pending';
+
+            const actionButtons = showActionButtons ? getActionButtons(testimonial) : '';
             
             return `
                 <div class="col-md-6 col-lg-4 mb-4">
@@ -439,7 +543,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    ${renderStarRating(testimonial.rating || 5)}
+                                    ${renderStarRating(testimonial.rating)}
                                 </div>
                                 ${actionButtons}
                             </div>
@@ -449,16 +553,17 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             `;
         }
 
-        // Function to render a written testimonial card
+        // Function to render a written testimonial card (always for the logged-in user)
         function renderWrittenTestimonialCard(testimonial) {
             const statusBadge = getStatusBadge(testimonial.status);
+            // No action buttons needed for written testimonials as they are managed by the recipient.
             
             return `
                 <div class="col-md-6 col-lg-4 mb-4">
                     <div class="card testimonial-card h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center mb-3">
-                                <img src="${testimonial.recipient_profile_pic || 'assets/images/MaleDefaultProfilePicture.png'}" 
+                                 <img src="${testimonial.recipient_profile_pic || (testimonial.recipient_gender === 'Female' ? '<?= $defaultFemalePic ?>' : '<?= $defaultMalePic ?>')}"
                                      alt="Profile" class="rounded-circle me-3"
                                      style="width: 50px; height: 50px; object-fit: cover;">
                                 <div class="flex-grow-1">
@@ -481,7 +586,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                             
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    ${renderStarRating(testimonial.rating || 5)}
+                                    ${renderStarRating(testimonial.rating)}
                                 </div>
                                 <small class="text-muted">Written by you</small>
                             </div>
@@ -491,7 +596,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             `;
         }
 
-        // Function to get status badge
+        // Function to get status badge (no change needed here for now)
         function getStatusBadge(status) {
             switch(status) {
                 case 'pending':
@@ -546,10 +651,15 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     icon: 'fas fa-edit',
                     title: 'No testimonials written',
                     subtitle: 'Testimonials you\'ve written for others will appear here.'
+                },
+                pending_hidden: { // Special case for when pending tab is hidden for other users
+                    icon: 'fas fa-eye-slash',
+                    title: 'Pending Testimonials Private',
+                    subtitle: 'Pending testimonials are only visible to the recipient.'
                 }
             };
 
-            const message = messages[filter] || messages.all;
+            const message = messages[filter] || messages.all; // Default to 'all' if filter unknown
             
             return `
                 <div class="text-center py-5">
@@ -581,9 +691,14 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     showAlert('Testimonial approved successfully!', 'success');
                     
                     // Reload current tab and stats
-                    const activeTab = document.querySelector('.nav-link.active').getAttribute('data-bs-target').replace('#', '');
-                    loadTestimonials(activeTab);
-                    loadTestimonialsStats();
+                    const activeTabElement = document.querySelector('.nav-link.active');
+                    if (activeTabElement) {
+                        const activeTabFilter = activeTabElement.getAttribute('data-bs-target').replace('#', '');
+                        const currentTargetUserId = new URLSearchParams(window.location.search).get('user_id') || <?= $user['id'] ?>;
+                        const userIdForTab = (activeTabFilter === 'written') ? <?= $user['id'] ?> : parseInt(currentTargetUserId);
+                        loadTestimonials(activeTabFilter, userIdForTab);
+                        loadTestimonialsStats(userIdForTab);
+                    }
                 } else {
                     showAlert('Error approving testimonial: ' + data.error, 'danger');
                 }
@@ -618,9 +733,14 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     showAlert('Testimonial rejected.', 'info');
                     
                     // Reload current tab and stats
-                    const activeTab = document.querySelector('.nav-link.active').getAttribute('data-bs-target').replace('#', '');
-                    loadTestimonials(activeTab);
-                    loadTestimonialsStats();
+                    const activeTabElement = document.querySelector('.nav-link.active');
+                     if (activeTabElement) {
+                        const activeTabFilter = activeTabElement.getAttribute('data-bs-target').replace('#', '');
+                        const currentTargetUserId = new URLSearchParams(window.location.search).get('user_id') || <?= $user['id'] ?>;
+                        const userIdForTab = (activeTabFilter === 'written') ? <?= $user['id'] ?> : parseInt(currentTargetUserId);
+                        loadTestimonials(activeTabFilter, userIdForTab);
+                        loadTestimonialsStats(userIdForTab);
+                    }
                 } else {
                     showAlert('Error rejecting testimonial: ' + data.error, 'danger');
                 }

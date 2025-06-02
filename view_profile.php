@@ -421,25 +421,24 @@ try {
                                     <?= $onlineStatus ?>
                                 </span>
                             </div>
-                            
+                            <!-- Average Star Rating Display START -->
                             <?php
-                            // Calculate average rating from testimonials
                             try {
                                 $ratingStmt = $pdo->prepare("
-                                    SELECT AVG(rating) as avg_rating, COUNT(*) as total_ratings
+                                    SELECT AVG(rating) as avg_rating, COUNT(rating) as total_ratings
                                     FROM testimonials
-                                    WHERE recipient_user_id = ? AND status = 'approved' AND rating IS NOT NULL
+                                    WHERE recipient_user_id = ? AND status = 'approved' AND rating IS NOT NULL AND rating > 0
                                 ");
                                 $ratingStmt->execute([$profileId]);
                                 $ratingData = $ratingStmt->fetch(PDO::FETCH_ASSOC);
                                 
+                                echo '<div class="info-line" id="average-rating-section">'; // Added ID for potential JS interaction
+                                echo '<span class="info-label">Average Rating:</span> ';
                                 if ($ratingData && $ratingData['total_ratings'] > 0) {
                                     $avgRating = round($ratingData['avg_rating'], 1);
-                                    echo '<div class="info-line">';
-                                    echo '<span class="info-label">Rating:</span> ';
                                     echo '<span class="text-muted">';
                                     
-                                    // Display stars
+                                    // Display stars (PHP rendering)
                                     for ($i = 1; $i <= 5; $i++) {
                                         if ($i <= floor($avgRating)) {
                                             echo '<i class="fas fa-star" style="color: #2c3e50;"></i>';
@@ -450,17 +449,22 @@ try {
                                         }
                                     }
                                     
-                                    echo ' ' . $avgRating . ' (' . $ratingData['total_ratings'] . ' ratings)';
+                                    echo ' ' . htmlspecialchars($avgRating) . ' ';
+                                    echo '<span style="font-size: 0.9em;">(based on ' . htmlspecialchars($ratingData['total_ratings']) . ' rating' . ($ratingData['total_ratings'] > 1 ? 's' : '') . ')</span>';
                                     echo '</span>';
-                                    echo '</div>';
+                                } else {
+                                    echo '<span class="text-muted" style="font-size: 0.9em;">No ratings yet.</span>';
                                 }
+                                echo '</div>';
                             } catch (PDOException $e) {
-                                // Silently handle error
-                                error_log("Error getting ratings: " . $e->getMessage());
+                                error_log("Error getting average ratings: " . $e->getMessage());
+                                echo '<div class="info-line" id="average-rating-section">';
+                                echo '<span class="info-label">Average Rating:</span> ';
+                                echo '<span class="text-muted" style="font-size: 0.9em;">Could not load ratings.</span>';
+                                echo '</div>';
                             }
                             ?>
-                            
-                            <!-- Star rating is displayed above -->
+                            <!-- Average Star Rating Display END -->
                         </div>
                     </div>
                 </div>
@@ -683,7 +687,7 @@ try {
             </div>
             <div class="testimonials-actions mt-3 pt-3 border-top" style="display: block;">
                 <div class="d-flex justify-content-between">
-                    <a href="testimonials.php" class="btn btn-outline-secondary" style="color: #2c3e50; border-color: #2c3e50;">
+                    <a href="testimonials.php?user_id=<?= htmlspecialchars($profileId) ?>" class="btn btn-outline-secondary" style="color: #2c3e50; border-color: #2c3e50;">
                         <i class="fas fa-list me-1"></i>View All Testimonials
                     </a>
                     <?php if ($current['id'] !== $profileId): ?>
@@ -1720,14 +1724,26 @@ try {
             '<span class="badge bg-warning text-dark ms-2">Pending</span>' : '';
         
         // Get profile picture with fallback to gender-specific default
-        const profilePic = testimonial.writer_profile_pic ?
-            `uploads/profile_pics/${testimonial.writer_profile_pic}` :
-            (testimonial.writer_gender === 'Female' ?
-                'assets/images/FemaleDefaultProfilePicture.png' :
-                'assets/images/MaleDefaultProfilePicture.png');
+        // The API now provides a fully processed path for writer_profile_pic,
+        // including defaults if necessary. So, we can use it directly.
+        const profilePic = testimonial.writer_profile_pic;
+
+        // Generate star rating based on rating value
+        // Use the same robust renderStarRating logic from testimonials.php if available,
+        // or replicate its core logic here for consistency.
+        // For now, keep existing logic but ensure testimonial.rating is correctly handled.
+        let ratingValue = parseInt(testimonial.rating);
+        if (isNaN(ratingValue) || ratingValue < 0 || ratingValue > 5) { // Allow 0 for "not rated" if desired, or <1 for default
+            ratingValue = 0; // Default to 0 stars if invalid or not explicitly set (e.g. null from DB)
+        }
+        // If a rating of 0 should show 0 stars, the loop below is fine.
+        // If it should default to 5 for display on profile when not set, then:
+        // if (ratingValue === 0 && testimonial.rating === null) ratingValue = 5; // Or whatever default display rule.
+        // The task log implies fixing "not displaying correctly", not changing default display rules.
+        // So, using the actual rating (or 0 if invalid/null) is best.
         
-        // Generate star rating based on rating value (default to 5 if not set)
-        const rating = parseInt(testimonial.rating) || 5;
+        // Generate star rating based on rating value (default to 0 if not set/invalid)
+        const rating = ratingValue;
         let starsHtml = '';
         for (let i = 1; i <= 5; i++) {
             if (i <= rating) {
