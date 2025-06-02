@@ -1,0 +1,7 @@
+{
+    "require": {
+        "league/oauth2-google": "^4.0",
+        "google/apiclient": "^2.0",
+        "facebook/graph-sdk": "^5.1"
+    }
+}
