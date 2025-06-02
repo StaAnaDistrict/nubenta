@@ -1,4 +1,4 @@
-Kindly begin by reviewing CHANGELOG.md and then, please take into account that the project is a social networking system, hence, there are multiple users involved. For the purpose of these reviews and evaluation, we will refer to User A as the person who does the activity (react, comment, post, etc) and User B as the recipient of these activities. To begin with, 
+I have already updated my github repository. The current CHANGELOG.md is the last update you wrote according to the previous attempts to fix the issues mentioned. However, there are still issue(s) that need to be attended to.Please take into account that the project is a social networking system, hence, there are multiple users involved. For the purpose of these reviews and evaluation, we will refer to User A as the person who does the activity (react, comment, post, etc) and User B as the recipient of these activities. To begin with, 
 
 1. Inside @/dashboard.php:
 
