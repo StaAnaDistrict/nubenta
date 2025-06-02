@@ -193,7 +193,7 @@ try {
                    recipient.name as friend_name_full, /* Recipient's full name */
                    recipient.profile_pic as friend_profile_pic,
                    recipient.id as friend_user_id, /* This is User B (Recipient) */
-                   tw.name as actual_writer_name,    /* Writer's full name - New Alias */
+                   CONCAT_WS(' ', tw.first_name, tw.middle_name, tw.last_name) as actual_writer_name,    /* Writer's full name - New Alias */
                    tw.id as actual_writer_id,        /* Writer's ID - New Alias */
                    t.created_at as activity_time,
                    t.testimonial_id,
