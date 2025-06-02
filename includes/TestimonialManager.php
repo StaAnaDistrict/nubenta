@@ -129,19 +129,28 @@ class TestimonialManager {
      */
     public function getPendingTestimonials($userId) {
         try {
+            // Modified SQL for consistent writer_name fetching
             $sql = "SELECT t.*, 
-                           u.first_name as writer_name, 
+                           CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as writer_name, 
                            u.profile_pic as writer_profile_pic,
-                           u.gender as writer_gender, // Added writer_gender
+                           u.gender as writer_gender,
                            u.id as writer_user_id
                     FROM testimonials t
                     JOIN users u ON t.writer_user_id = u.id
                     WHERE t.recipient_user_id = :user_id AND t.status = 'pending'
                     ORDER BY t.created_at DESC";
-            
+
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([':user_id' => $userId]);
             $testimonials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Temporary logging - REMOVE FOR PRODUCTION
+            // error_log("[DEBUG TestimonialManager->getPendingTestimonials] User ID: " . $userId);
+            // error_log("[DEBUG TestimonialManager->getPendingTestimonials] Raw count from DB: " . count($testimonials));
+            // if (count($testimonials) > 0) {
+            //     error_log("[DEBUG TestimonialManager->getPendingTestimonials] First raw testimonial: " . json_encode($testimonials[0]));
+            // }
+            // End Temporary logging
 
             foreach ($testimonials as &$testimonial) {
                 $profilePicPath = MediaParser::getFirstMedia($testimonial['writer_profile_pic']);
@@ -157,18 +166,22 @@ class TestimonialManager {
                         : 'assets/images/MaleDefaultProfilePicture.png';
                 }
             }
-            unset($testimonial); // Unset reference to last element
-            
+            unset($testimonial); 
+
             return [
                 'success' => true,
                 'testimonials' => $testimonials,
                 'count' => count($testimonials)
             ];
-            
+
         } catch (PDOException $e) {
+            // Log actual DB error for debugging
+            error_log("[ERROR TestimonialManager->getPendingTestimonials] Database error for User ID " . $userId . ": " . $e->getMessage());
             return [
                 'success' => false,
-                'error' => 'Database error: ' . $e->getMessage()
+                'error' => 'Database error: ' . $e->getMessage(),
+                'testimonials' => [], // Ensure testimonials is an empty array on error
+                'count' => 0
             ];
         }
     }
