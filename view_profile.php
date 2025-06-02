@@ -1724,14 +1724,26 @@ try {
             '<span class="badge bg-warning text-dark ms-2">Pending</span>' : '';
         
         // Get profile picture with fallback to gender-specific default
-        const profilePic = testimonial.writer_profile_pic ?
-            `uploads/profile_pics/${testimonial.writer_profile_pic}` :
-            (testimonial.writer_gender === 'Female' ?
-                'assets/images/FemaleDefaultProfilePicture.png' :
-                'assets/images/MaleDefaultProfilePicture.png');
+        // The API now provides a fully processed path for writer_profile_pic,
+        // including defaults if necessary. So, we can use it directly.
+        const profilePic = testimonial.writer_profile_pic; 
         
-        // Generate star rating based on rating value (default to 5 if not set)
-        const rating = parseInt(testimonial.rating) || 5;
+        // Generate star rating based on rating value
+        // Use the same robust renderStarRating logic from testimonials.php if available,
+        // or replicate its core logic here for consistency.
+        // For now, keep existing logic but ensure testimonial.rating is correctly handled.
+        let ratingValue = parseInt(testimonial.rating);
+        if (isNaN(ratingValue) || ratingValue < 0 || ratingValue > 5) { // Allow 0 for "not rated" if desired, or <1 for default
+            ratingValue = 0; // Default to 0 stars if invalid or not explicitly set (e.g. null from DB)
+        }
+        // If a rating of 0 should show 0 stars, the loop below is fine.
+        // If it should default to 5 for display on profile when not set, then:
+        // if (ratingValue === 0 && testimonial.rating === null) ratingValue = 5; // Or whatever default display rule.
+        // The task log implies fixing "not displaying correctly", not changing default display rules.
+        // So, using the actual rating (or 0 if invalid/null) is best.
+        
+        // Generate star rating based on rating value (default to 0 if not set/invalid)
+        const rating = ratingValue;
         let starsHtml = '';
         for (let i = 1; i <= 5; i++) {
             if (i <= rating) {

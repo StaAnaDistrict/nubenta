@@ -165,11 +165,11 @@ try {
         (
             -- 1. Friends writing testimonials for others
             SELECT 'testimonial_written' as activity_type,
-                   CONCAT_WS(' ', writer.first_name, writer.middle_name, writer.last_name) as friend_name,
+                   writer.name as friend_name_full, /* Writer's full name */
                    writer.profile_pic as friend_profile_pic,
-                   writer.id as friend_user_id,
-                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as recipient_name,
-                   recipient.id as recipient_user_id,
+                   writer.id as friend_user_id, /* This is User A (Writer) */
+                   recipient.name as recipient_name_full, /* Recipient's full name */
+                   recipient.id as recipient_user_id, /* This is User B (Recipient) */
                    t.created_at as activity_time,
                    t.testimonial_id,
                    t.content,
@@ -190,11 +190,11 @@ try {
         (
             -- 2. Friends receiving testimonials
             SELECT 'testimonial_received' as activity_type,
-                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as friend_name,
+                   recipient.name as friend_name_full, /* Recipient's full name */
                    recipient.profile_pic as friend_profile_pic,
-                   recipient.id as friend_user_id,
-                   CONCAT_WS(' ', writer.first_name, writer.middle_name, writer.last_name) as writer_name,
-                   writer.id as writer_user_id,
+                   recipient.id as friend_user_id, /* This is User B (Recipient) */
+                   writer.name as writer_name_full, /* Writer's full name */
+                   writer.id as writer_user_id, /* This is User A (Writer) */
                    t.created_at as activity_time,
                    t.testimonial_id,
                    t.content,
@@ -257,21 +257,23 @@ try {
 
         if ($activity['activity_type'] === 'testimonial_received') {
             // For 'testimonial_received':
-            // SQL `friend_name` is the Recipient (User B)
-            // SQL `writer_name` is the Writer (User A)
-            $current_activity_recipient_name = $activity['friend_name']; // User B
-            $current_activity_writer_name = $activity['writer_name'];     // User A
+            // SQL `friend_name_full` is the Recipient (User B)
+            // SQL `writer_name_full` is the Writer (User A)
+            $current_activity_recipient_name = $activity['friend_name_full'];
+            $current_activity_writer_name = $activity['writer_name_full'];
         } elseif ($activity['activity_type'] === 'testimonial_written') {
             // For 'testimonial_written':
-            // SQL `friend_name` is the Writer (User A)
-            // SQL `recipient_name` is the Recipient (User B)
-            $current_activity_writer_name = $activity['friend_name'];      // User A
-            $current_activity_recipient_name = $activity['recipient_name'];// User B
+            // SQL `friend_name_full` is the Writer (User A)
+            // SQL `recipient_name_full` is the Recipient (User B)
+            $current_activity_writer_name = $activity['friend_name_full'];
+            $current_activity_recipient_name = $activity['recipient_name_full'];
         }
             
         $all_activities[] = [
             'type' => $activity['activity_type'],
-            'friend_name' => $activity['friend_name'], // This is the primary "actor" of the feed item from friends' perspective
+            // 'friend_name' for 'testimonial_written' is writer; for 'testimonial_received' is recipient.
+            // The specific _full names are now primary for display text.
+            'friend_name' => $activity['friend_name_full'], // Main subject of the activity from SQL's perspective.
             'friend_profile_pic' => $profilePic,
             'friend_user_id' => $activity['friend_user_id'],
             'activity_time' => $activity['activity_time'],
@@ -281,12 +283,8 @@ try {
             'display_writer_name' => $current_activity_writer_name ?? 'Unknown User',
             'display_recipient_name' => $current_activity_recipient_name ?? 'Unknown User',
             
-            // Keep original SQL aliases if needed elsewhere, but prefer display_ fields for messages
-            'original_sql_writer_name' => $activity['writer_name'] ?? null,      // Populated in testimonial_received
-            'original_sql_recipient_name' => $activity['recipient_name'] ?? null,  // Populated in testimonial_written
-            
-            'recipient_user_id' => $activity['recipient_user_id'] ?? null, 
-            'writer_user_id' => $activity['writer_user_id'] ?? null, 
+            'recipient_user_id' => $activity['recipient_user_id'] ?? null, // This comes from SQL for testimonial_written
+            'writer_user_id' => $activity['writer_user_id'] ?? null,       // This comes from SQL for testimonial_received
 
             'content' => $activity['content'],
             'rating' => $activity['rating'],

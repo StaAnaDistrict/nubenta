@@ -196,6 +196,13 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             background-color: #2c3e50 !important;
             color: #FFFFFF !important; /* White text for better contrast */
         }
+
+        /* Custom style for the "Pending Approval" tab count badge */
+        #pendingCount {
+            background-color: #2c3e50 !important;
+            color: #FFFFFF !important; 
+            /* text-dark class will be removed from HTML to avoid conflict */
+        }
     </style>
 </head>
 <body>
@@ -240,7 +247,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" 
                             type="button" role="tab" aria-controls="pending" aria-selected="false">
-                        <i class="fas fa-clock me-1"></i>Pending Approval <span class="badge bg-warning text-dark ms-1" id="pendingCount">0</span>
+                        <i class="fas fa-clock me-1"></i>Pending Approval <span class="badge ms-1" id="pendingCount">0</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -437,11 +444,14 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 if (data.success && data.testimonials && data.testimonials.length > 0) {
                     let testimonialsHTML = '<div class="row">';
                     
+                    console.log(`Response for filter "${filter}", user ID "${userIdToLoad}":`, data); // DEBUG
                     data.testimonials.forEach(testimonial => {
                         if (filter === 'written') {
+                            // Written testimonials don't have approve/reject actions shown here
                             testimonialsHTML += renderWrittenTestimonialCard(testimonial);
                         } else {
-                            testimonialsHTML += renderTestimonialCard(testimonial);
+                            // Pass loggedInUserId and filter type to determine button visibility
+                            testimonialsHTML += renderTestimonialCard(testimonial, userIdToLoad, loggedInUserId, filter);
                         }
                     });
                     
@@ -487,11 +497,23 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         }
 
         // Function to render a testimonial card (for received testimonials)
-        function renderTestimonialCard(testimonial, currentViewingUserId) {
+        // Added loggedInUserIdParam and filterType to control action button display
+        function renderTestimonialCard(testimonial, currentViewingUserId, loggedInUserIdParam, filterType) {
             const statusBadge = getStatusBadge(testimonial.status);
-            // Action buttons should only be available if the current logged-in user is viewing their own testimonials
-            const loggedInUserId = <?= $user['id'] ?>;
-            const actionButtons = (currentViewingUserId === loggedInUserId) ? getActionButtons(testimonial) : '';
+            const loggedInUserId = loggedInUserIdParam; // Use passed parameter
+
+            // Show action buttons only if:
+            // 1. Testimonial is 'pending'
+            // 2. Logged-in user is the recipient
+            // 3. Logged-in user is viewing their own testimonials page (currentViewingUserId === loggedInUserId)
+            // 4. The current active tab/filter is 'pending'
+            const showActionButtons = 
+                testimonial.status === 'pending' &&
+                loggedInUserId == testimonial.recipient_user_id &&
+                loggedInUserId == currentViewingUserId &&
+                filterType === 'pending';
+            
+            const actionButtons = showActionButtons ? getActionButtons(testimonial) : '';
             
             return `
                 <div class="col-md-6 col-lg-4 mb-4">
@@ -541,7 +563,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     <div class="card testimonial-card h-100">
                         <div class="card-body">
                             <div class="d-flex align-items-center mb-3">
-                                 <img src="${testimonial.recipient_profile_pic || (testimonial.recipient_gender === 'Female' ? 'assets/images/FemaleDefaultProfilePicture.png' : 'assets/images/MaleDefaultProfilePicture.png')}" 
+                                 <img src="${testimonial.recipient_profile_pic || (testimonial.recipient_gender === 'Female' ? '<?= $defaultFemalePic ?>' : '<?= $defaultMalePic ?>')}" 
                                      alt="Profile" class="rounded-circle me-3"
                                      style="width: 50px; height: 50px; object-fit: cover;">
                                 <div class="flex-grow-1">
