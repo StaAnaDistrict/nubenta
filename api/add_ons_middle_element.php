@@ -267,24 +267,53 @@ try {
             // SQL `recipient_name_full` is the Recipient (User B)
             $current_activity_writer_name = $activity['friend_name_full'];
             $current_activity_recipient_name = $activity['recipient_name_full'];
+
+            // Logging for User A (writer) in "testimonial_written" scenario
+            if ($activity['activity_type'] === 'testimonial_written' && isset($_SESSION['user_id']) && $activity['friend_user_id'] == $_SESSION['user_id']) {
+                error_log("[Activity Feed Debug] Testimonial Written by Logged-in User (".$_SESSION['user_id']."):");
+                error_log("  - Raw writer name from DB (friend_name_full): " . ($activity['friend_name_full'] ?? 'NULL_FROM_DB'));
+                error_log("  - Raw recipient name from DB (recipient_name_full): " . ($activity['recipient_name_full'] ?? 'NULL_FROM_DB'));
+                error_log("  - Calculated current_activity_writer_name: " . ($current_activity_writer_name ?? 'NULL_CALCULATED'));
+            }
+
+        } else {
+            // Fallback or logging for unknown testimonial activity types if necessary
+            error_log("[Activity Feed Debug] Unknown testimonial activity type: " . $activity['activity_type']);
         }
             
+        $final_display_writer_name = $current_activity_writer_name ?? 'Unknown User';
+        $final_display_recipient_name = $current_activity_recipient_name ?? 'Unknown User';
+
+        // Logging for the specific problematic case: User A (writer) is logged in, activity is about User B (recipient)
+        // This log helps confirm what names are being sent if the text "User B received from X" is generated.
+        // This specific log will trigger if an activity concerning User B (recipient_user_id) is processed
+        // AND the writer of that testimonial (writer_user_id) is the currently logged-in user A.
+        $loggedInUserIdForLog = $_SESSION['user_id'] ?? null;
+        $writerIdForLog = $activity['writer_user_id'] ?? ($activity['activity_type'] === 'testimonial_written' ? $activity['friend_user_id'] : null);
+        
+        if ($loggedInUserIdForLog && $writerIdForLog == $loggedInUserIdForLog) {
+             // If the logged-in user is the writer of this testimonial activity
+            error_log("[Activity Feed Debug] Logged-in user (".$loggedInUserIdForLog.") is the writer.");
+            error_log("  - Activity Type: " . $activity['activity_type']);
+            error_log("  - Raw Writer Name (friend_name_full for type 7, writer_name_full for type 2): " . ($activity['friend_name_full'] ?? $activity['writer_name_full'] ?? 'NULL_FROM_DB'));
+            error_log("  - Final display_writer_name for API: " . $final_display_writer_name);
+            error_log("  - Final display_recipient_name for API: " . $final_display_recipient_name);
+        }
+
+
         $all_activities[] = [
             'type' => $activity['activity_type'],
-            // 'friend_name' for 'testimonial_written' is writer; for 'testimonial_received' is recipient.
-            // The specific _full names are now primary for display text.
-            'friend_name' => $activity['friend_name_full'], // Main subject of the activity from SQL's perspective.
+            'friend_name' => $activity['friend_name_full'], 
             'friend_profile_pic' => $profilePic,
             'friend_user_id' => $activity['friend_user_id'],
             'activity_time' => $activity['activity_time'],
             'testimonial_id' => $activity['testimonial_id'],
             
-            // Explicitly set display names based on activity type
-            'display_writer_name' => $current_activity_writer_name ?? 'Unknown User',
-            'display_recipient_name' => $current_activity_recipient_name ?? 'Unknown User',
+            'display_writer_name' => $final_display_writer_name,
+            'display_recipient_name' => $final_display_recipient_name,
             
-            'recipient_user_id' => $activity['recipient_user_id'] ?? null, // This comes from SQL for testimonial_written
-            'writer_user_id' => $activity['writer_user_id'] ?? null,       // This comes from SQL for testimonial_received
+            'recipient_user_id' => $activity['recipient_user_id'] ?? null, 
+            'writer_user_id' => $activity['writer_user_id'] ?? null, 
 
             'content' => $activity['content'],
             'rating' => $activity['rating'],

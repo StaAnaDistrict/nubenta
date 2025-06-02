@@ -437,6 +437,10 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                     // "Received" testimonials (all, pending, approved) are for userIdToLoad
                     apiUrl = `api/get_testimonials.php?type=received&filter=${filter}&user_id=${userIdToLoad}`;
                 }
+
+                if (filter === 'pending') {
+                    console.log(`[Pending Tab Debug] Loading testimonials. API URL: ${apiUrl}`);
+                }
                 
                 const response = await fetch(apiUrl);
                 const data = await response.json();
@@ -444,31 +448,34 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 if (data.success && data.testimonials && data.testimonials.length > 0) {
                     let testimonialsHTML = '<div class="row">';
                     
-                    console.log(`Response for filter "${filter}", user ID "${userIdToLoad}":`, data); // DEBUG
-                    data.testimonials.forEach(testimonial => {
-                        if (filter === 'written') {
-                            // Written testimonials don't have approve/reject actions shown here
-                            testimonialsHTML += renderWrittenTestimonialCard(testimonial);
-                        } else {
-                            // Pass loggedInUserId and filter type to determine button visibility
-                            testimonialsHTML += renderTestimonialCard(testimonial, userIdToLoad, loggedInUserId, filter);
-                        }
-                    });
+                    console.log(`[Pending Tab Debug] Response for filter "${filter}", user ID "${userIdToLoad}":`, JSON.stringify(data, null, 2)); 
                     
-                    testimonialsHTML += '</div>';
-                    container.innerHTML = testimonialsHTML;
-                } else {
-                    container.innerHTML = getEmptyState(filter);
+                    if (data.success && data.testimonials && data.testimonials.length > 0) {
+                        let testimonialsHTML = '<div class="row">';
+                        data.testimonials.forEach(testimonial => {
+                            if (filter === 'written') {
+                                testimonialsHTML += renderWrittenTestimonialCard(testimonial);
+                            } else {
+                                testimonialsHTML += renderTestimonialCard(testimonial, userIdToLoad, loggedInUserId, filter);
+                            }
+                        });
+                        testimonialsHTML += '</div>';
+                        container.innerHTML = testimonialsHTML;
+                    } else {
+                        if (filter === 'pending') {
+                            console.log(`[Pending Tab Debug] Displaying empty state for pending. Success: ${data.success}, Testimonials Array: ${data.testimonials ? 'Exists (length ' + data.testimonials.length + ')' : 'Missing/Null'}`);
+                        }
+                        container.innerHTML = getEmptyState(filter); 
+                    }
+                } catch (error) {
+                    console.error(`[Pending Tab Debug] Error loading testimonials for filter "${filter}":`, error);
+                    container.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Error loading testimonials: ${error.message}
+                        </div>
+                    `;
                 }
-            } catch (error) {
-                console.error('Error loading testimonials:', error);
-                container.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        Error loading testimonials: ${error.message}
-                    </div>
-                `;
-            }
         }
 
         // Function to load testimonials statistics for a specific user
