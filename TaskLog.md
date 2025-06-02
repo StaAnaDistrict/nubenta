@@ -2,30 +2,22 @@ Kindly begin by reviewing CHANGELOG.md and then, please take into account that t
 
 1. Inside @/dashboard.php:
 
-* first image below shows that the profile picture of an activated modal in the newsfeed does not recognize the User A who posted an image. This may be because the modal recognizes simple string instead of both simple string and json array of image pathname. All uploaded profile pictures of users are saved in the local drive with this pathname: /Applications/XAMPP/xamppfiles/htdocs/nubenta/uploads/profile_pics/ while in the SQL users table, the file name is fetched under the profile_pic tag. A sample structure of how it's saved is: u8_123456789.png where "u" stands for user, "8" standards for that user's primary id key, and "_123456789" is the profile pictures generate file id. 
+* Activity Feed (contained within the @add_ons.php) is the output of add_ons_middle_element.php. If the currently logged in user is User B (recipient of the testimonial), the activity feed displays it correctly, e.g. "User A wrote a testimonial for User B". However, when the currently logged in user is User A, the Activity Feed displays an incorrect feed saying "User B received a testimonial from Unknown User". Unknown user should be "User A".  
 
 2. inside @/testimonials.php 
 
-* as seen in the second image, the profile pictures suffer the same issue with the modal.
+* There are 4 tabs available inside the main content of testimonials.php. When there is a new testimonial pending for approval for User B, the Pending Approval tab shows a box with round edges badge color yellow --change this color to our theme color which is monochromatic. Inside the said box is the total number of pending approval (counts).
 
-* the id cards of each approved and pending testimonials have tags of "approved" in color green and "yellow" for pending. These color schemes are unacceptable as it deviates from the projects color theme.
+* Still inside the Pending Approval tab, when there is a pending approval and User B clicks on this tab, it will show:
 
-* the stars received by User B does not reflect the stars given by User A during his composition of testimonial and submission. Kindly check if we have a repository to record how many stars were given by "User A" to "User B" during submission of testimonial. If none, create one via SQL table; if there is already a record, make use of that table to identify how many stars should reflect in each testimonail submitted. 
+"No pending testimonials
+New testimonials awaiting your approval will appear here."
+
+This is incorrect, since there is a pending testimonial awaiting for approval. Furthermore, inside the All Testimonials tab, the said testimonial that is on "pending" status is displayed, however, it can't be approved here since the function to approve it is inside the Pending Approval tab.
 
 3. inside @/view_profile.php 
 
-* as seen in the third image  the "Last Seen Online", specifically, below it is missing the total average star rating received by User B.
-
-* if User A clicks on "View All Testimonials" button of User B, User A will be redirected to his own testimonials.php. This is erroneous since User A is trying to view User B's complete testimonials. This should be redirected towards testimonials.php?id=X (or something to that effect) to view all the testimonials received by that user.
-
-4. display of @/api/add_ons_middle_element.php 
-
-* as seen in the fourth image, the activity feed states: 
-
-"WEDZMER BRIZ MUNJILUL received a testimonial from WEDZMER BRIZ MUNJILUL"
-
-this indicates that within User A's feed, it is stating that User B received a testimonial from himself. It wasn't the case! User A gave a testimonial to User B. The structure should've been "User B" received a testimonial from "User A". 
-
+* User A's profile picture is still not displaying correctly inside the Testimonials displayed of User A's profile picture. It is as if the id card is unable to detect the url or pathname of User A's profile picture. Kindly make sure that the said script can both read json array and simple strings. 
 
 Kindly fix and address these issues one by one, and do not assume that every modification you provide is already foolproof. It is essential to test it and record its performance in the @/CHANGELOG.md
 

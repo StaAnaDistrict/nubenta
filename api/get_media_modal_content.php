@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../db.php';
+require_once '../includes/MediaParser.php'; // Include MediaParser
 
 // Check if user is logged in
 if (!isset($_SESSION['user'])) {
@@ -42,9 +43,20 @@ try {
         exit();
     }
 
-    // Set default profile picture
-    if (empty($media['profile_pic'])) {
-        $media['profile_pic'] = $media['gender'] === 'female'
+    // Process profile picture using MediaParser
+    $profilePicPath = MediaParser::getFirstMedia($media['profile_pic']);
+    if (!empty($profilePicPath)) {
+        // Check if the path already contains 'uploads/profile_pics/' or 'assets/images/'
+        if (strpos($profilePicPath, 'uploads/profile_pics/') === false && strpos($profilePicPath, 'assets/images/') === false) {
+            // If not, prepend the likely path for user-uploaded profile pictures
+            $media['profile_pic'] = 'uploads/profile_pics/' . $profilePicPath;
+        } else {
+            // If it already contains a path, use it as is
+            $media['profile_pic'] = $profilePicPath;
+        }
+    } else {
+        // Set default profile picture if parsing fails or field is empty
+        $media['profile_pic'] = ($media['gender'] === 'female')
             ? 'assets/images/FemaleDefaultProfilePicture.png'
             : 'assets/images/MaleDefaultProfilePicture.png';
     }

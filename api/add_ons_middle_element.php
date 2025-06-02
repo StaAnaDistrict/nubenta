@@ -251,24 +251,46 @@ try {
         $profilePic = !empty($activity['friend_profile_pic'])
             ? 'uploads/profile_pics/' . $activity['friend_profile_pic']
             : 'assets/images/MaleDefaultProfilePicture.png';
+
+        $current_activity_writer_name = null;
+        $current_activity_recipient_name = null;
+
+        if ($activity['activity_type'] === 'testimonial_received') {
+            // For 'testimonial_received':
+            // SQL `friend_name` is the Recipient (User B)
+            // SQL `writer_name` is the Writer (User A)
+            $current_activity_recipient_name = $activity['friend_name']; // User B
+            $current_activity_writer_name = $activity['writer_name'];     // User A
+        } elseif ($activity['activity_type'] === 'testimonial_written') {
+            // For 'testimonial_written':
+            // SQL `friend_name` is the Writer (User A)
+            // SQL `recipient_name` is the Recipient (User B)
+            $current_activity_writer_name = $activity['friend_name'];      // User A
+            $current_activity_recipient_name = $activity['recipient_name'];// User B
+        }
             
         $all_activities[] = [
             'type' => $activity['activity_type'],
-            'friend_name' => $activity['friend_name'],
+            'friend_name' => $activity['friend_name'], // This is the primary "actor" of the feed item from friends' perspective
             'friend_profile_pic' => $profilePic,
             'friend_user_id' => $activity['friend_user_id'],
             'activity_time' => $activity['activity_time'],
             'testimonial_id' => $activity['testimonial_id'],
-            'recipient_name' => $activity['recipient_name'] ?? null,
-            'recipient_user_id' => $activity['recipient_user_id'] ?? null,
-            'writer_name' => $activity['writer_name'] ?? null,
-            'writer_user_id' => $activity['writer_user_id'] ?? null,
+            
+            // Explicitly set display names based on activity type
+            'display_writer_name' => $current_activity_writer_name ?? 'Unknown User',
+            'display_recipient_name' => $current_activity_recipient_name ?? 'Unknown User',
+            
+            // Keep original SQL aliases if needed elsewhere, but prefer display_ fields for messages
+            'original_sql_writer_name' => $activity['writer_name'] ?? null,      // Populated in testimonial_received
+            'original_sql_recipient_name' => $activity['recipient_name'] ?? null,  // Populated in testimonial_written
+            
+            'recipient_user_id' => $activity['recipient_user_id'] ?? null, 
+            'writer_user_id' => $activity['writer_user_id'] ?? null, 
+
             'content' => $activity['content'],
             'rating' => $activity['rating'],
-            'timestamp' => strtotime($activity['activity_time']),
-            // Ensure we have both writer and recipient names for testimonial activities
-            'display_writer_name' => $activity['writer_name'] ?? $activity['friend_name'] ?? 'Unknown User',
-            'display_recipient_name' => $activity['recipient_name'] ?? $activity['friend_name'] ?? 'Unknown User'
+            'timestamp' => strtotime($activity['activity_time'])
         ];
     }
 

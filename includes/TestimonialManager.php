@@ -4,6 +4,8 @@
  * Handles all testimonial-related database operations
  */
 
+require_once 'MediaParser.php'; // Include MediaParser
+
 class TestimonialManager {
     private $pdo;
     
@@ -84,6 +86,43 @@ class TestimonialManager {
             ];
         }
     }
+
+    /**
+     * Get average rating and count for a user
+     */
+    public function getAverageRatingDetails($userId) {
+        try {
+            $sql = "SELECT rating FROM testimonials 
+                    WHERE recipient_user_id = :user_id 
+                    AND status = 'approved' 
+                    AND rating IS NOT NULL AND rating > 0"; // Only consider actual ratings
+            
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([':user_id' => $userId]);
+            $ratings = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            
+            $ratingCount = count($ratings);
+            $averageRating = 0;
+            
+            if ($ratingCount > 0) {
+                $averageRating = array_sum($ratings) / $ratingCount;
+            }
+            
+            return [
+                'success' => true,
+                'average_rating' => round($averageRating, 1), // Round to one decimal place
+                'rating_count' => $ratingCount
+            ];
+            
+        } catch (PDOException $e) {
+            return [
+                'success' => false,
+                'average_rating' => 0,
+                'rating_count' => 0,
+                'error' => 'Database error: ' . $e->getMessage()
+            ];
+        }
+    }
     
     /**
      * Get pending testimonials for a user
@@ -93,6 +132,7 @@ class TestimonialManager {
             $sql = "SELECT t.*, 
                            u.first_name as writer_name, 
                            u.profile_pic as writer_profile_pic,
+                           u.gender as writer_gender, // Added writer_gender
                            u.id as writer_user_id
                     FROM testimonials t
                     JOIN users u ON t.writer_user_id = u.id
@@ -102,6 +142,22 @@ class TestimonialManager {
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([':user_id' => $userId]);
             $testimonials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($testimonials as &$testimonial) {
+                $profilePicPath = MediaParser::getFirstMedia($testimonial['writer_profile_pic']);
+                if (!empty($profilePicPath)) {
+                    if (strpos($profilePicPath, 'uploads/profile_pics/') === false && strpos($profilePicPath, 'assets/images/') === false) {
+                        $testimonial['writer_profile_pic'] = 'uploads/profile_pics/' . $profilePicPath;
+                    } else {
+                        $testimonial['writer_profile_pic'] = $profilePicPath;
+                    }
+                } else {
+                    $testimonial['writer_profile_pic'] = ($testimonial['writer_gender'] === 'Female')
+                        ? 'assets/images/FemaleDefaultProfilePicture.png'
+                        : 'assets/images/MaleDefaultProfilePicture.png';
+                }
+            }
+            unset($testimonial); // Unset reference to last element
             
             return [
                 'success' => true,
@@ -138,6 +194,22 @@ class TestimonialManager {
             $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
             $stmt->execute();
             $testimonials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($testimonials as &$testimonial) {
+                $profilePicPath = MediaParser::getFirstMedia($testimonial['writer_profile_pic']);
+                if (!empty($profilePicPath)) {
+                    if (strpos($profilePicPath, 'uploads/profile_pics/') === false && strpos($profilePicPath, 'assets/images/') === false) {
+                        $testimonial['writer_profile_pic'] = 'uploads/profile_pics/' . $profilePicPath;
+                    } else {
+                        $testimonial['writer_profile_pic'] = $profilePicPath;
+                    }
+                } else {
+                    $testimonial['writer_profile_pic'] = ($testimonial['writer_gender'] === 'Female')
+                        ? 'assets/images/FemaleDefaultProfilePicture.png'
+                        : 'assets/images/MaleDefaultProfilePicture.png';
+                }
+            }
+            unset($testimonial); // Unset reference to last element
             
             return [
                 'success' => true,
@@ -174,6 +246,22 @@ class TestimonialManager {
             $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
             $stmt->execute();
             $testimonials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($testimonials as &$testimonial) {
+                $profilePicPath = MediaParser::getFirstMedia($testimonial['writer_profile_pic']);
+                if (!empty($profilePicPath)) {
+                    if (strpos($profilePicPath, 'uploads/profile_pics/') === false && strpos($profilePicPath, 'assets/images/') === false) {
+                        $testimonial['writer_profile_pic'] = 'uploads/profile_pics/' . $profilePicPath;
+                    } else {
+                        $testimonial['writer_profile_pic'] = $profilePicPath;
+                    }
+                } else {
+                    $testimonial['writer_profile_pic'] = ($testimonial['writer_gender'] === 'Female')
+                        ? 'assets/images/FemaleDefaultProfilePicture.png'
+                        : 'assets/images/MaleDefaultProfilePicture.png';
+                }
+            }
+            unset($testimonial); // Unset reference to last element
             
             return [
                 'success' => true,
@@ -207,6 +295,22 @@ class TestimonialManager {
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([':user_id' => $userId]);
             $testimonials = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($testimonials as &$testimonial) {
+                $profilePicPath = MediaParser::getFirstMedia($testimonial['recipient_profile_pic']);
+                if (!empty($profilePicPath)) {
+                    if (strpos($profilePicPath, 'uploads/profile_pics/') === false && strpos($profilePicPath, 'assets/images/') === false) {
+                        $testimonial['recipient_profile_pic'] = 'uploads/profile_pics/' . $profilePicPath;
+                    } else {
+                        $testimonial['recipient_profile_pic'] = $profilePicPath;
+                    }
+                } else {
+                    $testimonial['recipient_profile_pic'] = ($testimonial['recipient_gender'] === 'Female')
+                        ? 'assets/images/FemaleDefaultProfilePicture.png'
+                        : 'assets/images/MaleDefaultProfilePicture.png';
+                }
+            }
+            unset($testimonial); // Unset reference to last element
             
             return [
                 'success' => true,
