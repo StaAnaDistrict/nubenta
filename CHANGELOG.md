@@ -1,5 +1,20 @@
 # Chat System Development Changelog
 
+## **YYYY-MM-DD - Refactor Testimonial Activity Feed Display**
+
+- Modified `api/add_ons_middle_element.php`:
+    - SQL queries updated to consistently fetch writer and recipient full names using `CONCAT_WS(' ', first_name, middle_name, last_name)` and their respective IDs for all testimonial-related activities (`testimonial_written`, `testimonial_received`).
+    - Ensured specific aliases (`activity_writer_name`, `activity_writer_id`, `activity_recipient_name`, `activity_recipient_id`) are selected for clarity.
+    - PHP data formatting loop updated to utilize these new consistent aliases and pass them to the client-side as `writer_name`, `writer_id`, `recipient_name`, `recipient_id`.
+- Modified `api/add_ons_middle_element_html.php`:
+    - JavaScript rendering logic for testimonial activities (`renderActivityItem` function) updated.
+    - Combined handling for `testimonial_written` and `testimonial_received` activity types.
+    - All testimonial activities are now displayed using the consistent format: "[Writer] wrote a testimonial for [Recipient]".
+    - Implemented "You" substitution for the writer's name if the writer is the logged-in user (`activity.writer_id == window.currentUserId`).
+    - Implemented "you" substitution for the recipient's name if the recipient is the logged-in user (and not a self-testimonial).
+    - Adjusted `clickAction` to link to the recipient's profile if the current user wrote the testimonial, otherwise to the writer's profile.
+- These changes aimed to resolve the 'Unknown User' display bug in the activity feed for testimonials and to simplify the overall display logic by using a unified format and clearer data fields, based on user feedback and previous bug reports.
+
 ## **May 31, 2025 - TESTIMONIALS SYSTEM IMPLEMENTATION - UPDATE 11**
 
 ### **🎯 TESTIMONIALS SYSTEM: 100% COMPLETE - ALL ISSUES RESOLVED**
