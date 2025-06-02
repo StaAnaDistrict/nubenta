@@ -203,19 +203,38 @@ function renderActivityItem(activity) {
             clickAction = `onclick="viewProfile(${activity.friend_user_id})"`;
             break;
 
-        case 'friend_connection':
+            case 'friend_connection':
             text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> is now friends with <strong onclick="viewProfile(${activity.other_friend_user_id})">${activity.other_friend_name}</strong>`;
             clickAction = '';
             break;
 
-        case 'testimonial_written':
-            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> wrote a testimonial for <strong onclick="viewProfile(${activity.recipient_user_id})">${activity.display_recipient_name || activity.recipient_name || 'a user'}</strong>`;
-            clickAction = `onclick="viewProfile(${activity.recipient_user_id})"`;
-            break;
-            
+        case 'testimonial_written': // Fallthrough intended
         case 'testimonial_received':
-            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> received a testimonial from <strong onclick="viewProfile(${activity.writer_user_id})">${activity.display_writer_name || activity.writer_name || 'a user'}</strong>`;
-            clickAction = `onclick="viewProfile(${activity.friend_user_id})"`;
+            let writerDisplayName = activity.writer_name;
+            let recipientDisplayName = activity.recipient_name;
+            // Assuming window.currentUserId is available and holds the logged-in user's ID.
+            // It is set in dashboard.php and other main pages.
+            const loggedInUserId = window.currentUserId; 
+
+            if (activity.writer_id == loggedInUserId) {
+                writerDisplayName = 'You';
+            }
+            // Only change recipient to 'you' if the writer isn't also 'You' to avoid "You wrote for you" for self-testimonials (if they were possible)
+            if (activity.recipient_id == loggedInUserId && activity.writer_id != loggedInUserId) {
+                recipientDisplayName = 'you';
+            } else if (activity.recipient_id == loggedInUserId && activity.writer_id == loggedInUserId) {
+                // Handling self-testimonial if it's possible, keeping recipient's name
+                recipientDisplayName = activity.recipient_name; 
+            }
+
+            text = `<strong onclick="viewProfile(${activity.writer_id})">${writerDisplayName}</strong> wrote a testimonial for <strong onclick="viewProfile(${activity.recipient_id})">${recipientDisplayName}</strong>.`;
+            
+            // Determine click action: if current user wrote it, link to recipient. Otherwise, link to writer.
+            if (activity.writer_id == loggedInUserId) {
+                clickAction = `onclick="viewProfile(${activity.recipient_id})"`;
+            } else {
+                clickAction = `onclick="viewProfile(${activity.writer_id})"`;
+            }
             break;
 
         default:

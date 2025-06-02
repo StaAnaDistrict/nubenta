@@ -165,11 +165,15 @@ try {
         (
             -- 1. Friends writing testimonials for others
             SELECT 'testimonial_written' as activity_type,
-                   writer.name as friend_name_full, /* Writer's full name */
+                   CONCAT_WS(' ', writer.first_name, writer.middle_name, writer.last_name) as friend_name_full, /* Writer's full name */
                    writer.profile_pic as friend_profile_pic,
                    writer.id as friend_user_id, /* This is User A (Writer) */
-                   recipient.name as recipient_name_full, /* Recipient's full name */
+                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as recipient_name_full, /* Recipient's full name */
                    recipient.id as recipient_user_id, /* This is User B (Recipient) */
+                   CONCAT_WS(' ', writer.first_name, writer.middle_name, writer.last_name) as activity_writer_name,
+                   writer.id as activity_writer_id,
+                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as activity_recipient_name,
+                   recipient.id as activity_recipient_id,
                    t.created_at as activity_time,
                    t.testimonial_id,
                    t.content,
@@ -190,11 +194,15 @@ try {
         (
             -- 2. Friends receiving testimonials
             SELECT 'testimonial_received' as activity_type,
-                   recipient.name as friend_name_full, /* Recipient's full name */
+                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as friend_name_full, /* Recipient's full name */
                    recipient.profile_pic as friend_profile_pic,
                    recipient.id as friend_user_id, /* This is User B (Recipient) */
                    CONCAT_WS(' ', tw.first_name, tw.middle_name, tw.last_name) as actual_writer_name,    /* Writer's full name - New Alias */
                    tw.id as actual_writer_id,        /* Writer's ID - New Alias */
+                   CONCAT_WS(' ', tw.first_name, tw.middle_name, tw.last_name) as activity_writer_name,
+                   tw.id as activity_writer_id,
+                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as activity_recipient_name,
+                   recipient.id as activity_recipient_id,
                    t.created_at as activity_time,
                    t.testimonial_id,
                    t.content,
@@ -257,48 +265,23 @@ try {
             ? 'uploads/profile_pics/' . $activity['friend_profile_pic']
             : 'assets/images/MaleDefaultProfilePicture.png';
 
-        $current_activity_writer_name = null;
-        $current_activity_recipient_name = null;
-        $current_writer_id = null; // To store writer's ID
-        $current_recipient_id = null; // To store recipient's ID
+        // Directly use the new consistent SQL aliases:
+        $final_writer_name = !empty($activity['activity_writer_name']) ? $activity['activity_writer_name'] : 'Unknown User';
+        $final_recipient_name = !empty($activity['activity_recipient_name']) ? $activity['activity_recipient_name'] : 'Unknown User';
 
-        if ($activity['activity_type'] === 'testimonial_received') {
-            // For 'testimonial_received':
-            // SQL `friend_name_full` is the Recipient (User B)
-            // SQL `actual_writer_name` is the Writer (User A) - New Alias
-            $current_activity_recipient_name = $activity['friend_name_full'];
-            $current_recipient_id = $activity['friend_user_id']; // Recipient's ID
-            $current_activity_writer_name = $activity['actual_writer_name']; // Use new alias
-            $current_writer_id = $activity['actual_writer_id']; // Use new alias
-
-        } elseif ($activity['activity_type'] === 'testimonial_written') {
-            // For 'testimonial_written':
-            // SQL `friend_name_full` is the Writer (User A)
-            // SQL `recipient_name_full` is the Recipient (User B)
-            $current_activity_writer_name = $activity['friend_name_full'];
-            $current_writer_id = $activity['friend_user_id']; // Writer's ID
-            $current_activity_recipient_name = $activity['recipient_name_full'];
-            $current_recipient_id = $activity['recipient_user_id']; // Recipient's ID
-        } else {
-            error_log("[Activity Feed Debug] Unknown testimonial activity type: " . $activity['activity_type']);
-        }
-            
-        $final_display_writer_name = !empty($current_activity_writer_name) ? $current_activity_writer_name : 'Unknown User';
-        $final_display_recipient_name = !empty($current_activity_recipient_name) ? $current_activity_recipient_name : 'Unknown User';
-        
         $all_activities[] = [
             'type' => $activity['activity_type'],
-            'friend_name' => $activity['friend_name_full'], 
+            'friend_name' => $activity['friend_name_full'], // This remains, it's the main actor of the activity
             'friend_profile_pic' => $profilePic,
             'friend_user_id' => $activity['friend_user_id'], 
             'activity_time' => $activity['activity_time'],
             'testimonial_id' => $activity['testimonial_id'],
             
-            'display_writer_name' => $final_display_writer_name,
-            'display_recipient_name' => $final_display_recipient_name,
-            
-            'recipient_user_id' => $current_recipient_id, // Use consistent variable
-            'writer_user_id' => $current_writer_id,       // Use consistent variable
+            // Use new, clear names for JS
+            'writer_name' => $final_writer_name,
+            'writer_id' => $activity['activity_writer_id'],
+            'recipient_name' => $final_recipient_name,
+            'recipient_id' => $activity['activity_recipient_id'],
 
             'content' => $activity['content'],
             'rating' => $activity['rating'],
