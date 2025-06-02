@@ -248,6 +248,11 @@ try {
     
     // Format testimonial activities
     foreach ($testimonial_activities as $activity) {
+        // Add initial error log to inspect the raw $activity array for relevant fields
+        // if ($activity['activity_type'] === 'testimonial_received') {
+            // error_log("[API DEBUG testimonial_received RAW]: " . json_encode($activity));
+        // }
+
         $profilePic = !empty($activity['friend_profile_pic'])
             ? 'uploads/profile_pics/' . $activity['friend_profile_pic']
             : 'assets/images/MaleDefaultProfilePicture.png';
@@ -326,6 +331,49 @@ try {
         $profilePic = !empty($activity['friend_profile_pic'])
             ? 'uploads/profile_pics/' . $activity['friend_profile_pic']
             : 'assets/images/MaleDefaultProfilePicture.png';
+
+        $current_activity_writer_name = null;
+        $current_activity_recipient_name = null;
+        $current_writer_id = null;
+        $current_recipient_id = null;
+
+        // These are the direct aliases from the SQL query
+        // For testimonial_received:
+        // $activity['friend_name_full'] is recipient.name
+        // $activity['friend_user_id'] is recipient.id
+        // $activity['writer_name_full'] is writer.name
+        // $activity['writer_user_id'] is writer.id
+        //
+        // For testimonial_written:
+        // $activity['friend_name_full'] is writer.name
+        // $activity['friend_user_id'] is writer.id
+        // $activity['recipient_name_full'] is recipient.name
+        // $activity['recipient_user_id'] is recipient.id
+
+        if ($activity['activity_type'] === 'testimonial_received') {
+            $current_activity_recipient_name = $activity['friend_name_full']; // Recipient's name
+            $current_recipient_id = $activity['friend_user_id'];             // Recipient's ID
+
+            // Explicitly use the SQL aliases for writer info
+            $current_activity_writer_name = $activity['writer_name_full'];   // Writer's name from SQL
+            $current_writer_id = $activity['writer_user_id'];                // Writer's ID from SQL
+
+            // Log what we've extracted
+            // error_log("[API DEBUG testimonial_received EXTRACTED]: writer_name_full = " . ($activity['writer_name_full'] ?? 'N/A') . ", writer_user_id = " . ($activity['writer_user_id'] ?? 'N/A'));
+
+        } elseif ($activity['activity_type'] === 'testimonial_written') {
+            $current_activity_writer_name = $activity['friend_name_full'];      // Writer's name
+            $current_writer_id = $activity['friend_user_id'];                   // Writer's ID
+
+            // Explicitly use the SQL aliases for recipient info (if they exist for this type)
+            $current_activity_recipient_name = $activity['recipient_name_full'];// Recipient's name from SQL
+            $current_recipient_id = $activity['recipient_user_id'];             // Recipient's ID from SQL
+        } else {
+            error_log("[Activity Feed Debug] Unknown testimonial activity type: " . $activity['activity_type']);
+        }
+
+        $final_display_writer_name = !empty($current_activity_writer_name) ? $current_activity_writer_name : 'Unknown User';
+        $final_display_recipient_name = !empty($current_activity_recipient_name) ? $current_activity_recipient_name : 'Unknown User';
 
         $all_activities[] = [
             'type' => $activity['activity_type'],

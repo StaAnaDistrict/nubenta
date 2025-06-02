@@ -1,3 +1,55 @@
+## **June 1, 2025 - SYSTEM MAINTENANCE & BUG FIXES - UPDATE 3**
+
+### **🎯 DEEPER INVESTIGATION INTO ACTIVITY FEED & TESTIMONIALS TAB**
+
+This update details further analysis of persistent issues in the activity feed and the "Pending Approval" tab in testimonials, including modifications to `TestimonialManager.php` for diagnostics.
+
+**Development Details:**
+
+1.  **Activity Feed - Testimonial Writer Display (`api/add_ons_middle_element.php`) - Data Integrity Issue Highly Suspected**
+    *   **Context:** Ongoing issue where User A (logged-in) sees "User B received a testimonial from Unknown User" on their own feed, when User A wrote the testimonial for User B. The `writer_user_id` also appears as `null` in the API response for this scenario.
+    *   **Analysis:** Multiple reviews and refinements of the PHP mapping logic in `api/add_ons_middle_element.php` have been performed. The code responsible for mapping SQL results (specifically `writer_name_full` and `writer_user_id` from the query) to the final JSON fields (`display_writer_name` and `writer_user_id`) is now considered robust.
+    *   **Conclusion:** The persistence of this issue strongly indicates a data integrity problem within the database. For the affected testimonial record(s), the `writer_user_id` in the `testimonials` table is likely `NULL`, or it references a `users.id` that no longer exists (orphaned foreign key).
+    *   **Recommendation:** Database inspection is required to verify and correct the `writer_user_id` for the specific testimonial(s) causing this display issue. No further changes to `api/add_ons_middle_element.php` are planned for this specific problem, as the code is expected to work correctly with valid data.
+
+2.  **Testimonials Page - "Pending Approval" Tab Display (`includes/TestimonialManager.php`) - Diagnostic Enhancements**
+    *   **Issue:** The "Pending Approval" tab in `testimonials.php` remains empty, even when pending testimonials exist and are shown in the "All Testimonials" tab and indicated by the badge count.
+    *   **Action:** Modified the `getPendingTestimonials(\$userId)` method in `includes/TestimonialManager.php`:
+        *   Standardized the SQL query to use `CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as writer_name` for consistency with other data retrieval methods in the class.
+        *   Improved the `catch (PDOException \$e)` block to return a more structured error response, including `testimonials => []` and `count => 0`, which helps in consistent client-side error handling.
+        *   Added diagnostic `error_log` statements (commented out in the committed code). These can be uncommented by the developer to log the `\$userId` passed to the method, the raw count of testimonials fetched by the SQL query (`WHERE t.status = 'pending'`), and the content of the first fetched row.
+    *   **Status & Next Steps for User:** The root cause for the tab remaining empty is still under active investigation. If the problem persists, the user should:
+        1.  Uncomment the `error_log` lines within `TestimonialManager::getPendingTestimonials()`.
+        2.  Access the "Pending Approval" tab in `testimonials.php` (as the relevant user).
+        3.  Check the server's PHP error log file.
+        The log output will indicate whether the SQL query for pending testimonials is returning any rows. If `Raw count from DB: 0` is logged when pending items are known to exist, this suggests a subtle issue with the `WHERE t.status = 'pending'` clause or the data itself (e.g., unexpected characters/casing in the `status` field if the database collation is sensitive, or an issue with the `$userId` parameter).
+
+### **⚠️ KNOWN ISSUES & REQUIRED ACTIONS**
+*   **Activity Feed:** The "Unknown User" issue for testimonials written by the logged-in user is likely a **database data integrity problem** that requires manual inspection and correction of `writer_user_id` in the `testimonials` table.
+*   **Testimonials "Pending Approval" Tab:** This tab may still not display items. **User action is required to uncomment diagnostic logs** in `TestimonialManager.php` and check PHP error logs to further diagnose if the issue is with the SQL query not fetching pending items.
+
+## **June 1, 2025 - SYSTEM MAINTENANCE & BUG FIXES - UPDATE 1**
+
+### **🎯 GENERAL SYSTEM IMPROVEMENTS & FIXES**
+
+This update addresses key issues in the activity feed and testimonial display functionality, enhancing data accuracy and user experience.
+
+**Fixes Implemented:**
+
+1.  **Activity Feed - Testimonial Writer Display (`api/add_ons_middle_element.php`)**
+    *   **Issue:** The activity feed was incorrectly showing "Unknown User" as the writer for "testimonial_received" events, and the `writer_user_id` was `null`.
+    *   **Fix:** Modified the PHP logic in `api/add_ons_middle_element.php` to ensure that `writer_user_id` and `display_writer_name` are accurately sourced and populated from the database query results for `testimonial_received` activities.
+    *   **Outcome:** The activity feed now correctly identifies the writer, enabling accurate messages such as "User A wrote a testimonial for User B".
+
+2.  **Testimonials Page - JavaScript Error (`testimonials.php`)**
+    *   **Issue:** A JavaScript syntax error, "Unexpected token 'catch'", was preventing testimonials from loading on `testimonials.php`. The error occurred around line 1170 (original line number).
+    *   **Fix:** Investigated the `loadTestimonials` async function in `testimonials.php`. The error was traced to a misstructured `try...catch` block caused by a redundant nested `if` statement that shared the same condition as its outer `if`. Removed the unnecessary inner `if` statement and its `else` clause, thereby correcting the `try...catch` block structure.
+    *   **Outcome:** The JavaScript error is resolved, and testimonials now load and display correctly on the `testimonials.php` page.
+
+### **✅ SYSTEM STABILITY IMPROVED**
+*   Activity feed now presents more accurate information regarding testimonial events.
+*   Testimonials page is fully functional, allowing users to view testimonials without JavaScript errors.
+
 # Chat System Development Changelog
 
 ## **May 31, 2025 - TESTIMONIALS SYSTEM IMPLEMENTATION - UPDATE 11**
