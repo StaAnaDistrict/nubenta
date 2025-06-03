@@ -1,24 +1,36 @@
 <?php
 session_start();
+require_once 'db.php'; // Added
+
 if (!isset($_SESSION['user'])) {
   header("Location: login.php");
   exit();
 }
 $user = $_SESSION['user'];
+$currentUser = $user; // Added for navigation
+$defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png'; // Added
+$defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png'; // Added
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Added viewport -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <title>Edit Profile</title>
+  <title>Edit Profile - Nubenta</title> <!-- Changed title -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"> <!-- Added FontAwesome -->
+  <link rel="stylesheet" href="assets/css/dashboard_style.css"> <!-- Added dashboard_style.css -->
   <style>
-    body {
-      padding-top: 30px;
-      background-color: #f8f9fa;
+    /* body {
+      padding-top: 30px;  // Commented out
+      background-color: #f8f9fa; // Commented out
+    } */
+    .main-content { /* Style adjusted based on dashboard_style.css */
+        overflow-y: auto; /* Keep for scrolling long form */
+        /* font-family, color, background, padding, border-radius, box-shadow are covered by dashboard_style.css or inherited */
     }
     .form-section-title {
       font-size: 1.2rem;
@@ -32,15 +44,29 @@ $user = $_SESSION['user'];
   </style>
 </head>
 <body>
-<script src="assets/js/script.js" defer></script>
-<div class="container">
-  <!-- Navigation -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Edit Profile</h2>
-    <a href="logout.php" class="btn btn-outline-danger">🚪 Logout</a>
-  </div>
+<button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button> <!-- Added hamburger -->
 
-  <form id="updateForm" enctype="multipart/form-data">
+<div class="dashboard-grid"> <!-- Added dashboard-grid -->
+  <!-- Left Sidebar - Navigation -->
+  <aside class="left-sidebar">
+      <h1>Nubenta</h1>
+      <?php
+      // $currentUser is already set above
+      // db.php is already included
+      include 'assets/navigation.php';
+      ?>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content"> <!-- Added main-content -->
+    <script src="assets/js/script.js" defer></script> <!-- Moved script here, though it might be better at the end of body -->
+    <div class="container">
+      <!-- Original Navigation div removed -->
+      <div class="d-flex justify-content-between align-items-center mb-4"> <!-- This provides title for the page -->
+         <h2>Edit Profile</h2>
+      </div>
+
+      <form id="updateForm" enctype="multipart/form-data">
 
 <!-- Personal Information -->
 <div class="form-section-title">Personal Information</div>
@@ -215,21 +241,63 @@ document.querySelector('.profile-pic').addEventListener('click', function() {
 </div>
 
  <!-- Buttons -->
- <div class="d-flex justify-content-between mt-4">
-  <button type="submit" class="btn btn-primary">✅ Save Changes</button>
-  <a href="dashboard.php" class="btn btn-secondary">⬅ Back to Dashboard</a>
+ <div class="d-flex justify-content-start mt-4"> <!-- Changed justify-content-between to justify-content-start -->
+            <button type="submit" class="btn btn-primary" id="saveChangesBtn" style="background-color: #1a1a1a; border-color: #1a1a1a;">✅ Save Changes</button>
+  <!-- "Back to Dashboard" button removed -->
 </div>
 
 <div id="statusMessage" class="alert mt-3" role="alert" style="display:none;"></div>
 <div id="update-message"></div>
 
 </form>
-</div>
+    </div> <!-- End .container -->
+  </main> <!-- End .main-content -->
+
+  <!-- Right Sidebar -->
+  <aside class="right-sidebar"> <!-- Added right-sidebar -->
+      <?php
+      // Include the modular right sidebar
+      include 'assets/add_ons.php';
+      ?>
+  </aside>
+</div> <!-- End .dashboard-grid -->
+
 <!-- jQuery and SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script> <!-- Added Bootstrap JS -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+  // Sidebar toggle script from friends.php
+  function toggleSidebar() {
+      const sidebar = document.querySelector('.left-sidebar');
+      if (sidebar) {
+          sidebar.classList.toggle('show');
+      }
+  }
+
+  // Click outside to close sidebar - from friends.php
+  document.addEventListener('click', function(e) {
+      const sidebar = document.querySelector('.left-sidebar');
+      const hamburger = document.getElementById('hamburgerBtn');
+      if (sidebar && hamburger && !sidebar.contains(e.target) && !hamburger.contains(e.target)) {
+          sidebar.classList.remove('show');
+      }
+  });
+
+  // Style for Save Changes button hover
+  const saveChangesBtn = document.getElementById('saveChangesBtn');
+  if (saveChangesBtn) {
+    saveChangesBtn.addEventListener('mouseover', function() {
+      this.style.backgroundColor = '#afafaf';
+      this.style.borderColor = '#333';
+    });
+    saveChangesBtn.addEventListener('mouseout', function() {
+      this.style.backgroundColor = '#1a1a1a';
+      this.style.borderColor = '#1a1a1a';
+    });
+  }
+
   $('#updateForm').on('submit', function (e) {
   e.preventDefault();
 
