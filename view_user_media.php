@@ -1,12 +1,19 @@
 <?php
+error_log("DEBUG_VM_1: Script Start");
+session_start(); // Make sure this is here
+error_log("DEBUG_SESSION_USER_STRUCTURE: " . print_r($_SESSION['user'], true)); // <-- ADD THIS LINE
+
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 session_start();
 require_once 'db.php';
 
+error_log("DEBUG_VM_2: After includes");
+
 // 1. Initial Setup
 if (!isset($_SESSION['user'])) {
+    error_log("DEBUG_VM_ERROR: User not in session");
     header("Location: login.php");
     exit();
 }
@@ -15,70 +22,94 @@ $currentUser = $_SESSION['user'];
 // 2. Parameter Handling
 $userId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$userId || $userId <= 0) {
-    // Fallback to check 'user_id' if 'id' is not valid or not present
     $userId = filter_input(INPUT_GET, 'user_id', FILTER_VALIDATE_INT);
 }
 
 if (!$userId || $userId <= 0) {
-    // If still no valid userId, redirect or show error
+    error_log("DEBUG_VM_ERROR: Invalid User ID. UserId: " . print_r($userId, true));
     $_SESSION['error_message'] = "Invalid user ID specified.";
     header("Location: dashboard.php");
     exit();
 }
 
-// Use FILTER_SANITIZE_FULL_SPECIAL_CHARS instead of deprecated FILTER_SANITIZE_STRING
 $mediaTypeFilter = filter_input(INPUT_GET, 'media_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 if (empty($mediaTypeFilter) || !in_array($mediaTypeFilter, ['photo', 'video'])) {
     $mediaTypeFilter = 'photo'; // Default to 'photo'
 }
 
+error_log("DEBUG_VM_3: Parameters processed. UserID: {$userId}, MediaType: {$mediaTypeFilter}");
+
 // 3. Fetch Target User Details
-$userStmt = $pdo->prepare("SELECT id, first_name, last_name FROM users WHERE id = ?");
-$userStmt->execute([$userId]);
-$targetUser = $userStmt->fetch(PDO::FETCH_ASSOC);
+$targetUser = null;
+$errorMessage = null;
+try {
+    $userStmt = $pdo->prepare("SELECT id, first_name, last_name FROM users WHERE id = ?");
+    if ($userStmt) {
+        $userStmt->execute([$userId]);
+        $targetUser = $userStmt->fetch(PDO::FETCH_ASSOC);
+    } else {
+        error_log("DEBUG_VM_ERROR: Failed to prepare user statement.");
+        $errorMessage = "Error fetching user details.";
+    }
+} catch (PDOException $e) {
+    error_log("DEBUG_VM_PDO_ERROR (User Fetch): " . $e->getMessage());
+    $errorMessage = "Database error fetching user details.";
+}
 
 $pageTitle = "User Media - Nubenta";
 $headerTitle = "User's Media";
-$errorMessage = null; // Initialize error message
 
-if (!$targetUser) {
+if (!$errorMessage && !$targetUser) { // Check $errorMessage first
     $errorMessage = "User not found.";
-} else {
+    error_log("DEBUG_VM_ERROR: User not found after query. UserID: {$userId}");
+} elseif (!$errorMessage) {
     $targetUserName = htmlspecialchars($targetUser['first_name'] . ' ' . $targetUser['last_name']);
     $pageTitle = $targetUserName . "'s " . ucfirst($mediaTypeFilter) . "s - Nubenta";
     $headerTitle = $targetUserName . "'s " . ucfirst($mediaTypeFilter) . "s";
 }
 
+error_log("DEBUG_VM_4: Target user details fetched. ErrorMessage: " . print_r($errorMessage, true));
+
 // 4. Determine Friendship Status
 $areFriends = false;
-if ($targetUser && $userId != $currentUser['id']) { // Check if $targetUser is not false before using $userId
-    $friendStmt = $pdo->prepare("
-        SELECT COUNT(*) as is_friend
-        FROM friend_requests
-        WHERE ((sender_id = :currentUserId AND receiver_id = :targetUserId) OR (sender_id = :targetUserId AND receiver_id = :currentUserId))
-        AND status = 'accepted'
-    ");
-    $friendStmt->execute(['currentUserId' => $currentUser['id'], 'targetUserId' => $userId]);
-    $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
-    if ($friendship) {
-        $areFriends = ($friendship['is_friend'] > 0);
+if ($targetUser && !$errorMessage && $userId != $currentUser['id']) {
+    try {
+        $friendStmt = $pdo->prepare("
+            SELECT COUNT(*) as is_friend
+            FROM friend_requests
+            WHERE ((sender_id = :currentUserId AND receiver_id = :targetUserId) OR (sender_id = :targetUserId AND receiver_id = :currentUserId))
+            AND status = 'accepted'
+        ");
+        if ($friendStmt) {
+            $friendStmt->execute(['currentUserId' => $currentUser['id'], 'targetUserId' => $userId]);
+            $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
+            if ($friendship) {
+                $areFriends = ($friendship['is_friend'] > 0);
+            }
+        } else {
+            error_log("DEBUG_VM_ERROR: Failed to prepare friend statement.");
+            // Decide if this is a fatal error or if $areFriends can remain false
+        }
+    } catch (PDOException $e) {
+        error_log("DEBUG_VM_PDO_ERROR (Friend Check): " . $e->getMessage());
+        // Decide if this is a fatal error or if $areFriends can remain false
     }
-} elseif ($targetUser && $userId == $currentUser['id']) { // Check if $targetUser is not false
-    $areFriends = true; // User is viewing their own profile, effectively 'friends' with themselves for content visibility
+} elseif ($targetUser && !$errorMessage && $userId == $currentUser['id']) {
+    $areFriends = true;
 }
+
+error_log("DEBUG_VM_5: Friendship status determined. AreFriends: " . ($areFriends ? 'Yes' : 'No'));
 
 // 5. Fetch Media Items
 $mediaItems = [];
-if ($targetUser && !$errorMessage) { // Proceed only if user was found and no other critical error
-    $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.title, um.description, um.created_at, um.visibility as media_visibility,
-                   uma.privacy as album_privacy, uma.user_id as album_owner_id
+if ($targetUser && !$errorMessage) {
+    // Using direct embedding for $userId as it's validated as INT.
+    // This is the query we are trying to make absolutely safe from param count errors.
+     $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.created_at, um.privacy as media_visibility, uma.privacy as album_privacy, uma.user_id as album_owner_id
             FROM user_media um
             LEFT JOIN album_media am ON um.id = am.media_id 
             LEFT JOIN user_media_albums uma ON am.album_id = uma.id
-            WHERE um.user_id = :targetUserId"; // Placeholder for target user ID
-
-    // Initialize $params array ONLY with targetUserId initially
-    $params = ['targetUserId' => $userId];
+            WHERE um.user_id = " . intval($userId); // Ensuring $userId is int, then embedding.
 
     if ($mediaTypeFilter === 'photo') {
         $sql .= " AND um.media_type LIKE 'image/%'";
@@ -87,18 +118,15 @@ if ($targetUser && !$errorMessage) { // Proceed only if user was found and no ot
     }
     
     $privacySqlParts = [];
-    if ($currentUser['id'] == $userId) { // User is viewing their own media
-        $privacySqlParts[] = "1=1"; // Can see everything, no extra placeholders needed
-    } else { // Not the owner
-        // Public visibility for media item itself or if it's in a public album
-        $privacySqlParts[] = "um.visibility = 'public'";
-        $privacySqlParts[] = "(am.album_id IS NULL AND um.visibility = 'public')";
+    if ($currentUser['id'] == $userId) {
+        $privacySqlParts[] = "1=1";
+    } else {
+        $privacySqlParts[] = "um.privacy = 'public'";
+        $privacySqlParts[] = "(am.album_id IS NULL AND um.privacy = 'public')";
         $privacySqlParts[] = "uma.privacy = 'public'";
-        
         if ($areFriends) {
-            // Friends-only visibility for media item itself or if it's in a friends-only album
-            $privacySqlParts[] = "um.visibility = 'friends'";
-            $privacySqlParts[] = "(am.album_id IS NULL AND um.visibility = 'friends')";
+            $privacySqlParts[] = "um.privacy = 'friends'";
+            $privacySqlParts[] = "(am.album_id IS NULL AND um.privacy = 'friends')";
             $privacySqlParts[] = "uma.privacy = 'friends'";
         }
     }
@@ -114,11 +142,23 @@ if ($targetUser && !$errorMessage) { // Proceed only if user was found and no ot
     error_log("VIEW_USER_MEDIA_DEBUG_ATTEMPT_2: Parameters: >>>" . print_r($params, true) . "<<<");
     // DEBUGGING CODE - END
     
-    $mediaStmt = $pdo->prepare($sql);
-    // $params should ONLY contain 'targetUserId' as per the simplified logic above
-    $mediaStmt->execute($params); 
-    $mediaItems = $mediaStmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $mediaStmt = $pdo->prepare($sql);
+        if ($mediaStmt) {
+            // Execute with an empty array as all parameters are embedded or part of the SQL string logic.
+            $mediaStmt->execute(); 
+            $mediaItems = $mediaStmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log("DEBUG_VM_7_EXECUTE_SUCCESS: Media items count: " . count($mediaItems));
+        } else {
+            error_log("DEBUG_VM_ERROR: Failed to prepare media statement.");
+            $errorMessage = "Error fetching media content.";
+        }
+    } catch (PDOException $e) {
+        error_log("DEBUG_VM_PDO_ERROR (Media Fetch): " . $e->getMessage());
+        $errorMessage = "Database error fetching media content. Details: " . $e->getMessage(); // Provide more detail
+    }
 }
+error_log("DEBUG_VM_8: Script End of PHP block. ErrorMessage: " . print_r($errorMessage, true));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -176,8 +216,12 @@ if ($targetUser && !$errorMessage) { // Proceed only if user was found and no ot
     <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button>
 
     <div class="dashboard-grid">
-        <aside class="left-sidebar">
+    <aside class="left-sidebar">
             <h1>Nubenta</h1>
+            <?php 
+                $user = $currentUser; // Make $currentUser available as $user for navigation.php
+                $currentPage = 'view_user_media'; // Or $currentPage = ''; if you prefer
+            ?>
             <?php include 'assets/navigation.php'; ?>
         </aside>
 
@@ -217,12 +261,7 @@ if ($targetUser && !$errorMessage) { // Proceed only if user was found and no ot
                                         </video>
                                     <?php endif; ?>
                                     <div class="card-body">
-                                        <?php if (!empty($item['title'])): ?>
-                                            <h5 class="card-title text-truncate" title="<?= htmlspecialchars($item['title']) ?>"><?= htmlspecialchars($item['title']) ?></h5>
-                                        <?php endif; ?>
-                                        <?php if (!empty($item['description'])): ?>
-                                            <p class="card-text text-truncate" title="<?= htmlspecialchars($item['description']) ?>"><?= htmlspecialchars($item['description']) ?></p>
-                                        <?php endif; ?>
+                                        
                                         <p class="text-muted">Uploaded: <?= date('M d, Y', strtotime($item['created_at'])) ?></p>
                                     </div>
                                 </div>
