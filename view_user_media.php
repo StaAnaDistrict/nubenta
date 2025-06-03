@@ -1,17 +1,22 @@
 <?php
-error_log("DEBUG_VM_1: Script Start");
+error_log("DEBUG_VM_1: Script Start (ATTEMPT_4)");
+// session_start(); // Commented out as per previous fix
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-session_start();
+// Check if session is already active before starting
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once 'db.php';
 
-error_log("DEBUG_VM_2: After includes");
+error_log("DEBUG_VM_2: After includes (ATTEMPT_4)");
 
 // 1. Initial Setup
 if (!isset($_SESSION['user'])) {
-    error_log("DEBUG_VM_ERROR: User not in session");
+    error_log("DEBUG_VM_ERROR: User not in session (ATTEMPT_4)");
     header("Location: login.php");
     exit();
 }
@@ -24,7 +29,7 @@ if (!$userId || $userId <= 0) {
 }
 
 if (!$userId || $userId <= 0) {
-    error_log("DEBUG_VM_ERROR: Invalid User ID. UserId: " . print_r($userId, true));
+    error_log("DEBUG_VM_ERROR: Invalid User ID. UserId: " . print_r($userId, true) . " (ATTEMPT_4)");
     $_SESSION['error_message'] = "Invalid user ID specified.";
     header("Location: dashboard.php");
     exit();
@@ -35,7 +40,7 @@ if (empty($mediaTypeFilter) || !in_array($mediaTypeFilter, ['photo', 'video'])) 
     $mediaTypeFilter = 'photo'; // Default to 'photo'
 }
 
-error_log("DEBUG_VM_3: Parameters processed. UserID: {$userId}, MediaType: {$mediaTypeFilter}");
+error_log("DEBUG_VM_3: Parameters processed. UserID: {$userId}, MediaType: {$mediaTypeFilter} (ATTEMPT_4)");
 
 // 3. Fetch Target User Details
 $targetUser = null;
@@ -46,93 +51,88 @@ try {
         $userStmt->execute([$userId]);
         $targetUser = $userStmt->fetch(PDO::FETCH_ASSOC);
     } else {
-        error_log("DEBUG_VM_ERROR: Failed to prepare user statement.");
+        error_log("DEBUG_VM_ERROR: Failed to prepare user statement. (ATTEMPT_4)");
         $errorMessage = "Error fetching user details.";
     }
 } catch (PDOException $e) {
-    error_log("DEBUG_VM_PDO_ERROR (User Fetch): " . $e->getMessage());
+    error_log("DEBUG_VM_PDO_ERROR (User Fetch): " . $e->getMessage() . " (ATTEMPT_4)");
     $errorMessage = "Database error fetching user details.";
 }
 
 $pageTitle = "User Media - Nubenta";
 $headerTitle = "User's Media";
 
-if (!$errorMessage && !$targetUser) { // Check $errorMessage first
+if (!$errorMessage && !$targetUser) {
     $errorMessage = "User not found.";
-    error_log("DEBUG_VM_ERROR: User not found after query. UserID: {$userId}");
-} elseif (!$errorMessage) {
+    error_log("DEBUG_VM_ERROR: User not found after query. UserID: {$userId} (ATTEMPT_4)");
+} elseif (!$errorMessage && $targetUser) {
     $targetUserName = htmlspecialchars($targetUser['first_name'] . ' ' . $targetUser['last_name']);
     $pageTitle = $targetUserName . "'s " . ucfirst($mediaTypeFilter) . "s - Nubenta";
     $headerTitle = $targetUserName . "'s " . ucfirst($mediaTypeFilter) . "s";
 }
 
-error_log("DEBUG_VM_4: Target user details fetched. ErrorMessage: " . print_r($errorMessage, true));
+error_log("DEBUG_VM_4: Target user details fetched. ErrorMessage: " . print_r($errorMessage, true) . " (ATTEMPT_4)");
 
 // 4. Determine Friendship Status
 $areFriends = false;
 if ($targetUser && !$errorMessage && $userId != $currentUser['id']) {
     try {
-            // Directly embed validated integer IDs
-    $_currentUserId = intval($currentUser['id']);
-    $_targetUserId = intval($userId); // $userId is already validated as int
-
-    $friendSql = "
-        SELECT COUNT(*) as is_friend
-        FROM friend_requests
-        WHERE ((sender_id = {$_currentUserId} AND receiver_id = {$_targetUserId}) OR (sender_id = {$_targetUserId} AND receiver_id = {$_currentUserId}))
-        AND status = 'accepted'
-    ";
-    // Log the friend check SQL for debugging
-    error_log("DEBUG_VM_FRIEND_CHECK_SQL: " . $friendSql);
-
+        $_currentUserId = intval($currentUser['id']);
+        $_targetUserId = intval($userId);
+        $friendSql = "
+            SELECT COUNT(*) as is_friend
+            FROM friend_requests
+            WHERE ((sender_id = {$_currentUserId} AND receiver_id = {$_targetUserId}) OR (sender_id = {$_targetUserId} AND receiver_id = {$_currentUserId}))
+            AND status = 'accepted'
+        ";
+        error_log("DEBUG_VM_FRIEND_CHECK_SQL (ATTEMPT_4): " . $friendSql);
         $friendStmt = $pdo->prepare($friendSql);
         if ($friendStmt) {
-        $friendStmt->execute(); // Execute with no parameters
-        $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
-        if ($friendship) {
-            $areFriends = ($friendship['is_friend'] > 0);
+            $friendStmt->execute();
+            $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
+            if ($friendship) {
+                $areFriends = ($friendship['is_friend'] > 0);
+            }
+        } else {
+            error_log("DEBUG_VM_ERROR: Failed to prepare friend statement. (ATTEMPT_4)");
         }
-    } else {
-        error_log("DEBUG_VM_ERROR: Failed to prepare friend statement for SQL: " . $friendSql);
-    }
     } catch (PDOException $e) {
-        error_log("DEBUG_VM_PDO_ERROR (Friend Check): " . $e->getMessage());
-        // Decide if this is a fatal error or if $areFriends can remain false
+        error_log("DEBUG_VM_PDO_ERROR (Friend Check): " . $e->getMessage() . " (ATTEMPT_4)");
     }
 } elseif ($targetUser && !$errorMessage && $userId == $currentUser['id']) {
     $areFriends = true;
 }
 
-error_log("DEBUG_VM_5: Friendship status determined. AreFriends: " . ($areFriends ? 'Yes' : 'No'));
+error_log("DEBUG_VM_5: Friendship status determined. AreFriends: " . ($areFriends ? 'Yes' : 'No') . " (ATTEMPT_4)");
 
-// 5. Fetch Media Items
+// 5. Fetch Media Items (Restored complex query with TRIM())
 $mediaItems = [];
 if ($targetUser && !$errorMessage) {
-    // Using direct embedding for $userId as it's validated as INT.
-    // This is the query we are trying to make absolutely safe from param count errors.
-     $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.created_at, um.privacy as media_visibility, uma.privacy as album_privacy, uma.user_id as album_owner_id
+    $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.created_at, 
+                   um.privacy as media_item_privacy, uma.privacy as album_privacy, uma.user_id as album_owner_id
             FROM user_media um
             LEFT JOIN album_media am ON um.id = am.media_id 
             LEFT JOIN user_media_albums uma ON am.album_id = uma.id
-            WHERE um.user_id = " . intval($userId); // Ensuring $userId is int, then embedding.
+            WHERE um.user_id = " . intval($userId); // $userId is validated int
 
     if ($mediaTypeFilter === 'photo') {
-        $sql .= " AND um.media_type LIKE 'image/%'";
+        $sql .= " AND TRIM(um.media_type) = 'image'"; // Use TRIM and precise '=' for enum 'image'
     } elseif ($mediaTypeFilter === 'video') {
-        $sql .= " AND um.media_type LIKE 'video/%'";
+        $sql .= " AND TRIM(um.media_type) = 'video'"; // Use TRIM and precise '=' for enum 'video'
     }
     
     $privacySqlParts = [];
-    if ($currentUser['id'] == $userId) {
-        $privacySqlParts[] = "1=1";
-    } else {
-        $privacySqlParts[] = "um.privacy = 'public'";
-        $privacySqlParts[] = "(am.album_id IS NULL AND um.privacy = 'public')";
-        $privacySqlParts[] = "uma.privacy = 'public'";
+    if ($currentUser['id'] == $userId) { // User is viewing their own media
+        $privacySqlParts[] = "1=1"; // Can see everything
+    } else { // Not the owner
+        $privacySqlParts[] = "TRIM(um.privacy) = 'public'";
+        $privacySqlParts[] = "(am.album_id IS NULL AND TRIM(um.privacy) = 'public')"; 
+        $privacySqlParts[] = "TRIM(uma.privacy) = 'public'";
+        
         if ($areFriends) {
-            $privacySqlParts[] = "um.privacy = 'friends'";
-            $privacySqlParts[] = "(am.album_id IS NULL AND um.privacy = 'friends')";
-            $privacySqlParts[] = "uma.privacy = 'friends'";
+            $privacySqlParts[] = "TRIM(um.privacy) = 'friends'";
+            $privacySqlParts[] = "(am.album_id IS NULL AND TRIM(um.privacy) = 'friends')";
+            $privacySqlParts[] = "TRIM(uma.privacy) = 'friends'";
         }
     }
     
@@ -142,29 +142,24 @@ if ($targetUser && !$errorMessage) {
 
     $sql .= " ORDER BY um.created_at DESC";
 
-    // DEBUGGING CODE - START
-    error_log("VIEW_USER_MEDIA_DEBUG_ATTEMPT_2: SQL Query: >>>" . $sql . "<<<");
-    error_log("VIEW_USER_MEDIA_DEBUG_ATTEMPT_2: Parameters for main media query: >>>" . print_r([], true) . "<<<"); // Explicitly showing empty array
-
-    // DEBUGGING CODE - END
+    error_log("DEBUG_VM_6_SQL (ATTEMPT_4): " . $sql);
     
     try {
         $mediaStmt = $pdo->prepare($sql);
         if ($mediaStmt) {
-            // Execute with an empty array as all parameters are embedded or part of the SQL string logic.
-            $mediaStmt->execute(); 
+            $mediaStmt->execute(); // No parameters as $userId is embedded
             $mediaItems = $mediaStmt->fetchAll(PDO::FETCH_ASSOC);
-            error_log("DEBUG_VM_7_EXECUTE_SUCCESS: Media items count: " . count($mediaItems));
+            error_log("DEBUG_VM_7_EXECUTE_SUCCESS (ATTEMPT_4): Media items count: " . count($mediaItems));
         } else {
-            error_log("DEBUG_VM_ERROR: Failed to prepare media statement.");
+            error_log("DEBUG_VM_ERROR: Failed to prepare media statement. (ATTEMPT_4)");
             $errorMessage = "Error fetching media content.";
         }
     } catch (PDOException $e) {
-        error_log("DEBUG_VM_PDO_ERROR (Media Fetch): " . $e->getMessage());
-        $errorMessage = "Database error fetching media content. Details: " . $e->getMessage(); // Provide more detail
+        error_log("DEBUG_VM_PDO_ERROR (Media Fetch): " . $e->getMessage() . " (ATTEMPT_4)");
+        $errorMessage = "Database error fetching media content. Details: " . $e->getMessage();
     }
 }
-error_log("DEBUG_VM_8: Script End of PHP block. ErrorMessage: " . print_r($errorMessage, true));
+error_log("DEBUG_VM_8: Script End of PHP block. ErrorMessage: " . print_r($errorMessage, true) . " (ATTEMPT_4)");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -256,11 +251,11 @@ error_log("DEBUG_VM_8: Script End of PHP block. ErrorMessage: " . print_r($error
                         <?php foreach ($mediaItems as $item): ?>
                             <div class="col">
                                 <div class="media-item-card">
-                                    <?php if (strpos($item['media_type'], 'image/') === 0): ?>
+                                <?php if ($item['media_type'] === 'image'): ?>
                                         <a href="<?= htmlspecialchars($item['media_url']) ?>" data-bs-toggle="modal" data-bs-target="#mediaModal" data-media-url="<?= htmlspecialchars($item['media_url']) ?>" data-media-type="image">
                                             <img src="<?= htmlspecialchars($item['media_url']) ?>" alt="<?= htmlspecialchars($item['title'] ?? 'User media') ?>">
                                         </a>
-                                    <?php elseif (strpos($item['media_type'], 'video/') === 0): ?>
+                                        <?php elseif ($item['media_type'] === 'video'): ?>
                                         <video controls>
                                             <source src="<?= htmlspecialchars($item['media_url']) ?>" type="<?= htmlspecialchars($item['media_type']) ?>">
                                             Your browser does not support the video tag.
