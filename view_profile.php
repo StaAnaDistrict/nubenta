@@ -89,11 +89,40 @@ if ($current['id'] === $profileId) {
             $filteredAlbums[] = $album;
         }
     }
-    $userAlbums = $filteredAlbums;
+    $userAlbums = $filteredAlbums; // This is the final list of viewable albums
     $canViewAlbums = !empty($userAlbums);
 }
 
-// Get user's friends for Connections section
+// For display purposes and "View All" button logic
+$totalViewableAlbums = count($userAlbums);
+$albumsToDisplay = $canViewAlbums ? array_slice($userAlbums, 0, 5) : [];
+$displayLimitAlbums = 5;
+
+
+// Get total number of friends for Connections section
+$totalFriendsCountStmt = $pdo->prepare("
+    SELECT COUNT(DISTINCT u.id) as total_friends
+    FROM friend_requests fr
+    JOIN users u ON (
+        CASE
+            WHEN fr.sender_id = :profileId1 THEN fr.receiver_id = u.id
+            WHEN fr.receiver_id = :profileId2 THEN fr.sender_id = u.id
+        END
+    )
+    WHERE (fr.sender_id = :profileId3 OR fr.receiver_id = :profileId4)
+    AND fr.status = 'accepted'
+");
+$totalFriendsCountStmt->execute([
+    ':profileId1' => $profileId,
+    ':profileId2' => $profileId,
+    ':profileId3' => $profileId,
+    ':profileId4' => $profileId
+]);
+$totalFriendsCountResult = $totalFriendsCountStmt->fetch(PDO::FETCH_ASSOC);
+$totalFriendsCount = $totalFriendsCountResult ? (int)$totalFriendsCountResult['total_friends'] : 0;
+$displayLimitFriends = 6;
+
+// Get user's friends for Connections section (limited display)
 $friendsStmt = $pdo->prepare("
     SELECT
         u.id,
@@ -111,7 +140,7 @@ $friendsStmt = $pdo->prepare("
     WHERE (fr.sender_id = ? OR fr.receiver_id = ?)
     AND fr.status = 'accepted'
     ORDER BY fr.created_at DESC
-    LIMIT 12
+    LIMIT 6
 ");
 $friendsStmt->execute([$profileId, $profileId, $profileId, $profileId]);
 $userFriends = $friendsStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -328,8 +357,8 @@ try {
                         </div>
                         <div class="action-column">
                             <button class="btn btn-outline-primary mb-2" onclick="openWriteTestimonialModal(<?= $profileId ?>)">Add Testimonial</button>
-                            <button class="btn btn-outline-primary mb-2">View Photos</button>
-                            <button class="btn btn-outline-primary mb-2">View Videos</button>
+                            <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=photo" class="btn btn-outline-primary mb-2">View Photos</a>
+                            <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=video" class="btn btn-outline-primary mb-2">View Videos</a>
                             <button class="btn btn-outline-primary">View Website</button>
                         </div>
                     </div>
@@ -474,9 +503,9 @@ try {
         <!-- Media Gallery Section -->
         <div class="profile-section" id="media-gallery-section">
             <h3 class="section-title">Media Gallery</h3>
-            <?php if ($canViewAlbums && !empty($userAlbums)): ?>
+            <?php if ($canViewAlbums && !empty($albumsToDisplay)): ?>
                 <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 album-gallery">
-                    <?php foreach ($userAlbums as $album): ?>
+                    <?php foreach ($albumsToDisplay as $album): ?>
                         <div class="col">
                             <div class="card h-100 album-card">
                                 <a href="view_album.php?id=<?php echo $album['id']; ?>" class="text-decoration-none">
@@ -536,7 +565,14 @@ try {
                         </div>
                     <?php endforeach; ?>
                 </div>
-            <?php elseif ($canViewAlbums && empty($userAlbums)): ?>
+                <?php if ($totalViewableAlbums > $displayLimitAlbums): ?>
+                    <div class="text-center mt-3">
+                        <a href="user_albums.php?id=<?= htmlspecialchars($profileId) ?>" class="btn btn-outline-secondary" style="color: #2c3e50; border-color: #2c3e50;">
+                            <i class="fas fa-images me-1"></i> View All Albums (<?= $totalViewableAlbums ?>)
+                        </a>
+                    </div>
+                <?php endif; ?>
+            <?php elseif ($canViewAlbums && empty($totalViewableAlbums)): // Check against totalViewableAlbums for empty message ?>
                 <div class="text-center py-4">
                     <i class="fas fa-photo-video fa-3x mb-3 text-muted"></i>
                     <p class="text-muted mb-0">No albums created yet.</p>
@@ -584,9 +620,15 @@ try {
                     <?php endforeach; ?>
                 </div>
 
-                <?php if (count($userFriends) >= 12): ?>
+                <?php if ($totalFriendsCount > $displayLimitFriends): ?>
                     <div class="text-center mt-3">
-                        <small class="text-muted">Showing recent connections</small>
+                        <a href="user_connections.php?id=<?= htmlspecialchars($profileId) ?>" class="btn btn-outline-secondary" style="color: #2c3e50; border-color: #2c3e50;">
+                            <i class="fas fa-users me-1"></i> View All Connections (<?= $totalFriendsCount ?>)
+                        </a>
+                    </div>
+                <?php elseif (count($userFriends) > 0 && $totalFriendsCount <= $displayLimitFriends): ?>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">Showing all connections</small>
                     </div>
                 <?php endif; ?>
 
