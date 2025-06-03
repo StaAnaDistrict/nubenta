@@ -149,7 +149,8 @@ a. Logout button which is located in the upper right. I actually want to remove 
 b. On the bottom left of the page, we have the Save Changes button which is colored blue. I hate this color!
 c. Back to Dashboard button which will be rendered useless once we implement the left sidebar 3-column grid which has the navigations already. 
 
-Basically, what we need here is just the Save Button which is aligned with the project's color scheme once the 3-column grid is implemented where we have the navigation on the left, and the add_ons.php on right.
+## TASK ##
+Basically, what we need here is just the Save Button which is aligned with the project's color scheme once the 3-column grid is implemented where we have the navigation on the left, and the add_ons.php on right. You may adopt the same template used in friends.php as your baseline reference. Use the said php file, copy it, and paste it inside the edit_profile.php file. Replace the main content (center content of the 3-column grid) with what edit_profile.php originally had or you may reconstruct edit_profile.php without compromising its original function and usability as it is used by view_profile.php as well. 
 
 Kindly fix and address these issues one by one, and do not assume that every modification you provide is already foolproof. It is essential to test it and record its performance in the @/CHANGELOG.md
 
