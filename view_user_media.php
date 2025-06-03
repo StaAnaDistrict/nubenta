@@ -1,7 +1,5 @@
 <?php
 error_log("DEBUG_VM_1: Script Start");
-session_start(); // Make sure this is here
-error_log("DEBUG_SESSION_USER_STRUCTURE: " . print_r($_SESSION['user'], true)); // <-- ADD THIS LINE
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -74,22 +72,29 @@ error_log("DEBUG_VM_4: Target user details fetched. ErrorMessage: " . print_r($e
 $areFriends = false;
 if ($targetUser && !$errorMessage && $userId != $currentUser['id']) {
     try {
-        $friendStmt = $pdo->prepare("
-            SELECT COUNT(*) as is_friend
-            FROM friend_requests
-            WHERE ((sender_id = :currentUserId AND receiver_id = :targetUserId) OR (sender_id = :targetUserId AND receiver_id = :currentUserId))
-            AND status = 'accepted'
-        ");
+            // Directly embed validated integer IDs
+    $_currentUserId = intval($currentUser['id']);
+    $_targetUserId = intval($userId); // $userId is already validated as int
+
+    $friendSql = "
+        SELECT COUNT(*) as is_friend
+        FROM friend_requests
+        WHERE ((sender_id = {$_currentUserId} AND receiver_id = {$_targetUserId}) OR (sender_id = {$_targetUserId} AND receiver_id = {$_currentUserId}))
+        AND status = 'accepted'
+    ";
+    // Log the friend check SQL for debugging
+    error_log("DEBUG_VM_FRIEND_CHECK_SQL: " . $friendSql);
+
+        $friendStmt = $pdo->prepare($friendSql);
         if ($friendStmt) {
-            $friendStmt->execute(['currentUserId' => $currentUser['id'], 'targetUserId' => $userId]);
-            $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
-            if ($friendship) {
-                $areFriends = ($friendship['is_friend'] > 0);
-            }
-        } else {
-            error_log("DEBUG_VM_ERROR: Failed to prepare friend statement.");
-            // Decide if this is a fatal error or if $areFriends can remain false
+        $friendStmt->execute(); // Execute with no parameters
+        $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
+        if ($friendship) {
+            $areFriends = ($friendship['is_friend'] > 0);
         }
+    } else {
+        error_log("DEBUG_VM_ERROR: Failed to prepare friend statement for SQL: " . $friendSql);
+    }
     } catch (PDOException $e) {
         error_log("DEBUG_VM_PDO_ERROR (Friend Check): " . $e->getMessage());
         // Decide if this is a fatal error or if $areFriends can remain false
@@ -139,7 +144,8 @@ if ($targetUser && !$errorMessage) {
 
     // DEBUGGING CODE - START
     error_log("VIEW_USER_MEDIA_DEBUG_ATTEMPT_2: SQL Query: >>>" . $sql . "<<<");
-    error_log("VIEW_USER_MEDIA_DEBUG_ATTEMPT_2: Parameters: >>>" . print_r($params, true) . "<<<");
+    error_log("VIEW_USER_MEDIA_DEBUG_ATTEMPT_2: Parameters for main media query: >>>" . print_r([], true) . "<<<"); // Explicitly showing empty array
+
     // DEBUGGING CODE - END
     
     try {
