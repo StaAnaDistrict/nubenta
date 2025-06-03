@@ -1,5 +1,108 @@
 # Chat System Development Changelog
 
+## **June 1, 2025 - USER MEDIA VIEWING - UPDATE 3**
+
+### **🎯 NEW PAGE: VIEW_USER_MEDIA.PHP & VIEW_PROFILE.PHP LINK UPDATES**
+
+This update introduces the `view_user_media.php` page for displaying a user's photos or videos, and updates links on `view_profile.php` to point to this new page.
+
+**1. New File Creation: `view_user_media.php`**
+
+*   **Purpose:** Created to provide a dedicated view for all publicly accessible photos or videos belonging to a specific user, independent of albums.
+*   **Parameters:**
+    *   Accepts `id` (user_id) to specify the target user.
+    *   Accepts `media_type` ('photo' or 'video') to filter the displayed media. Defaults to 'photo' if not specified or invalid.
+*   **Features:**
+    *   Displays media items in a responsive grid layout.
+    *   Respects privacy settings:
+        *   Public media is visible to all.
+        *   Friends-only media is visible if the viewer is a friend of the target user.
+        *   The owner can view all their own media, including private items.
+        *   Considers both individual media visibility and album privacy settings.
+    *   Includes a modal for viewing larger versions of images.
+    *   Uses the standard 3-column site layout (navigation, main content, add-ons) for visual consistency.
+    *   Includes a header with the user's name, media type, item count, and a "Back to Profile" link.
+    *   Shows appropriate messages if no media is found or if the user is not found.
+
+**2. `view_profile.php` Updates:**
+
+*   **"View Photos" Button:** The "View Photos" button in the user profile actions section now correctly links to:
+    `view_user_media.php?id=<profileId>&media_type=photo`
+*   **"View Videos" Button:** The "View Videos" button in the user profile actions section now correctly links to:
+    `view_user_media.php?id=<profileId>&media_type=video`
+
+These changes allow users to easily navigate from a user's profile to a comprehensive view of their photos or videos.
+
+---
+
+## **June 1, 2025 - PROFILE PAGE ENHANCEMENTS - UPDATE 2**
+
+### **🎯 VIEW_PROFILE.PHP IMPROVEMENTS & USER_CONNECTIONS.PHP CREATION**
+
+This update introduces several enhancements to `view_profile.php` for better user experience regarding media albums and connections, and adds a new page `user_connections.php` to display a user's full list of friends.
+
+**1. `view_profile.php` Changes:**
+
+*   **Media Gallery Section:**
+    *   The gallery now displays a maximum of 5 albums on the main profile page. This limit is applied in PHP after privacy filtering, ensuring that the 5 albums shown are appropriate for the viewer.
+    *   A "View All Albums (X)" button has been added. This button:
+        *   Appears only if the total number of privacy-filtered, viewable albums exceeds 5.
+        *   Links to `user_albums.php?id=<profileId>`, allowing users to see the complete album collection for the profile owner.
+        *   Displays the total count of viewable albums (e.g., "View All Albums (10)").
+
+*   **Connections Section:**
+    *   The number of friends displayed directly on the profile page has been reduced to a maximum of 6 (previously 12).
+    *   A "View All Connections (X)" button has been added. This button:
+        *   Appears only if the total number of friends exceeds 6.
+        *   Links to the new `user_connections.php?id=<profileId>` page.
+        *   Displays the total friend count (e.g., "View All Connections (25)").
+    *   To support this, a preliminary query now counts the total number of friends before fetching the limited list for display.
+
+**2. New File Creation:**
+
+*   **`user_connections.php`:**
+    *   This new page has been created to display a comprehensive list of all connections (friends) for a specified user.
+    *   It is accessed via `user_connections.php?id=<userId>`.
+    *   The page fetches and lists all friends, showing their profile picture, full name, and a link to their respective profiles. The date of friendship is also displayed.
+    *   It utilizes the standard 3-column site layout (navigation, main content, add-ons sidebar) for consistency.
+    *   Includes appropriate headers, a "Back to Profile" link, and a message if the user has no connections.
+
+These changes improve the initial load time and clarity of `view_profile.php` by summarizing album and connection previews, while providing dedicated pages for users to explore complete lists.
+
+---
+
+## **June 1, 2025 - EDIT PROFILE PAGE REVAMP - UPDATE 1**
+
+### **🎯 EDIT PROFILE PAGE: LAYOUT, STYLING, AND USABILITY ENHANCEMENTS**
+
+This update focuses on modernizing the `edit_profile.php` page by adopting the site-wide 3-column layout, refining its visual style, and improving usability by removing redundant navigation elements.
+
+**Key Changes Implemented:**
+
+*   **Layout Overhaul:**
+    *   Adopted the standard 3-column dashboard layout (Left Sidebar Navigation, Main Content Area, Right Add-ons Sidebar).
+    *   This aligns `edit_profile.php` with the visual structure of other key pages like `friends.php` and `dashboard.php`.
+
+*   **Button Adjustments for Improved Usability:**
+    *   **Removed "Logout" button:** The logout functionality is readily available in the standard navigation sidebar, making the dedicated button on this page redundant.
+    *   **Removed "Back to Dashboard" button:** With the persistent left sidebar navigation, this button was deemed unnecessary and removed to simplify the form's action area.
+    *   **"Save Changes" Button Styled:** The primary action button ("Save Changes") has been restyled (background: `#1a1a1a`) to match the project's darker color scheme, moving away from the default Bootstrap blue. The checkmark emoji (✅) in the button text has been retained.
+
+*   **Functionality Preservation:**
+    *   All original core functionalities of the `edit_profile.php` page have been carefully preserved. This includes:
+        *   Form submission to `process_update_profile.php` (AJAX).
+        *   Profile picture upload mechanism.
+        *   Custom theme CSS/HTML/JavaScript input.
+        *   Geolocation feature for the location input field.
+    *   PHP session handling and user data population remain unchanged.
+    *   All JavaScript dependencies (jQuery, SweetAlert2, Bootstrap JS) continue to be loaded correctly.
+
+*   **Performance Note:**
+    *   The page's performance is expected to be similar to other pages already utilizing the 3-column layout (e.g., `friends.php`, `dashboard.php`).
+    *   Performance should be monitored post-deployment, but no significant degradation is anticipated due to these layout and styling changes.
+
+---
+
 ## **May 31, 2025 - TESTIMONIALS SYSTEM IMPLEMENTATION - UPDATE 11**
 
 ### **🎯 TESTIMONIALS SYSTEM: 100% COMPLETE - ALL ISSUES RESOLVED**
