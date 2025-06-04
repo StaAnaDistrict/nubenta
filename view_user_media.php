@@ -1,22 +1,15 @@
 <?php
-error_log("DEBUG_VM_1: Script Start (ATTEMPT_4)");
-// session_start(); // Commented out as per previous fix
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Check if session is already active before starting
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-require_once 'db.php';
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-error_log("DEBUG_VM_2: After includes (ATTEMPT_4)");
+require_once 'db.php';
 
 // 1. Initial Setup
 if (!isset($_SESSION['user'])) {
-    error_log("DEBUG_VM_ERROR: User not in session (ATTEMPT_4)");
     header("Location: login.php");
     exit();
 }
@@ -29,7 +22,6 @@ if (!$userId || $userId <= 0) {
 }
 
 if (!$userId || $userId <= 0) {
-    error_log("DEBUG_VM_ERROR: Invalid User ID. UserId: " . print_r($userId, true) . " (ATTEMPT_4)");
     $_SESSION['error_message'] = "Invalid user ID specified.";
     header("Location: dashboard.php");
     exit();
@@ -40,8 +32,6 @@ if (empty($mediaTypeFilter) || !in_array($mediaTypeFilter, ['photo', 'video'])) 
     $mediaTypeFilter = 'photo'; // Default to 'photo'
 }
 
-error_log("DEBUG_VM_3: Parameters processed. UserID: {$userId}, MediaType: {$mediaTypeFilter} (ATTEMPT_4)");
-
 // 3. Fetch Target User Details
 $targetUser = null;
 $errorMessage = null;
@@ -51,11 +41,10 @@ try {
         $userStmt->execute([$userId]);
         $targetUser = $userStmt->fetch(PDO::FETCH_ASSOC);
     } else {
-        error_log("DEBUG_VM_ERROR: Failed to prepare user statement. (ATTEMPT_4)");
-        $errorMessage = "Error fetching user details.";
+        $errorMessage = "Error fetching user details (prepare failed).";
     }
 } catch (PDOException $e) {
-    error_log("DEBUG_VM_PDO_ERROR (User Fetch): " . $e->getMessage() . " (ATTEMPT_4)");
+    error_log("PDO Error (User Fetch view_user_media.php): " . $e->getMessage());
     $errorMessage = "Database error fetching user details.";
 }
 
@@ -64,14 +53,11 @@ $headerTitle = "User's Media";
 
 if (!$errorMessage && !$targetUser) {
     $errorMessage = "User not found.";
-    error_log("DEBUG_VM_ERROR: User not found after query. UserID: {$userId} (ATTEMPT_4)");
 } elseif (!$errorMessage && $targetUser) {
     $targetUserName = htmlspecialchars($targetUser['first_name'] . ' ' . $targetUser['last_name']);
     $pageTitle = $targetUserName . "'s " . ucfirst($mediaTypeFilter) . "s - Nubenta";
     $headerTitle = $targetUserName . "'s " . ucfirst($mediaTypeFilter) . "s";
 }
-
-error_log("DEBUG_VM_4: Target user details fetched. ErrorMessage: " . print_r($errorMessage, true) . " (ATTEMPT_4)");
 
 // 4. Determine Friendship Status
 $areFriends = false;
@@ -85,7 +71,6 @@ if ($targetUser && !$errorMessage && $userId != $currentUser['id']) {
             WHERE ((sender_id = {$_currentUserId} AND receiver_id = {$_targetUserId}) OR (sender_id = {$_targetUserId} AND receiver_id = {$_currentUserId}))
             AND status = 'accepted'
         ";
-        error_log("DEBUG_VM_FRIEND_CHECK_SQL (ATTEMPT_4): " . $friendSql);
         $friendStmt = $pdo->prepare($friendSql);
         if ($friendStmt) {
             $friendStmt->execute();
@@ -94,37 +79,36 @@ if ($targetUser && !$errorMessage && $userId != $currentUser['id']) {
                 $areFriends = ($friendship['is_friend'] > 0);
             }
         } else {
-            error_log("DEBUG_VM_ERROR: Failed to prepare friend statement. (ATTEMPT_4)");
+             // Silently fail or log minimal error, $areFriends remains false
         }
     } catch (PDOException $e) {
-        error_log("DEBUG_VM_PDO_ERROR (Friend Check): " . $e->getMessage() . " (ATTEMPT_4)");
+        error_log("PDO Error (Friend Check view_user_media.php): " . $e->getMessage());
+        // $areFriends remains false
     }
 } elseif ($targetUser && !$errorMessage && $userId == $currentUser['id']) {
     $areFriends = true;
 }
 
-error_log("DEBUG_VM_5: Friendship status determined. AreFriends: " . ($areFriends ? 'Yes' : 'No') . " (ATTEMPT_4)");
-
-// 5. Fetch Media Items (Restored complex query with TRIM())
+// 5. Fetch Media Items
 $mediaItems = [];
 if ($targetUser && !$errorMessage) {
-    $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.thumbnail_url, um.created_at,
+    $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.thumbnail_url, um.created_at, 
                    um.privacy as media_item_privacy, uma.privacy as album_privacy, uma.user_id as album_owner_id
             FROM user_media um
             LEFT JOIN album_media am ON um.id = am.media_id 
             LEFT JOIN user_media_albums uma ON am.album_id = uma.id
-            WHERE um.user_id = " . intval($userId); // $userId is validated int
+            WHERE um.user_id = " . intval($userId);
 
     if ($mediaTypeFilter === 'photo') {
-        $sql .= " AND TRIM(um.media_type) = 'image'"; // Use TRIM and precise '=' for enum 'image'
+        $sql .= " AND TRIM(um.media_type) = 'image'";
     } elseif ($mediaTypeFilter === 'video') {
-        $sql .= " AND TRIM(um.media_type) = 'video'"; // Use TRIM and precise '=' for enum 'video'
+        $sql .= " AND TRIM(um.media_type) = 'video'";
     }
     
     $privacySqlParts = [];
-    if ($currentUser['id'] == $userId) { // User is viewing their own media
-        $privacySqlParts[] = "1=1"; // Can see everything
-    } else { // Not the owner
+    if ($currentUser['id'] == $userId) {
+        $privacySqlParts[] = "1=1";
+    } else {
         $privacySqlParts[] = "TRIM(um.privacy) = 'public'";
         $privacySqlParts[] = "(am.album_id IS NULL AND TRIM(um.privacy) = 'public')"; 
         $privacySqlParts[] = "TRIM(uma.privacy) = 'public'";
@@ -141,25 +125,20 @@ if ($targetUser && !$errorMessage) {
     }
 
     $sql .= " ORDER BY um.created_at DESC";
-
-    error_log("DEBUG_VM_6_SQL (ATTEMPT_4): " . $sql);
     
     try {
         $mediaStmt = $pdo->prepare($sql);
         if ($mediaStmt) {
-            $mediaStmt->execute(); // No parameters as $userId is embedded
+            $mediaStmt->execute();
             $mediaItems = $mediaStmt->fetchAll(PDO::FETCH_ASSOC);
-            error_log("DEBUG_VM_7_EXECUTE_SUCCESS (ATTEMPT_4): Media items count: " . count($mediaItems));
         } else {
-            error_log("DEBUG_VM_ERROR: Failed to prepare media statement. (ATTEMPT_4)");
-            $errorMessage = "Error fetching media content.";
+            $errorMessage = "Error fetching media content (prepare failed).";
         }
     } catch (PDOException $e) {
-        error_log("DEBUG_VM_PDO_ERROR (Media Fetch): " . $e->getMessage() . " (ATTEMPT_4)");
+        error_log("PDO Error (Media Fetch view_user_media.php): " . $e->getMessage());
         $errorMessage = "Database error fetching media content. Details: " . $e->getMessage();
     }
 }
-error_log("DEBUG_VM_8: Script End of PHP block. ErrorMessage: " . print_r($errorMessage, true) . " (ATTEMPT_4)");
 ?>
 <!DOCTYPE html>
 <html lang="en">
