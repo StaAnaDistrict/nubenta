@@ -1,5 +1,3 @@
-Kindly begin by reviewing CHANGELOG.md and then, please take into account that the project is a social networking system, hence, there are multiple users involved.
-
 Here's a breakdown of what's needed to address the default album issues and related improvements:
 
 Summary: Default Album and Media Association Fixes
