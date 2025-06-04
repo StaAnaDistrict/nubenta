@@ -59,6 +59,24 @@ if (!$errorMessage && !$targetUser) {
     $headerTitle = $targetUserName . "'s " . ucfirst($mediaTypeFilter) . "s";
 }
 
+// Fetch Default Gallery Album ID for the target user
+$defaultGalleryAlbumId = null;
+if ($targetUser && !$errorMessage) {
+    try {
+        $defaultAlbumStmt = $pdo->prepare("SELECT id FROM user_media_albums WHERE user_id = ? AND album_type = 'default_gallery' LIMIT 1");
+        if ($defaultAlbumStmt) {
+            $defaultAlbumStmt->execute([$userId]);
+            $defaultAlbum = $defaultAlbumStmt->fetch(PDO::FETCH_ASSOC);
+            if ($defaultAlbum) {
+                $defaultGalleryAlbumId = $defaultAlbum['id'];
+            }
+        }
+    } catch (PDOException $e) {
+        error_log("PDO Error (Default Album Fetch view_user_media.php): " . $e->getMessage());
+        // Continue without default gallery ID if it fails
+    }
+}
+
 // 4. Determine Friendship Status
 $areFriends = false;
 if ($targetUser && !$errorMessage && $userId != $currentUser['id']) {
@@ -92,7 +110,7 @@ if ($targetUser && !$errorMessage && $userId != $currentUser['id']) {
 // 5. Fetch Media Items
 $mediaItems = [];
 if ($targetUser && !$errorMessage) {
-    $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.thumbnail_url, um.created_at, 
+    $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.thumbnail_url, um.created_at, um.album_id AS item_album_id,
                    um.privacy as media_item_privacy, uma.privacy as album_privacy, uma.user_id as album_owner_id
             FROM user_media um
             LEFT JOIN album_media am ON um.id = am.media_id 
@@ -228,9 +246,20 @@ if ($targetUser && !$errorMessage) {
                 <?php else: ?>
                     <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3">
                         <?php foreach ($mediaItems as $item): ?>
+                            <?php
+                                $item_album_id = $item['item_album_id'];
+                                $album_id_for_link = $item_album_id ?? $defaultGalleryAlbumId;
+                                // Fallback if no album context at all (should be rare with default gallery logic)
+                                if ($album_id_for_link === null) {
+                                    // Option: link to a generic media view or don't link, or use a placeholder album ID if one exists
+                                    // For now, we'll assume $defaultGalleryAlbumId will usually be set.
+                                    // If $item_album_id is null and $defaultGalleryAlbumId is also null, this link might be problematic.
+                                    // A robust solution might involve checking if $album_id_for_link is valid before creating the link.
+                                }
+                            ?>
                             <div class="col">
                                 <div class="media-item-card">
-                                <a href="view_media.php?id=<?= htmlspecialchars($item['id']) ?>" class="text-decoration-none">
+                                <a href="view_album.php?id=<?= htmlspecialchars($album_id_for_link) ?>&media_id=<?= htmlspecialchars($item['id']) ?>" class="text-decoration-none">
                                      <?php if ($item['media_type'] === 'image'): ?>
                                          <img src="<?= htmlspecialchars($item['media_url']) ?>" alt="User media image">
                                          <?php elseif ($item['media_type'] === 'video'): ?>

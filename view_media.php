@@ -137,7 +137,7 @@ if ($isModal) {
                         <img src="<?php echo htmlspecialchars($media['media_url']); ?>" alt="Media" class="img-fluid">
                     <?php elseif ($media['media_type'] === 'video'): ?>
                         <video controls autoplay class="img-fluid">
-                            <source src="<?php echo htmlspecialchars($media['media_url']); ?>" type="video/mp4">
+                            <source src="<?php echo htmlspecialchars($media['media_url']); ?>">
                             Your browser does not support the video tag.
                         </video>
                     <?php endif; ?>
@@ -359,10 +359,10 @@ if ($isModal) {
                             <?php echo htmlspecialchars($media['caption'] ?? ''); ?>
                         </h5>
                         <div>
-                            <a href="manage_albums.php" class="btn btn-sm btn-outline-dark">
+                            <a href="user_albums.php?id=<?= htmlspecialchars(\$media['user_id']) ?>" class="btn btn-sm btn-outline-dark">
                                 <i class="fas fa-images me-1"></i> Back to Albums
                             </a>
-                            <a href="manage_media.php" class="btn btn-sm btn-outline-dark ms-2">
+                            <a href="view_user_media.php?id=<?= htmlspecialchars(\$media['user_id']) ?>&media_type=<?= htmlspecialchars(\$media['media_type']) ?>" class="btn btn-sm btn-outline-dark ms-2">
                                 <i class="fas fa-photo-video me-1"></i> Back to Gallery
                             </a>
                             <?php if ($media['post_id']): ?>
@@ -378,7 +378,7 @@ if ($isModal) {
                                 <img src="<?php echo htmlspecialchars($media['media_url']); ?>" alt="Media" class="img-fluid">
                             <?php elseif ($media['media_type'] === 'video'): ?>
                                 <video controls autoplay class="img-fluid">
-                                    <source src="<?php echo htmlspecialchars($media['media_url']); ?>" type="video/mp4">
+                                    <source src="<?php echo htmlspecialchars($media['media_url']); ?>">
                                     Your browser does not support the video tag.
                                 </video>
                             <?php endif; ?>
@@ -428,12 +428,14 @@ if ($isModal) {
                                     <?php endif; ?>
 
                                     <!-- Delete button (existing) -->
+                                    <?php if ($media && ($media['user_id'] === $user['id'] || ($user['role'] ?? '') === 'admin')): ?>
                                     <form method="POST" action="manage_media.php" onsubmit="return confirm('Are you sure you want to delete this media?');" class="d-inline">
                                         <input type="hidden" name="media_id" value="<?php echo $media['id']; ?>">
                                         <button type="submit" name="delete_media" class="btn btn-sm btn-outline-dark">
                                             <i class="fas fa-trash-alt me-1"></i> Delete
                                         </button>
                                     </form>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>

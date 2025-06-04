@@ -126,69 +126,34 @@ try {
     $totalCount = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
     $totalPages = ceil($totalCount / $perPage);
 
-    // First, let's debug what albums exist in the database
-    $debugStmt = $pdo->prepare("
-        SELECT id, album_name, user_id
-        FROM user_media_albums
-        WHERE user_id = ?
-        ORDER BY id ASC
-    ");
-    $debugStmt->execute([$user['id']]);
-    $allDbAlbums = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Store debug info
-    $debugInfo = [
-        'all_db_albums' => $allDbAlbums,
-        'default_album_id' => $defaultAlbumId
-    ];
-
-    // First, get the default album to ensure it's included
-    $defaultStmt = $pdo->prepare("
-        SELECT a.*,
-               m.media_url as cover_image_url,
-               (SELECT COUNT(*) FROM user_media WHERE user_id = ?) as media_count,
-               'Default Gallery' as album_name,
-               'Your default media gallery containing all your uploaded photos and videos' as description
-        FROM user_media_albums a
-        LEFT JOIN user_media m ON a.cover_image_id = m.id
-        WHERE a.user_id = ? AND a.id = ?
-    ");
-    $defaultStmt->execute([$user['id'], $user['id'], $defaultAlbumId]);
-    $defaultAlbum = $defaultStmt->fetch(PDO::FETCH_ASSOC);
-
-    // Then get all other albums - get ALL albums, not just a limited number
+    // Fetch all albums for the user, ordered by album_type and then creation date
     $stmt = $pdo->prepare("
-        SELECT a.*,
-               m.media_url as cover_image_url,
-               (SELECT COUNT(*) FROM album_media WHERE album_id = a.id) as media_count
+        SELECT 
+            a.*, 
+            m.media_url as cover_image_url, 
+            (SELECT COUNT(*) FROM album_media WHERE album_id = a.id) as media_count
         FROM user_media_albums a
         LEFT JOIN user_media m ON a.cover_image_id = m.id
-        WHERE a.user_id = ? AND a.id != ?
-        ORDER BY a.id ASC
+        WHERE a.user_id = ?
+        ORDER BY 
+            CASE a.album_type
+                WHEN 'default_gallery' THEN 0
+                WHEN 'profile_pictures' THEN 1
+                ELSE 2
+            END, 
+            a.created_at DESC
+        LIMIT ? OFFSET ?
     ");
-    $stmt->execute([$user['id'], $defaultAlbumId]);
-    $otherAlbums = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt->execute([$user['id'], $perPage, $offset]);
+    $albums = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Debug the other albums
-    error_log("Other albums: " . json_encode($otherAlbums));
-
-    // Combine default album with other albums - rebuild array manually
-    $albums = [];
-    if ($defaultAlbum) {
-        $albums[] = $defaultAlbum;
-    }
-
-    // Add other albums one by one
-    foreach ($otherAlbums as $otherAlbum) {
-        $albums[] = $otherAlbum;
-    }
-
-    // Format albums for display
-    $formattedAlbums = [];
-    foreach ($albums as $album) {
-        $formattedAlbums[] = formatAlbumForDisplay($album);
-    }
-    $albums = $formattedAlbums;
+    // Format albums for display (this helper might need adjustment or removal if names are handled directly)
+    // For now, we will handle name and description overrides directly in the loop.
+    // $formattedAlbums = [];
+    // foreach ($albums as $album) {
+    //     $formattedAlbums[] = formatAlbumForDisplay($album);
+    // }
+    // $albums = $formattedAlbums;
 
     // Create pagination data
     $pagination = [
@@ -197,24 +162,6 @@ try {
         'total_items' => $totalCount,
         'per_page' => $perPage
     ];
-
-    // Format albums for display
-    foreach ($albums as &$album) {
-        // Debug before formatting
-        if (isset($_GET['debug']) && $_GET['debug'] === '1') {
-            error_log("Before formatting: Album ID " . $album['id'] . ", Name: " . $album['album_name']);
-        }
-
-        $album = formatAlbumForDisplay($album);
-
-        // Debug after formatting
-        if (isset($_GET['debug']) && $_GET['debug'] === '1') {
-            error_log("After formatting: Album ID " . $album['id'] . ", Name: " . $album['album_name']);
-        }
-    }
-
-    // IMPORTANT: Unset the reference to avoid issues
-    unset($album);
 
 } catch (PDOException $e) {
     error_log("Error fetching albums: " . $e->getMessage());
@@ -227,6 +174,7 @@ try {
     ];
 }
 
+/*
 // Get user media for creating a new album
 try {
     $stmt = $pdo->prepare("
@@ -239,7 +187,10 @@ try {
     $userMedia = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $userMedia = [];
-}?>
+}
+*/
+$userMedia = [];
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -332,31 +283,48 @@ try {
             <!-- Album Cards -->
             <div class="row row-cols-1 row-cols-md-3 g-4">
                 <?php
-                // Track album IDs to prevent duplicates
-                $displayedAlbumIds = [];
-
-                // Display all albums as cards
                 foreach ($albums as $album):
-                    // Skip if already displayed
-                    if (in_array($album['id'], $displayedAlbumIds)) {
-                        continue;
+                    $albumName = htmlspecialchars($album['album_name']);
+                    if (!empty($album['description'])) {
+                        $desc_trimmed = htmlspecialchars(substr($album['description'], 0, 100));
+                        $desc_formatted = nl2br($desc_trimmed);
+                        if (strlen($album['description']) > 100) {
+                            $albumDescription = $desc_formatted . '...';
+                        } else {
+                            $albumDescription = $desc_formatted;
+                        }
+                    } else {
+                        $albumDescription = '';
                     }
+                    $privacyIcon = ($album['privacy'] === 'public') ? 'globe-americas' : (($album['privacy'] === 'friends') ? 'users' : 'lock');
+                    $privacyLabel = ucfirst($album['privacy']);
 
-                    // Add to displayed list
-                    $displayedAlbumIds[] = $album['id'];
-
-                    // Special handling for default gallery
-                    $isDefaultGallery = ($album['id'] == $defaultAlbumId);
-                    $albumName = $isDefaultGallery ? 'My Gallery' : $album['album_name'];
+                    if ($album['album_type'] === 'default_gallery') {
+                        $albumName = 'My Gallery'; // Override display name
+                        $albumDescription = 'Your default media gallery containing all your uploaded photos and videos.';
+                    } elseif ($album['album_type'] === 'profile_pictures') {
+                        $albumName = 'Profile Pictures'; // Override display name
+                        $albumDescription = 'Your profile pictures collection.';
+                        $privacyIcon = 'globe-americas'; // Profile pictures usually public
+                        $privacyLabel = 'Public';
+                    }
+                    // Ensure the diagnostic echo is the only active output in the loop for this test
+                    // echo "<div>Album ID: " . htmlspecialchars($album['id'] ?? 'N/A') . "; Type: " . htmlspecialchars($album['album_type'] ?? 'N/A') . "</div><br>";
                 ?>
+                <!-- Processing Album ID: <?php echo htmlspecialchars($album['id'] ?? 'N/A'); ?> -->
                     <div class="col">
                         <div class="card h-100 album-card">
                             <div class="position-relative" style="height: 150px; background-color: #f8f9fa;">
                                 <?php if (!empty($album['cover_image_url'])): ?>
                                     <a href="view_album.php?id=<?php echo $album['id']; ?>">
-                                        <img src="<?php echo htmlspecialchars($album['cover_image_url']); ?>"
-                                             class="card-img-top" alt="Album Cover"
-                                             style="height: 150px; object-fit: cover;">
+                                        <?php
+                                            // Prepare attributes for the img tag to ensure clarity
+                                            $img_src = htmlspecialchars($album['cover_image_url']);
+                                            $img_class = "card-img-top";
+                                            $img_alt = "Album Cover";
+                                            $img_style = "height: 150px; object-fit: cover;";
+                                        ?>
+                                        <img src="<?php echo $img_src; ?>" class="<?php echo $img_class; ?>" alt="<?php echo $img_alt; ?>" style="<?php echo $img_style; ?>">
                                     </a>
                                 <?php else: ?>
                                     <div class="d-flex align-items-center justify-content-center h-100">
@@ -372,39 +340,46 @@ try {
                             <div class="card-body">
                                 <h5 class="card-title">
                                     <a href="view_album.php?id=<?php echo $album['id']; ?>" class="text-decoration-none text-dark">
-                                        <?php echo htmlspecialchars($albumName); ?>
+                                        <?php echo $albumName; ?>
                                     </a>
                                 </h5>
-                                <?php if (!empty($album['description'])): ?>
+                                <?php if (!empty($albumDescription)): ?>
                                     <p class="card-text small text-muted">
-                                        <?php echo nl2br(htmlspecialchars(substr($album['description'], 0, 100))); ?>
-                                        <?php echo (strlen($album['description']) > 100) ? '...' : ''; ?>
+                                        <?php echo $albumDescription; ?>
                                     </p>
                                 <?php endif; ?>
                             </div>
                             <div class="card-footer d-flex justify-content-between align-items-center">
-                                <?php if ($isDefaultGallery): ?>
+                                <?php if ($album['album_type'] === 'default_gallery'): ?>
                                 <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="defaultGalleryPrivacy"
+                                    <input class="form-check-input" type="checkbox" id="privacyToggle_<?php echo $album['id']; ?>"
                                            <?php echo ($album['privacy'] === 'public') ? 'checked' : ''; ?>
                                            data-album-id="<?php echo $album['id']; ?>">
-                                    <label class="form-check-label" for="defaultGalleryPrivacy">
+                                    <label class="form-check-label" for="privacyToggle_<?php echo $album['id']; ?>">
                                         <?php echo ($album['privacy'] === 'public') ? 'Public' : 'Private'; ?>
                                     </label>
                                 </div>
-                                <?php else: ?>
+                                <?php elseif ($album['album_type'] === 'profile_pictures'): ?>
+                                    <small class="text-muted">
+                                        <i class="fas fa-globe-americas me-1"></i> Public
+                                    </small>
+                                <?php else: // Custom album ?>
                                 <small class="text-muted">
-                                    <i class="fas fa-<?php echo $album['privacy_icon']; ?> me-1"></i>
-                                    <?php echo $album['privacy_label']; ?>
+                                    <i class="fas fa-<?php echo $privacyIcon; ?> me-1"></i>
+                                    <?php echo $privacyLabel; ?>
                                 </small>
                                 <?php endif; ?>
                                 <div>
                                     <a href="view_album.php?id=<?php echo $album['id']; ?>" class="btn btn-sm btn-outline-dark">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <?php if (!$isDefaultGallery): // Don't allow deleting the default album ?>
+                                    <?php if ($album['album_type'] === 'custom'): ?>
                                         <button type="button" class="btn btn-sm btn-outline-dark delete-album-btn"
                                                 data-album-id="<?php echo $album['id']; ?>">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="button" class="btn btn-sm btn-outline-dark" disabled data-bs-toggle="tooltip" title="System albums cannot be deleted">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     <?php endif; ?>
@@ -413,19 +388,20 @@ try {
                         </div>
                     </div>
                 <?php endforeach; ?>
-            </div>
-        </main>
+            </div> <!-- End of div class="row g-4" -->
+        </main> <!-- End of main class="main-content" -->
 
-        <!-- Right Sidebar - Using the modular add_ons.php -->
-        <?php
-        // You can customize the sidebar by setting these variables
-        // $topElementTitle = "Custom Ads Title";
-        // $showAdditionalContent = true;
+        <aside class="right-sidebar">
+            <?php
+            // You can customize the sidebar by setting these variables
+            // $topElementTitle = "Custom Ads Title";
+            // $showAdditionalContent = true;
 
-        // Include the modular right sidebar
-        include 'assets/add_ons.php';
-        ?>
-    </div>
+            // Include the modular right sidebar
+            include 'assets/add_ons.php';
+            ?>
+        </aside>
+    </div> <!-- End of div class="dashboard-grid" -->
 
     <!-- Create Album Modal -->
     <div class="modal fade" id="createAlbumModal" tabindex="-1" aria-labelledby="createAlbumModalLabel" aria-hidden="true">

@@ -193,21 +193,40 @@ class MediaUploader {
         if (empty($mediaItems)) return false;
 
         try {
+            // Ensure default album exists if media is associated with a post
+            $defaultGalleryAlbumId = null;
+            if ($postId) {
+                $defaultGalleryAlbumResult = $this->ensureDefaultAlbum($userId);
+                if ($defaultGalleryAlbumResult['success']) {
+                    $defaultGalleryAlbumId = $defaultGalleryAlbumResult['album_id'];
+                }
+            }
+
             $stmt = $this->pdo->prepare("
                 INSERT INTO user_media
-                (user_id, media_url, media_type, thumbnail_url, file_size_bytes, post_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (user_id, media_url, media_type, thumbnail_url, file_size_bytes, post_id, album_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
 
             foreach ($mediaItems as $media) {
+                // Use default gallery album_id if postId is set and no other album_id is provided for the media item
+                $currentAlbumId = $media['album_id'] ?? ($postId ? $defaultGalleryAlbumId : null);
+
                 $stmt->execute([
                     $userId,
                     $media['url'],
                     $media['type'],
                     $media['thumbnail_url'] ?? null,
                     $media['file_size_bytes'] ?? null,
-                    $postId
+                    $postId,
+                    $currentAlbumId
                 ]);
+                $mediaId = $this->pdo->lastInsertId();
+
+                // If associated with default gallery (either explicitly or via post), add to album_media
+                if ($currentAlbumId && $currentAlbumId == $defaultGalleryAlbumId) {
+                    $this->addMediaToAlbum($currentAlbumId, $mediaId, $userId);
+                }
             }
 
             return true;
@@ -396,8 +415,9 @@ class MediaUploader {
                   `user_id` int(11) NOT NULL,
                   `album_name` varchar(255) NOT NULL,
                   `description` text DEFAULT NULL,
-                  `privacy` enum('public','friends','private') NOT NULL DEFAULT 'public',
+                  `album_type` ENUM('custom', 'default_gallery', 'profile_pictures') NOT NULL DEFAULT 'custom',
                   `cover_image_id` int(11) DEFAULT NULL,
+                  `privacy` varchar(10) NOT NULL DEFAULT 'public', 
                   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
                   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
                   PRIMARY KEY (`id`),
@@ -1119,27 +1139,37 @@ class MediaUploader {
         }
 
         try {
-            // Begin transaction
             $this->pdo->beginTransaction();
 
-            $mediaIds = [];
-            $stmt = $this->pdo->prepare("
+            // Ensure default gallery album exists
+            $defaultGalleryAlbumResult = $this->ensureDefaultAlbum($userId);
+            $defaultGalleryAlbumId = null;
+            if ($defaultGalleryAlbumResult['success']) {
+                $defaultGalleryAlbumId = $defaultGalleryAlbumResult['album_id'];
+            } else {
+                // Handle error: default gallery could not be ensured.
+                // Depending on requirements, either throw exception or log and return false.
+                error_log("Could not ensure default gallery for user {$userId} in trackPostMedia.");
+                $this->pdo->rollBack();
+                return false;
+            }
+
+            $insertStmt = $this->pdo->prepare("
                 INSERT INTO user_media
-                (user_id, media_url, media_type, post_id, created_at)
-                VALUES (?, ?, ?, ?, NOW())
+                (user_id, media_url, media_type, post_id, album_id, created_at)
+                VALUES (?, ?, ?, ?, ?, NOW())
             ");
+            
+            // $mediaIds = []; // This was defined but not used after this point in original code.
 
             foreach ($mediaPaths as $path) {
-                // Clean up the path - remove escaped slashes and normalize
                 $cleanPath = str_replace('\/', '/', $path);
                 $cleanPath = trim($cleanPath);
 
-                // Skip empty or invalid paths
                 if (empty($cleanPath) || $cleanPath === 'null') {
                     continue;
                 }
 
-                // Determine media type from file extension
                 $mediaType = 'image'; // Default
                 if (preg_match('/\.(mp4|mov|avi|wmv)$/i', $cleanPath)) {
                     $mediaType = 'video';
@@ -1147,22 +1177,23 @@ class MediaUploader {
                     $mediaType = 'audio';
                 }
 
-                // Log for debugging
-                error_log("Tracking media: Original path: $path, Clean path: $cleanPath, Type: $mediaType");
+                error_log("Tracking media: Original path: $path, Clean path: $cleanPath, Type: $mediaType, PostID: $postId, AlbumID: $defaultGalleryAlbumId");
 
-                $stmt->execute([
+                $insertStmt->execute([
                     $userId,
                     $cleanPath,
                     $mediaType,
-                    $postId
+                    $postId,
+                    $defaultGalleryAlbumId 
                 ]);
+                $mediaId = $this->pdo->lastInsertId();
+                // $mediaIds[] = $mediaId; // Collect if needed later
 
-                $mediaIds[] = $this->pdo->lastInsertId();
+                // Add to album_media for the default gallery
+                if ($mediaId && $defaultGalleryAlbumId) {
+                    $this->addMediaToAlbum($defaultGalleryAlbumId, $mediaId, $userId);
+                }
             }
-
-            // Media is now tracked in user_media table
-            // Default gallery (id=1) will show all user media automatically
-            // No need to create additional "Posts" albums
 
             $this->pdo->commit();
             return true;
@@ -1229,6 +1260,7 @@ class MediaUploader {
                       `user_id` int(11) NOT NULL,
                       `album_name` varchar(255) NOT NULL,
                       `description` text DEFAULT NULL,
+                      `album_type` ENUM('custom', 'default_gallery', 'profile_pictures') NOT NULL DEFAULT 'custom',
                       `cover_image_id` int(11) DEFAULT NULL,
                       `privacy` varchar(10) NOT NULL DEFAULT 'public',
                       `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -1332,89 +1364,32 @@ class MediaUploader {
      */
     public function cleanupDuplicateDefaultAlbums($userId) {
         try {
-            // Begin transaction
             $this->pdo->beginTransaction();
 
-            // Find all default albums for this user
-            $stmt = $this->pdo->prepare("
-                SELECT id FROM user_media_albums
-                WHERE user_id = ? AND (id = 1 OR album_name = 'Default Gallery')
-                ORDER BY id ASC
-            ");
-            $stmt->execute([$userId]);
-            $defaultAlbums = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            // Cleanup for 'default_gallery'
+            $this->_cleanupAlbumType(
+                $userId,
+                'default_gallery',
+                'Default Gallery',
+                'Your default media gallery containing all your uploaded photos and videos'
+            );
 
-            if (count($defaultAlbums) > 1) {
-                // Keep the first one (lowest ID)
-                $keepId = $defaultAlbums[0];
+            // Cleanup for 'profile_pictures'
+            $this->_cleanupAlbumType(
+                $userId,
+                'profile_pictures',
+                'Profile Pictures',
+                'Your profile pictures collection'
+            );
 
-                // Get all media from other default albums
-                $placeholders = implode(',', array_fill(0, count(array_slice($defaultAlbums, 1)), '?'));
-                $mediaStmt = $this->pdo->prepare("
-                    SELECT DISTINCT media_id FROM album_media
-                    WHERE album_id IN ($placeholders)
-                ");
-                $mediaStmt->execute(array_slice($defaultAlbums, 1));
-                $mediaIds = $mediaStmt->fetchAll(PDO::FETCH_COLUMN);
-
-                // Move any unique media to the album we're keeping
-                if (!empty($mediaIds)) {
-                    foreach ($mediaIds as $mediaId) {
-                        // Check if this media is already in the album we're keeping
-                        $checkStmt = $this->pdo->prepare("
-                            SELECT 1 FROM album_media
-                            WHERE album_id = ? AND media_id = ?
-                        ");
-                        $checkStmt->execute([$keepId, $mediaId]);
-
-                        if (!$checkStmt->fetch()) {
-                            // Add to the album we're keeping
-                            $insertStmt = $this->pdo->prepare("
-                                INSERT INTO album_media (album_id, media_id, created_at)
-                                VALUES (?, ?, NOW())
-                            ");
-                            $insertStmt->execute([$keepId, $mediaId]);
-                        }
-                    }
-                }
-
-                // Delete the duplicate albums
-                $deleteStmt = $this->pdo->prepare("
-                    DELETE FROM user_media_albums
-                    WHERE user_id = ? AND id != ? AND (id = 1 OR album_name = 'Default Gallery')
-                ");
-                $deleteStmt->execute([$userId, $keepId]);
-
-                // Make sure the album we're keeping has ID = 1
-                if ($keepId != 1) {
-                    // This is complex - we need to update all references
-                    // For simplicity, let's just rename it to ensure it's recognized as the default
-                    $updateStmt = $this->pdo->prepare("
-                        UPDATE user_media_albums
-                        SET album_name = 'Default Gallery',
-                            description = 'Your default media gallery containing all your uploaded photos and videos',
-                            privacy = 'private'
-                        WHERE id = ?
-                    ");
-                    $updateStmt->execute([$keepId]);
-                }
-
-                $this->pdo->commit();
-                return [
-                    'success' => true,
-                    'message' => 'Duplicate default albums cleaned up successfully'
-                ];
-            } else {
-                // No duplicates found
-                $this->pdo->commit();
-                return [
-                    'success' => true,
-                    'message' => 'No duplicate default albums found'
-                ];
-            }
+            $this->pdo->commit();
+            return [
+                'success' => true,
+                'message' => 'Duplicate system albums cleanup processed.'
+            ];
         } catch (PDOException $e) {
             $this->pdo->rollBack();
-            error_log("Error cleaning up duplicate albums: " . $e->getMessage());
+            error_log("Error cleaning up duplicate system albums: " . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Database error: ' . $e->getMessage()
@@ -1423,44 +1398,118 @@ class MediaUploader {
     }
 
     /**
+     * Helper function to clean up duplicate albums of a specific type.
+     */
+    private function _cleanupAlbumType($userId, $albumType, $canonicalName, $canonicalDescription) {
+        // Find all albums of the specified type for this user
+        $stmt = $this->pdo->prepare("
+            SELECT id FROM user_media_albums
+            WHERE user_id = ? AND album_type = ?
+            ORDER BY id ASC
+        ");
+        $stmt->execute([$userId, $albumType]);
+        $albums = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (count($albums) > 1) {
+            // Keep the first one (lowest ID)
+            $keptAlbumId = $albums[0];
+            $duplicateAlbumIds = array_slice($albums, 1);
+
+            // Ensure the kept album has the canonical name and description
+            $updateKeptStmt = $this->pdo->prepare("
+                UPDATE user_media_albums
+                SET album_name = ?, description = ?
+                WHERE id = ?
+            ");
+            $updateKeptStmt->execute([$canonicalName, $canonicalDescription, $keptAlbumId]);
+
+            foreach ($duplicateAlbumIds as $duplicateAlbumId) {
+                // Get all media from the duplicate album
+                $mediaStmt = $this->pdo->prepare("
+                    SELECT media_id FROM album_media WHERE album_id = ?
+                ");
+                $mediaStmt->execute([$duplicateAlbumId]);
+                $mediaIds = $mediaStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                if (!empty($mediaIds)) {
+                    foreach ($mediaIds as $mediaId) {
+                        // Check if this media is already in the kept album
+                        $checkStmt = $this->pdo->prepare("
+                            SELECT 1 FROM album_media WHERE album_id = ? AND media_id = ?
+                        ");
+                        $checkStmt->execute([$keptAlbumId, $mediaId]);
+                        if (!$checkStmt->fetch()) {
+                            // Add to the kept album.
+                            // A simple insert is used. display_order and original created_at for the album_media mapping are not preserved from the duplicate.
+                            // If these are critical, more complex logic to copy or update these specific fields would be needed.
+                            $simpleInsertStmt = $this->pdo->prepare(
+                                "INSERT INTO album_media (album_id, media_id) VALUES (?, ?)"
+                            );
+                            $simpleInsertStmt->execute([$keptAlbumId, $mediaId]);
+                        }
+                    }
+                }
+                // After attempting to move media, delete all associations from the duplicate album
+                $deleteMediaLinksStmt = $this->pdo->prepare("DELETE FROM album_media WHERE album_id = ?");
+                $deleteMediaLinksStmt->execute([$duplicateAlbumId]);
+
+                // Delete the duplicate album itself
+                $deleteAlbumStmt = $this->pdo->prepare("DELETE FROM user_media_albums WHERE id = ?");
+                $deleteAlbumStmt->execute([$duplicateAlbumId]);
+            }
+        } elseif (count($albums) === 1) {
+            // Ensure the single system album has the correct name and description if they differ
+            $albumId = $albums[0];
+            $updateStmt = $this->pdo->prepare("
+                UPDATE user_media_albums
+                SET album_name = ?, description = ?
+                WHERE id = ? AND (album_name != ? OR description != ?)
+            ");
+            $updateStmt->execute([$canonicalName, $canonicalDescription, $albumId, $canonicalName, $canonicalDescription]);
+        }
+        // If count is 0, ensureDefaultAlbum / ensureProfilePicturesAlbum will handle creation on next call to them.
+    }
+
+
+    /**
      * Ensure default album exists for a user
      * @param int $userId User ID
      * @return array Result with success status and message
      */
     public function ensureDefaultAlbum($userId) {
         try {
-            // Check if default album exists
+            // Check if default album exists using album_type
             $stmt = $this->pdo->prepare("
                 SELECT id FROM user_media_albums
-                WHERE user_id = ? AND (id = 1 OR album_name = 'Default Gallery')
+                WHERE user_id = ? AND album_type = 'default_gallery' 
                 LIMIT 1
             ");
             $stmt->execute([$userId]);
             $defaultAlbum = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$defaultAlbum) {
-                // Create default album
+                // Create default album with album_type
                 $stmt = $this->pdo->prepare("
                     INSERT INTO user_media_albums
-                    (user_id, album_name, description, privacy, created_at)
-                    VALUES (?, 'Default Gallery', 'Your default media gallery containing all your uploaded photos and videos', 'private', NOW())
+                    (user_id, album_name, description, album_type, privacy, created_at)
+                    VALUES (?, 'Default Gallery', 'Your default media gallery containing all your uploaded photos and videos', 'default_gallery', 'private', NOW())
                 ");
                 $stmt->execute([$userId]);
 
                 return [
                     'success' => true,
-                    'message' => 'Default album created successfully',
+                    'message' => 'Default Gallery album created successfully.',
                     'album_id' => $this->pdo->lastInsertId()
                 ];
             }
 
             return [
                 'success' => true,
-                'message' => 'Default album already exists',
+                'message' => 'Default Gallery album already exists.',
                 'album_id' => $defaultAlbum['id']
             ];
         } catch (PDOException $e) {
-            error_log("Error ensuring default album: " . $e->getMessage());
+            error_log("Error ensuring Default Gallery album: " . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Database error: ' . $e->getMessage()
@@ -1475,21 +1524,21 @@ class MediaUploader {
      */
     public function ensureProfilePicturesAlbum($userId) {
         try {
-            // Check if Profile Pictures album exists
+            // Check if Profile Pictures album exists using album_type
             $stmt = $this->pdo->prepare("
                 SELECT id FROM user_media_albums
-                WHERE user_id = ? AND album_name = 'Profile Pictures'
+                WHERE user_id = ? AND album_type = 'profile_pictures' 
                 LIMIT 1
             ");
             $stmt->execute([$userId]);
             $profileAlbum = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$profileAlbum) {
-                // Create Profile Pictures album
+                // Create Profile Pictures album with album_type
                 $stmt = $this->pdo->prepare("
                     INSERT INTO user_media_albums
-                    (user_id, album_name, description, privacy, created_at)
-                    VALUES (?, 'Profile Pictures', 'Your profile pictures collection', 'public', NOW())
+                    (user_id, album_name, description, album_type, privacy, created_at)
+                    VALUES (?, 'Profile Pictures', 'Your profile pictures collection', 'profile_pictures', 'public', NOW())
                 ");
                 $stmt->execute([$userId]);
                 $albumId = $this->pdo->lastInsertId();
@@ -1499,14 +1548,14 @@ class MediaUploader {
 
                 return [
                     'success' => true,
-                    'message' => 'Profile Pictures album created successfully',
+                    'message' => 'Profile Pictures album created successfully.',
                     'album_id' => $albumId
                 ];
             }
 
             return [
                 'success' => true,
-                'message' => 'Profile Pictures album already exists',
+                'message' => 'Profile Pictures album already exists.',
                 'album_id' => $profileAlbum['id']
             ];
         } catch (PDOException $e) {
@@ -1570,27 +1619,32 @@ class MediaUploader {
      * @param string $profilePicPath Path to profile picture
      * @return int|bool Media ID on success, false on failure
      */
-    private function createProfilePictureMediaEntry($userId, $profilePicPath) {
+    private function createProfilePictureMediaEntry($userId, $profilePicPath, $profilePicturesAlbumId) {
         try {
             // Check if file exists
             if (!file_exists($profilePicPath)) {
+                error_log("Profile picture file not found: $profilePicPath");
+                return false;
+            }
+            if ($profilePicturesAlbumId === null) {
+                error_log("Profile pictures album ID is null for user {$userId}. Cannot create media entry.");
                 return false;
             }
 
             // Get file size
             $fileSize = filesize($profilePicPath);
 
-            // Insert into user_media table
+            // Insert into user_media table, now including album_id
             $stmt = $this->pdo->prepare("
                 INSERT INTO user_media
-                (user_id, media_url, media_type, file_size_bytes, created_at)
-                VALUES (?, ?, 'image', ?, NOW())
+                (user_id, media_url, media_type, file_size_bytes, album_id, created_at)
+                VALUES (?, ?, 'image', ?, ?, NOW())
             ");
 
-            $stmt->execute([$userId, $profilePicPath, $fileSize]);
+            $stmt->execute([$userId, $profilePicPath, $fileSize, $profilePicturesAlbumId]);
             return $this->pdo->lastInsertId();
         } catch (PDOException $e) {
-            error_log("Error creating profile picture media entry: " . $e->getMessage());
+            error_log("Error creating profile picture media entry for user {$userId}: " . $e->getMessage());
             return false;
         }
     }
@@ -1603,32 +1657,43 @@ class MediaUploader {
      */
     public function addProfilePictureToAlbum($userId, $profilePicFilename) {
         try {
-            // Ensure Profile Pictures album exists
-            $albumResult = $this->ensureProfilePicturesAlbum($userId);
-            if (!$albumResult['success']) {
+            // 1. Ensure Profile Pictures album exists and get its ID
+            $profilePicturesAlbumResult = $this->ensureProfilePicturesAlbum($userId);
+            if (!$profilePicturesAlbumResult['success']) {
+                error_log("Could not ensure Profile Pictures album for user {$userId}.");
                 return false;
             }
+            $profilePicturesAlbumId = $profilePicturesAlbumResult['album_id'];
 
-            $albumId = $albumResult['album_id'];
             $profilePicPath = 'uploads/profile_pics/' . $profilePicFilename;
 
-            // Create media entry for the new profile picture
-            $mediaId = $this->createProfilePictureMediaEntry($userId, $profilePicPath);
+            // 2. Create media entry, now passing the Profile Pictures album ID
+            $mediaId = $this->createProfilePictureMediaEntry($userId, $profilePicPath, $profilePicturesAlbumId);
             if (!$mediaId) {
+                error_log("Failed to create media entry for profile picture {$profilePicFilename} for user {$userId}.");
                 return false;
             }
 
-            // Add to Profile Pictures album
-            $addResult = $this->addMediaToAlbum($albumId, $mediaId, $userId);
+            // 3. Add to album_media for the Profile Pictures album
+            $this->addMediaToAlbum($profilePicturesAlbumId, $mediaId, $userId);
+            
+            // Set as album cover for Profile Pictures album
+            $this->updateAlbumCover($profilePicturesAlbumId, $mediaId, $userId);
 
-            // Set as album cover if it's the first image
-            if ($addResult) {
-                $this->updateAlbumCover($albumId, $mediaId, $userId);
+            // 4. Ensure Default Gallery album exists and get its ID
+            $defaultGalleryAlbumResult = $this->ensureDefaultAlbum($userId);
+            if ($defaultGalleryAlbumResult['success']) {
+                $defaultGalleryAlbumId = $defaultGalleryAlbumResult['album_id'];
+                // 5. Add to album_media for the Default Gallery album
+                $this->addMediaToAlbum($defaultGalleryAlbumId, $mediaId, $userId);
+            } else {
+                error_log("Could not ensure Default Gallery album for user {$userId} when adding profile picture to it.");
+                // Continue without adding to default gallery if it fails, as primary goal was profile pics album.
             }
 
-            return $addResult;
+            return true; // Overall success if profile pic was added to its own album.
         } catch (PDOException $e) {
-            error_log("Error adding profile picture to album: " . $e->getMessage());
+            error_log("Error adding profile picture {$profilePicFilename} to albums for user {$userId}: " . $e->getMessage());
             return false;
         }
     }
