@@ -108,7 +108,7 @@ error_log("DEBUG_VM_5: Friendship status determined. AreFriends: " . ($areFriend
 // 5. Fetch Media Items (Restored complex query with TRIM())
 $mediaItems = [];
 if ($targetUser && !$errorMessage) {
-    $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.created_at, 
+    $sql = "SELECT DISTINCT um.id, um.user_id as media_owner_id, um.media_url, um.media_type, um.thumbnail_url, um.created_at,
                    um.privacy as media_item_privacy, uma.privacy as album_privacy, uma.user_id as album_owner_id
             FROM user_media um
             LEFT JOIN album_media am ON um.id = am.media_id 
@@ -251,20 +251,26 @@ error_log("DEBUG_VM_8: Script End of PHP block. ErrorMessage: " . print_r($error
                         <?php foreach ($mediaItems as $item): ?>
                             <div class="col">
                                 <div class="media-item-card">
-                                <?php if ($item['media_type'] === 'image'): ?>
-                                        <a href="<?= htmlspecialchars($item['media_url']) ?>" data-bs-toggle="modal" data-bs-target="#mediaModal" data-media-url="<?= htmlspecialchars($item['media_url']) ?>" data-media-type="image">
-                                            <img src="<?= htmlspecialchars($item['media_url']) ?>" alt="<?= htmlspecialchars($item['title'] ?? 'User media') ?>">
-                                        </a>
-                                        <?php elseif ($item['media_type'] === 'video'): ?>
-                                        <video controls>
-                                            <source src="<?= htmlspecialchars($item['media_url']) ?>" type="<?= htmlspecialchars($item['media_type']) ?>">
-                                            Your browser does not support the video tag.
-                                        </video>
-                                    <?php endif; ?>
-                                    <div class="card-body">
-                                        
-                                        <p class="text-muted">Uploaded: <?= date('M d, Y', strtotime($item['created_at'])) ?></p>
-                                    </div>
+                                <a href="view_media.php?id=<?= htmlspecialchars($item['id']) ?>" class="text-decoration-none">
+                                     <?php if ($item['media_type'] === 'image'): ?>
+                                         <img src="<?= htmlspecialchars($item['media_url']) ?>" alt="User media image">
+                                         <?php elseif ($item['media_type'] === 'video'): ?>
+                                            <?php 
+                                                $videoThumbnail = !empty($item['thumbnail_url']) ? htmlspecialchars($item['thumbnail_url']) : 'assets/images/default_video_thumb.png'; 
+                                            ?>
+                                            <div style="position: relative; width: 100%; height: 200px;"> 
+                                                <img src="<?= $videoThumbnail ?>" 
+                                                     alt="Video thumbnail for <?= htmlspecialchars($item['id']) ?>" 
+                                                     style="width: 100%; height: 100%; object-fit: cover; display: block;">
+                                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 3em; color: rgba(255,255,255,0.8); pointer-events: none;">
+                                                    <i class="fas fa-play-circle"></i>
+                                                </div>
+                                            </div>
+                                     <?php endif; ?>
+                                 </a>
+                                 <div class="card-body">
+                                     <p class="text-muted mb-0">Uploaded: <?= date('M d, Y', strtotime($item['created_at'])) ?></p>
+                                 </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -281,21 +287,7 @@ error_log("DEBUG_VM_8: Script End of PHP block. ErrorMessage: " . print_r($error
         </aside>
     </div>
 
-    <!-- Modal for displaying media -->
-    <div class="modal fade" id="mediaModal" tabindex="-1" aria-labelledby="mediaModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="mediaModalLabel">View Media</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <img src="" id="modalImage" class="img-fluid" alt="Media content" style="display:none; max-height: 80vh;">
-                    <video src="" id="modalVideo" class="img-fluid" controls style="display:none; max-height: 80vh;"></video>
-                </div>
-            </div>
-        </div>
-    </div>
+    
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -310,43 +302,7 @@ error_log("DEBUG_VM_8: Script End of PHP block. ErrorMessage: " . print_r($error
             if (sidebar && hamburger && !sidebar.contains(e.target) && !hamburger.contains(e.target)) {
                 sidebar.classList.remove('show');
             }
-        });
-
-        // Modal media display logic
-        const mediaModal = document.getElementById('mediaModal');
-        if (mediaModal) {
-            mediaModal.addEventListener('show.bs.modal', function (event) {
-                const button = event.relatedTarget;
-                const mediaUrl = button.getAttribute('data-media-url');
-                const mediaType = button.getAttribute('data-media-type');
-                
-                const modalImage = mediaModal.querySelector('#modalImage');
-                const modalVideo = mediaModal.querySelector('#modalVideo');
-                const modalTitle = mediaModal.querySelector('.modal-title');
-
-                modalImage.style.display = 'none';
-                modalVideo.style.display = 'none';
-
-                if (mediaType === 'image') {
-                    modalImage.src = mediaUrl;
-                    modalImage.style.display = 'block';
-                    modalTitle.textContent = 'View Image';
-                } else if (mediaType === 'video') { // Though video is not directly opening modal in this iteration
-                    modalVideo.src = mediaUrl;
-                    modalVideo.style.display = 'block';
-                    modalTitle.textContent = 'View Video';
-                    modalVideo.load(); // Ensure video loads
-                }
-            });
-            // Stop video when modal is closed
-            mediaModal.addEventListener('hide.bs.modal', function () {
-                const modalVideo = mediaModal.querySelector('#modalVideo');
-                if (!modalVideo.paused) {
-                    modalVideo.pause();
-                }
-                modalVideo.src = ""; // Clear src to stop background loading
-            });
-        }
+        });       
     </script>
 </body>
 </html>
