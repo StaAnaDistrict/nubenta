@@ -105,14 +105,19 @@ $totalFriendsCountStmt = $pdo->prepare("
     FROM friend_requests fr
     JOIN users u ON (
         CASE
-            WHEN fr.sender_id = :profileId THEN fr.receiver_id = u.id
-            WHEN fr.receiver_id = :profileId THEN fr.sender_id = u.id
+            WHEN fr.sender_id = :profileId1 THEN fr.receiver_id = u.id
+            WHEN fr.receiver_id = :profileId2 THEN fr.sender_id = u.id
         END
     )
-    WHERE (fr.sender_id = :profileId OR fr.receiver_id = :profileId)
+    WHERE (fr.sender_id = :profileId3 OR fr.receiver_id = :profileId4)
     AND fr.status = 'accepted'
 ");
-$totalFriendsCountStmt->execute(['profileId' => $profileId]);
+$totalFriendsCountStmt->execute([
+    ':profileId1' => $profileId,
+    ':profileId2' => $profileId,
+    ':profileId3' => $profileId,
+    ':profileId4' => $profileId
+]);
 $totalFriendsCountResult = $totalFriendsCountStmt->fetch(PDO::FETCH_ASSOC);
 $totalFriendsCount = $totalFriendsCountResult ? (int)$totalFriendsCountResult['total_friends'] : 0;
 $displayLimitFriends = 6;
@@ -352,8 +357,8 @@ try {
                         </div>
                         <div class="action-column">
                             <button class="btn btn-outline-primary mb-2" onclick="openWriteTestimonialModal(<?= $profileId ?>)">Add Testimonial</button>
-                            <button class="btn btn-outline-primary mb-2">View Photos</button>
-                            <button class="btn btn-outline-primary mb-2">View Videos</button>
+                            <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=photo" class="btn btn-outline-primary mb-2">View Photos</a>
+                            <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=video" class="btn btn-outline-primary mb-2">View Videos</a>
                             <button class="btn btn-outline-primary">View Website</button>
                         </div>
                     </div>

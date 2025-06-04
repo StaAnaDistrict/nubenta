@@ -1,5 +1,51 @@
 # Chat System Development Changelog
 
+## **June 2, 2025 - PROFILE AND MEDIA VIEWING ENHANCEMENTS & FIXES**
+
+### **🎯 MULTI-FILE UPDATES: `view_profile.php`, `user_connections.php`, `view_user_media.php`**
+
+This update encompasses several enhancements to user profile viewing, media display, and connections, including the creation of new dedicated pages for a more comprehensive user experience and various bug fixes.
+
+**1. Profile Page Enhancements (`view_profile.php`):**
+
+*   **Database Error Resolution:**
+    *   Fixed a critical PDOException ("Invalid parameter number") related to counting a user's total friends. This was resolved by ensuring distinct named placeholders were used in the SQL query and correctly mapped in the `execute()` call.
+*   **Media Gallery Section:**
+    *   Display of albums is now limited to a maximum of 5 (after privacy filtering) directly on the profile page.
+    *   A "View All Albums (X)" link has been added, which appears if the user has more than 5 viewable albums. This link directs to `user_albums.php?id=<profileId>` and displays the total count of viewable albums.
+*   **Connections Section:**
+    *   Display of friends (connections) is now limited to a maximum of 6 most recent connections.
+    *   A "View All Connections (X)" link has been added, appearing if the user has more than 6 friends. This link directs to the new `user_connections.php?id=<profileId>` and displays the total friend count.
+*   **Media Viewing Links:**
+    *   The "View Photos" and "View Videos" buttons in the profile actions area have been corrected to function as proper links, pointing to the new `view_user_media.php` page with the appropriate `id` and `media_type` parameters.
+
+**2. New User Connections Page (`user_connections.php`):**
+
+*   **File Creation:** Successfully created and implemented `user_connections.php`.
+*   **Functionality:** This page displays a complete list of a specified user's connections (friends).
+    *   It accepts a user ID (`id`) as a GET parameter.
+    *   Each connection is displayed with their profile picture, full name, a link to their profile, and the date they became friends.
+    *   The page utilizes the standard 3-column site layout (navigation, main content, add-ons) for consistency.
+    *   Includes a page header with the target user's name and total connection count, plus a "Back to Profile" link.
+
+**3. New User Media Viewing Page (`view_user_media.php`):**
+
+*   **File Creation & Initial Logic:** Successfully created `view_user_media.php` with initial PHP logic to handle sessions, database connections, parameter validation (`id`, `media_type`), and fetching of target user details and media items.
+*   **HTML Display Logic:** Implemented the HTML structure for displaying media items (photos and videos) in a responsive grid, including a modal for larger image views, user-friendly messages for errors or no media, and standard site layout.
+*   **Bug Fixes & Refinements:**
+    *   **Deprecated Constant:** Replaced `FILTER_SANITIZE_STRING` with `FILTER_SANITIZE_FULL_SPECIAL_CHARS`.
+    *   **Database Errors (PDO & SQL):** Addressed and resolved several critical database errors that were causing "Invalid parameter number" and "Column not found" issues during media fetching. This involved multiple iterations of refining the SQL query for privacy logic (correctly handling `um.visibility`, `uma.privacy`, and cases where media is not in an album) and ensuring parameter binding was consistently correct. The use of `TRIM()` was explored for data comparisons, and column names like `um.privacy` were corrected (though the final fix focused on parameter binding and SQL structure).
+    *   **Video Thumbnail Display:** Corrected logic to ensure `thumbnail_url` is used for video thumbnails and that `media_type` checks are accurate for distinguishing photos from videos. (This item was mentioned as a general bug fix in the prompt, integrated here as part of media display refinements).
+    *   **Media Item Links:** Media items in the grid now link to `view_media.php` for individual viewing (This was part of a broader context of fixes, ensuring media is actionable).
+*   **Error Handling & Dependencies (`assets/navigation.php` context):**
+    *   **`session_start()` Notice:** Ensured `session_start()` is called only if no session is active to prevent notices.
+    *   **Navigation Variables:** Ensured that scripts calling `assets/navigation.php` (like `view_user_media.php`) define any necessary variables (e.g., `$currentUser`, not just `$user`; `$currentPage`) to prevent undefined variable errors within the navigation panel.
+    *   **Error Logging:** Added detailed error logging (SQL query and parameters) to help diagnose any further potential issues with database interactions.
+
+These updates provide a more robust, user-friendly, and consistent experience for viewing user profiles, their media, and their connections.
+
+---
+
 ## **June 1, 2025 - USER MEDIA VIEWING - UPDATE 3**
 
 ### **🎯 NEW PAGE: VIEW_USER_MEDIA.PHP & VIEW_PROFILE.PHP LINK UPDATES**

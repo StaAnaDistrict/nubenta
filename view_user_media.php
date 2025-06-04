@@ -24,7 +24,7 @@ if (!$userId || $userId <= 0) {
     exit();
 }
 
-$mediaTypeFilter = filter_input(INPUT_GET, 'media_type', FILTER_SANITIZE_STRING);
+$mediaTypeFilter = filter_input(INPUT_GET, 'media_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 if (empty($mediaTypeFilter) || !in_array($mediaTypeFilter, ['photo', 'video'])) {
     $mediaTypeFilter = 'photo'; // Default to 'photo'
 }
@@ -73,7 +73,7 @@ if (isset($targetUser) && $targetUser && !isset($errorMessage)) {
             LEFT JOIN user_media_albums uma ON am.album_id = uma.id
             WHERE um.user_id = :targetUserId";
 
-    $params = ['targetUserId' => $userId];
+    $params = ['targetUserId' => $userId]; // Only :targetUserId will be in $params
 
     if ($mediaTypeFilter === 'photo') {
         $sql .= " AND um.media_type LIKE 'image/%'";
@@ -84,33 +84,37 @@ if (isset($targetUser) && $targetUser && !isset($errorMessage)) {
     $privacySqlParts = [];
     if ($currentUser['id'] == $userId) { // User is viewing their own media
         $privacySqlParts[] = "1=1"; // Can see everything
-    } else {
-        $privacySqlParts[] = "um.visibility = 'public'";
-        $privacySqlParts[] = "uma.privacy = 'public'";
+    } else { // Not the owner
+        $privacySqlParts[] = "um.visibility = 'public'"; // Media item itself is public
+        $privacySqlParts[] = "uma.privacy = 'public'";   // Media item is in a public album
+
         if ($areFriends) {
-            $privacySqlParts[] = "um.visibility = 'friends'";
-            $privacySqlParts[] = "uma.privacy = 'friends'";
+            $privacySqlParts[] = "um.visibility = 'friends'"; // Media item itself is friends-only
+            $privacySqlParts[] = "uma.privacy = 'friends'";   // Media item is in a friends-only album
+            // For media not in an album, if viewer is a friend, allow if media is public OR friends-only
+            $privacySqlParts[] = "(am.album_id IS NULL AND (um.visibility = 'public' OR um.visibility = 'friends'))";
+        } else {
+            // For media not in an album, if viewer is NOT a friend, only allow if media is public
+            $privacySqlParts[] = "(am.album_id IS NULL AND um.visibility = 'public')";
         }
-        // Media not in any album, check its own visibility
-        $privacySqlParts[] = "(am.album_id IS NULL AND (
-                                um.visibility = 'public' OR
-                                (um.visibility = 'friends' AND :areFriendsCheck = 1)
-                           ))";
-        $params['areFriendsCheck'] = $areFriends ? 1 : 0;
     }
 
+    // This check is crucial: only add the privacy conditions if there are any.
+    // For the owner ("1=1"), this will always be true.
+    // For non-owners, it will also always be true as we add public/album conditions.
     if (!empty($privacySqlParts)) {
       $sql .= " AND (" . implode(" OR ", $privacySqlParts) . ")";
-    } else {
-      // Fallback if no privacy parts applicable (e.g. not owner, not friends, this implies only public was intended)
-      // This state should ideally be covered by the logic above. If this else is hit, it means only public from um.visibility or uma.privacy would apply.
-      // To be safe and avoid showing private/friends content if $areFriends is false:
-      $sql .= " AND (um.visibility = 'public' OR uma.privacy = 'public' OR (am.album_id IS NULL AND um.visibility = 'public'))";
     }
 
     $sql .= " ORDER BY um.created_at DESC";
 
+    // DEBUGGING CODE - START
+    error_log("VIEW_USER_MEDIA_DEBUG_ATTEMPT_2: SQL Query: >>>" . $sql . "<<<");
+    error_log("VIEW_USER_MEDIA_DEBUG_ATTEMPT_2: Parameters: >>>" . print_r($params, true) . "<<<");
+    // DEBUGGING CODE - END
+
     $mediaStmt = $pdo->prepare($sql);
+    // $params should now only contain 'targetUserId'
     $mediaStmt->execute($params);
     $mediaItems = $mediaStmt->fetchAll(PDO::FETCH_ASSOC);
 }
