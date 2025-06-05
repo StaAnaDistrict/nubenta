@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log("Tracking post media for user {$user['id']}, post {$postId}: " . json_encode($mediaPaths));
 
         // Track media in user_media system
-        $trackResult = $mediaUploader->trackPostMedia($user['id'], $mediaPaths, $postId);
+        $trackResult = $mediaUploader->trackPostMedia($user['id'], $mediaPaths, $postId, $visibility);
 
         if ($trackResult) {
           error_log("Successfully tracked media in user_media system");

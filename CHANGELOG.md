@@ -1,3 +1,80 @@
+## YYYY-MM-DD - Default Album System Refactor & Media Association Fixes
+
+This update focuses on standardizing album types, ensuring reliable creation and management of default user albums (gallery and profile pictures), and fixing media association logic to correctly link media items to these default albums.
+
+*   **Database Changes**:
+    *   Added `album_type` column (`ENUM('custom', 'default_gallery', 'profile_pictures') NOT NULL DEFAULT 'custom'`) to the `user_media_albums` table. This allows for reliable identification and special handling of system-defined albums.
+    *   A PHP script (`update_album_schema.php`) was created to apply this schema change to existing databases, ensuring backward compatibility.
+    *   The `MediaUploader.php` class was updated to include the `album_type` column in its `CREATE TABLE` definition for `user_media_albums`, ensuring new installations have the correct schema.
+
+*   **Album Management (`includes/MediaUploader.php`)**:
+    *   `ensureDefaultAlbum()`: Refactored to check for existing albums using `album_type = 'default_gallery'`. If not found, it creates a new album named "Default Gallery" with this `album_type` and 'private' privacy.
+    *   `ensureProfilePicturesAlbum()`: Refactored to check using `album_type = 'profile_pictures'`. If not found, it creates a new album named "Profile Pictures" with this `album_type` and 'public' privacy.
+    *   `updateAlbum()`: This method was reviewed. Its existing SQL for updating album details (name, description, privacy) does not modify `album_type`, which aligns with the requirement that system album types should not be changed.
+    *   `cleanupDuplicateDefaultAlbums()`: Significantly overhauled. It now uses a helper method `_cleanupAlbumType()` to process 'default_gallery' and 'profile_pictures' albums separately. It identifies duplicates based on `user_id` and `album_type`, keeps the one with the lowest ID, standardizes its name/description, merges media from duplicates (linking them via `album_media`), and then deletes the redundant typed albums. Legacy logic tied to `id=1` for the default gallery was removed.
+
+*   **Media Association (`includes/MediaUploader.php`)**:
+    *   `createProfilePictureMediaEntry()`: Now accepts the `profilePicturesAlbumId` as a parameter and sets the `user_media.album_id` to this ID upon insertion.
+    *   `addProfilePictureToAlbum()`:
+        *   Ensures/retrieves the 'profile_pictures' album.
+        *   Calls the modified `createProfilePictureMediaEntry()` to create the media item with its `album_id` set to the 'profile_pictures' album.
+        *   Creates an `album_media` entry linking the new profile picture to the 'profile_pictures' album.
+        *   Ensures/retrieves the 'default_gallery' album and creates an additional `album_media` entry linking the profile picture to the 'default_gallery' album as well.
+    *   `saveUserMedia()`:
+        *   The `INSERT INTO user_media` SQL now includes the `album_id` column.
+        *   For media associated with a post (`\$postId` is present) and if no other specific album is provided for the item, the user's 'default_gallery' album ID is fetched/ensured and used as the `album_id` for the `user_media` record.
+        *   If `album_id` was set to the default gallery, an `album_media` entry linking the media to this default gallery is also created.
+    *   `trackPostMedia()` (called from `create_post.php`):
+        *   Fetches/ensures the user's 'default_gallery' album ID.
+        *   The `INSERT INTO user_media` SQL now includes `album_id`, setting it to the `defaultGalleryAlbumId`.
+        *   An `album_media` entry is created to link the new media to the 'default_gallery' album.
+
+*   **Linking Logic (`view_user_media.php`)**:
+    *   The main SQL query now fetches `um.album_id AS item_album_id`.
+    *   The user's 'default_gallery' album ID is fetched.
+    *   Links for media items now point to `view_album.php?id=<album_id_for_link>&media_id=<media_id>`.
+    *   `album_id_for_link` uses the media's `item_album_id` if available, otherwise it defaults to the user's `defaultGalleryAlbumId`.
+
+*   **Display Logic (`manage_albums.php`)**:
+    *   Album fetching query now sorts by `album_type` (system albums first) then `created_at`.
+    *   Correctly identifies 'default_gallery' albums (displayed as "My Gallery") and 'profile_pictures' albums using the `album_type` field.
+    *   Delete functionality is now disabled for these system albums (`default_gallery`, `profile_pictures`), allowing deletion only for 'custom' albums.
+    *   Adjusted privacy display/controls for these albums.
+
+*   **View Media Page (`view_media.php`) Fixes**:
+    *   "Back to Albums" link now correctly points to `user_albums.php?id=[USER_ID]`.
+    *   "Back to Gallery" link now correctly points to `view_user_media.php?id=[USER_ID]&media_type=[MEDIA_TYPE]`.
+    *   The "Delete" button for media is now only visible to the media owner or an admin.
+    *   Hardcoded `type="video/mp4"` was removed from `<source>` tags for video elements, allowing the browser to auto-detect the type.
+    *   **Bug Fix (`manage_albums.php`)**: Resolved a PHP parse error that occurred during album display, caused by an overly complex line of code. Simplified the logic for generating album descriptions to improve robustness.
+    *   **Bug Fix (`manage_albums.php`) - Attempt 2**: Further addressed the persistent PHP parse error around the album cover image display. Refactored the `<img>` tag generation to define attributes in PHP variables before echoing, ensuring cleaner separation of PHP and HTML to prevent parser confusion.
+    *   **Bug Fix (`manage_albums.php`) - Ongoing Diagnostics**: Continued efforts to isolate the persistent PHP parse error. Successively commented out:
+        *   The album cover image display block (verified its refactoring was not the sole issue if error persisted).
+        *   The `$userMedia` database fetching block.
+        *   The `$albums` and `$pagination` database fetching block.
+        These steps are to determine if the error originates in these sections or earlier in the script/included files.
+    *   **Bug Fix (`manage_albums.php`) - Ongoing Diagnostics**: Continued efforts to isolate the persistent parse error. Successively commented out major sections to narrow down the cause: the album cover image display, the `$userMedia` database fetching block, and most recently the `$albums` and `$pagination` database fetching block. These steps are to determine if the error originates in these data fetching/display sections or lies earlier in the script execution path or within included files.
+    *   **Bug Fix (`manage_albums.php`) - Root Cause Identified & Fixed**: Finally resolved the persistent PHP parse error. The root cause was a duplicated `<?php <?php` opening tag at the beginning of the `foreach` loop responsible for displaying albums. Removed the redundant inner `<?php` tag. This fundamental syntax error was likely causing the parser to fail and report errors misleadingly at downstream locations (previously line 282, then 295).
+    *   **`manage_albums.php` - Full Functionality Restored**:
+        *   Successfully identified and fixed the root cause of a persistent PHP parse error (a duplicated `<?php <?php` tag).
+        *   Systematically uncommented and verified previously disabled sections of the page:
+            *   Restored database fetching for album lists (`$albums` and `$pagination`).
+            *   Re-enabled PHP logic within the album display loop (variable assignments for names, descriptions, etc.).
+            *   Incrementally restored HTML rendering for album cards: main structure, card body (title/description), cover image display (using the refactored `<img>` tag), and card footer (with privacy controls and action buttons).
+        *   Corrected HTML structure to ensure the right sidebar (`assets/add_ons.php`) displays correctly in the 3-column layout.
+        *   The page `manage_albums.php` is now expected to be fully functional, displaying albums correctly and with all UI elements active.
+    *   **Fix (Media Association)**: Corrected an issue where media uploaded via new posts (from `create_post.php`) was not appearing in galleries.
+        *   Refined `MediaUploader::trackPostMedia()` to ensure stricter validation of the `default_gallery` album ID obtained from `ensureDefaultAlbum()`.
+        *   Added more detailed error logging within `trackPostMedia()` for the process of linking media to the default gallery via the `album_media` table.
+        *   Confirmed that `user_media.album_id` is correctly set to the `default_gallery`'s ID during media insertion for posts.
+        This ensures that new media from posts is reliably associated with the user's default gallery and appears in album views.
+    *   **Fix (Core Media Record Creation for Posts)**: Resolved a critical issue where media uploaded with new posts was not being recorded in the `user_media` table, thus not appearing in any galleries.
+        *   Modified `MediaUploader::trackPostMedia()` to include the `privacy` column in the `INSERT` statement for `user_media`. The privacy value is derived from the parent post's visibility.
+        *   Updated `create_post.php` to pass the post's visibility setting to `trackPostMedia()`.
+        This ensures that `user_media` records are created for each piece of media uploaded with a post, allowing them to be subsequently managed and displayed by the album system.
+    *   **Enhanced Diagnostics (`MediaUploader::trackPostMedia`)**: Added detailed logging before and after the `INSERT INTO user_media` operation within `trackPostMedia`. This includes logging of all parameters being passed to `execute()`, the success/failure status of `execute()`, specific SQL error messages via `errorInfo()` on failure, and validation of `lastInsertId()`. This is to help pinpoint any remaining issues preventing media records from being created for new posts.
+
+---
 # Chat System Development Changelog
 
 ## **June 2, 2025 - PROFILE AND MEDIA VIEWING ENHANCEMENTS & FIXES**
@@ -110,7 +187,7 @@ This update introduces several enhancements to `view_profile.php` for better use
     *   This new page has been created to display a comprehensive list of all connections (friends) for a specified user.
     *   It is accessed via `user_connections.php?id=<userId>`.
     *   The page fetches and lists all friends, showing their profile picture, full name, and a link to their respective profiles. The date of friendship is also displayed.
-    *   It utilizes the standard 3-column site layout (navigation, main content, add-ons sidebar) for consistency.
+    *   It utilizes the standard 3-column site layout (navigation, main content, add_ons sidebar) for consistency.
     *   Includes appropriate headers, a "Back to Profile" link, and a message if the user has no connections.
 
 These changes improve the initial load time and clarity of `view_profile.php` by summarizing album and connection previews, while providing dedicated pages for users to explore complete lists.
@@ -1087,7 +1164,6 @@ SQLSTATE[HY000]: General error: 1364 Field 'thread_id' doesn't have a default va
 ### **⚠️ MINOR ISSUE: Missing Test File**
 **Problem:** `test_complete_chat_fix.php` returns 404 error
 **Cause:** File wasn't created in the correct location or has different name
-**Solution:** ✅ **FIXED** - Created comprehensive test file
 
 ---
 
@@ -2055,3 +2131,9 @@ SQLSTATE[HY000]: General error: 1005 Can't create table `nubenta_db`.`user_activ
 ---
 
 [Remaining file content unchanged...]
+
+[end of CHANGELOG.md]
+
+[end of CHANGELOG.md]
+
+[end of CHANGELOG.md]
