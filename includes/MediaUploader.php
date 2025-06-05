@@ -4,24 +4,27 @@
  * Handles uploading and managing user media files
  */
 
-require_once __DIR__ . '/MediaParser.php'; // Assuming MediaParser.php exists and is needed.
+// It's good practice to have a central configuration for database paths if possible,
+// but require_once __DIR__ . '/../db.php'; or similar might be needed if db.php is not in the same directory.
+// For now, assuming db.php is accessible directly or via include_path by the scripts that instantiate this class.
 
 class MediaUploader {
     private $pdo;
-    private $uploadDir = 'uploads/media/'; // Ensure this directory exists and is writable
+    private $uploadDir = __DIR__ . '/../uploads/media/'; 
 
     public function __construct(PDO $pdo) {
         $this->pdo = $pdo;
-        // It's good practice to ensure the upload directory exists when the class is instantiated.
         if (!is_dir($this->uploadDir)) {
-            mkdir($this->uploadDir, 0775, true); // Create with appropriate permissions
+            if (!mkdir($this->uploadDir, 0775, true) && !is_dir($this->uploadDir)) { // Check again after trying to create
+                error_log("MediaUploader Error: Failed to create upload directory: " . $this->uploadDir);
+            }
         }
         // Initial table and column checks/setup
-        $this->ensureTablesExist();
-        $this->ensureMediaPrivacyColumn(); // From Plan ID 3
-        $this->ensureAlbumTypeColumn();    // From Plan ID 3
-        $this->ensureUserMediaAlbumIdColumn(); // From Plan ID 3, implicitly needed by trackPostMedia/saveUserMedia
-        $this->ensureForeignKeyConstraints(); // Ensure FKs are set up
+        $this->ensureTablesExist(); 
+        $this->ensureAlbumTypeColumn(); 
+        $this->ensureUserMediaAlbumIdColumn();
+        $this->ensureMediaPrivacyColumn(); 
+        $this->ensureForeignKeyConstraints(); 
     }
 
     private function isCommandAvailable($command) {
@@ -39,7 +42,7 @@ class MediaUploader {
             error_log("Video file not found: " . $videoPath);
             return false;
         }
-        $thumbnailDir = 'uploads/thumbnails/';
+        $thumbnailDir = __DIR__ . '/../uploads/thumbnails/';
         if (!is_dir($thumbnailDir)) {
             if (!mkdir($thumbnailDir, 0775, true) && !is_dir($thumbnailDir)) {
                 error_log("Failed to create thumbnail directory: " . $thumbnailDir);
@@ -53,38 +56,45 @@ class MediaUploader {
             $command = "ffmpeg -i " . escapeshellarg($videoPath) .
                        " -ss " . escapeshellarg((string)$timeOffset) .
                        " -vframes 1 -q:v 2 " . escapeshellarg($thumbnailPath) .
-                       " -y 2>&1"; // -q:v 2 for good quality JPEG
+                       " -y 2>&1";
             $output = [];
             $returnVar = -1;
-            exec($command, $output, $returnVar);
+            @exec($command, $output, $returnVar);
             if ($returnVar === 0 && file_exists($thumbnailPath) && filesize($thumbnailPath) > 0) {
                 return $thumbnailPath;
             } else {
-                error_log("FFmpeg thumbnail generation failed for " . $videoPath . ". Output: " . implode("
-", $output) . " Return var: " . $returnVar);
-                // Fall through to GD fallback if FFmpeg fails
+                error_log("FFmpeg thumbnail generation failed for " . $videoPath . ". Output: " . implode("\n", $output) . " Return var: " . $returnVar);
             }
         } else {
-             error_log("FFmpeg not available. Attempting GD fallback for video thumbnail.");
+             error_log("FFmpeg not available. Attempting GD fallback for video thumbnail for: " . $videoPath);
         }
         
-        // GD fallback (very basic, consider a placeholder image or a more robust GD solution if needed)
         if (extension_loaded('gd')) {
             $img = @imagecreatetruecolor(320, 180);
             if ($img) {
-                $bgColor = imagecolorallocate($img, 0, 0, 0); // Black background
-                $textColor = imagecolorallocate($img, 255, 255, 255); // White text
+                $bgColor = imagecolorallocate($img, 20, 20, 20);
+                $textColor = imagecolorallocate($img, 200, 200, 200);
                 imagefill($img, 0, 0, $bgColor);
-                imagestring($img, 5, (320 - imagefontwidth(5) * strlen("No Preview")) / 2, (180 - imagefontheight(5)) / 2, "No Preview", $textColor);
+                $text = "Video Preview";
+                $font = 5;
+                $textWidth = imagefontwidth($font) * strlen($text);
+                $textHeight = imagefontheight($font);
+                $x = (320 - $textWidth) / 2;
+                $y = (180 - $textHeight) / 2;
+                imagestring($img, $font, (int)$x, (int)$y, $text, $textColor);
                 if (imagejpeg($img, $thumbnailPath, 80)) {
                     imagedestroy($img);
                     return $thumbnailPath;
                 }
                 imagedestroy($img);
+                error_log("Fallback thumbnail generation: imagejpeg failed for " . $thumbnailPath);
+            } else {
+                 error_log("Fallback thumbnail generation: imagecreatetruecolor failed.");
             }
+        } else {
+            error_log("Fallback thumbnail generation: GD library not available.");
         }
-        error_log("Failed to generate video thumbnail for: " . $videoPath);
-        return false; // Or return a path to a default video icon
+        return false; 
     }
 
     public function handleMediaUploads($files) {
@@ -92,7 +102,10 @@ class MediaUploader {
         $countFiles = isset($files['name']) && is_array($files['name']) ? count($files['name']) : 0;
 
         for ($i = 0; $i < $countFiles; $i++) {
-            if (empty($files['name'][$i]) || $files['error'][$i] !== UPLOAD_ERR_OK) {
+            if (empty($files['name'][$i])) {
+                continue;
+            }
+            if ($files['error'][$i] !== UPLOAD_ERR_OK) {
                 if (isset($files['error'][$i]) && $files['error'][$i] !== UPLOAD_ERR_NO_FILE) {
                      error_log("File upload error for " . ($files['name'][$i] ?? 'unknown file') . ": " . ($files['error'][$i] ?? 'unknown error code'));
                 }
@@ -130,6 +143,7 @@ class MediaUploader {
                     if ($fileType === 'image/jpeg' || $fileType === 'image/jpg') $extension = 'jpg';
                     elseif ($fileType === 'image/png') $extension = 'png';
                     elseif ($fileType === 'image/gif') $extension = 'gif';
+                    elseif ($fileType === 'image/webp') $extension = 'webp';
                 } elseif ($mediaType === 'video') {
                      if ($fileType === 'video/mp4') $extension = 'mp4';
                      elseif ($fileType === 'video/webm') $extension = 'webm';
@@ -145,7 +159,7 @@ class MediaUploader {
             $destinationPath = $this->uploadDir . $uniqueFileName;
 
             if (!is_dir($this->uploadDir)) {
-                if (!mkdir($this->uploadDir, 0775, true) && !is_dir($this->uploadDir)) {
+                if (!mkdir($this->uploadDir, 0775, true) && !is_dir($this->uploadDir)) { 
                      error_log("Failed to create upload directory: " . $this->uploadDir);
                      continue; 
                 }
@@ -164,7 +178,9 @@ class MediaUploader {
                     'file_size_bytes' => $fileSize
                 ];
             } else {
-                 error_log("Failed to move uploaded file " . $fileName . " to " . $destinationPath . ". PHP error: " . (isset(error_get_last()['message']) ? error_get_last()['message'] : 'Unknown error'));
+                 $phpError = error_get_last();
+                 $phpErrorMessage = $phpError ? $phpError['message'] : 'Unknown error';
+                 error_log("Failed to move uploaded file " . $fileName . " to " . $destinationPath . ". PHP error: " . $phpErrorMessage);
             }
         }
         return $uploadedMedia;
@@ -173,13 +189,16 @@ class MediaUploader {
     public function saveUserMedia($userId, $mediaItems, $postId = null, $postVisibility = 'public') {
         if (empty($mediaItems)) return false;
         try {
+            $this->pdo->beginTransaction();
             $defaultGalleryAlbumId = null;
             if ($postId) { 
                 $defaultGalleryAlbumResult = $this->ensureDefaultAlbum($userId);
-                if ($defaultGalleryAlbumResult['success'] && isset($defaultGalleryAlbumResult['album_id']) && $defaultGalleryAlbumResult['album_id'] > 0) {
+                if (isset($defaultGalleryAlbumResult['success']) && $defaultGalleryAlbumResult['success'] && isset($defaultGalleryAlbumResult['album_id']) && $defaultGalleryAlbumResult['album_id'] > 0) {
                     $defaultGalleryAlbumId = (int)$defaultGalleryAlbumResult['album_id'];
                 } else {
-                    error_log("saveUserMedia: Could not ensure/retrieve valid default gallery for user " . $userId . ".");
+                    error_log("saveUserMedia: Could not ensure/retrieve valid default gallery for user " . $userId . ". Result: " . print_r($defaultGalleryAlbumResult, true));
+                    $this->pdo->rollBack();
+                    return false;
                 }
             }
 
@@ -209,7 +228,7 @@ class MediaUploader {
 
                 if (!$executeSuccess) {
                     error_log("saveUserMedia INSERT failed. SQL Error: " . print_r($stmt->errorInfo(), true) . " Parameters: " . print_r($executeParams, true));
-                    continue;
+                    continue; 
                 }
                 $mediaId = $this->pdo->lastInsertId();
                  if (!($mediaId > 0)) {
@@ -227,9 +246,13 @@ class MediaUploader {
                     }
                 }
             }
+            $this->pdo->commit();
             return true;
         } catch (PDOException $e) {
             error_log("Error in saveUserMedia: " . $e->getMessage());
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
             return false;
         }
     }
@@ -246,21 +269,21 @@ class MediaUploader {
             $this->pdo->beginTransaction();
 
             $defaultGalleryAlbumResult = $this->ensureDefaultAlbum($userId);
-            if (!$defaultGalleryAlbumResult['success'] || !isset($defaultGalleryAlbumResult['album_id']) || !is_numeric($defaultGalleryAlbumResult['album_id']) || $defaultGalleryAlbumResult['album_id'] <= 0) {
+            if (!isset($defaultGalleryAlbumResult['success']) || !$defaultGalleryAlbumResult['success'] || !isset($defaultGalleryAlbumResult['album_id']) || !is_numeric($defaultGalleryAlbumResult['album_id']) || $defaultGalleryAlbumResult['album_id'] <= 0) {
                 error_log("trackPostMedia: Failed to ensure or retrieve a valid default_gallery album ID for user " . $userId . ". Result: " . print_r($defaultGalleryAlbumResult, true));
                 $this->pdo->rollBack();
                 return false;
             }
             $defaultGalleryAlbumId = (int)$defaultGalleryAlbumResult['album_id'];
-            
+
             $insertStmt = $this->pdo->prepare("
                 INSERT INTO user_media
-                (user_id, media_url, media_type, post_id, album_id, privacy, created_at, thumbnail_url, file_size_bytes)
-                VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+                (user_id, media_url, media_type, thumbnail_url, file_size_bytes, post_id, album_id, privacy, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
 
             foreach ($mediaPaths as $path) {
-                $cleanPath = str_replace('\/', '/', $path); // Handle escaped slashes if any
+                $cleanPath = str_replace('\\/', '/', $path);
                 $cleanPath = trim($cleanPath);
 
                 if (empty($cleanPath) || $cleanPath === 'null') {
@@ -279,15 +302,17 @@ class MediaUploader {
                 }
 
                 $thumbnailUrl = null;
-                if ($mediaType === 'video') {
-                    $thumbnailUrl = $this->generateVideoThumbnail($cleanPath);
-                }
-                
                 $fileSizeBytes = null;
-                if(file_exists($cleanPath)) {
-                    $fileSizeBytes = filesize($cleanPath);
-                }
 
+                if (file_exists($cleanPath)) {
+                    $fileSizeBytes = filesize($cleanPath);
+                    if ($mediaType === 'video') {
+                        $thumbnailUrl = $this->generateVideoThumbnail($cleanPath);
+                    }
+                } else {
+                    error_log("trackPostMedia: File does not exist at path: " . $cleanPath . ". Skipping media item.");
+                    continue; // Skip this media item if the file doesn't exist
+                }
 
                 error_log("trackPostMedia Attempting INSERT: UserID: " . $userId . ", Path: " . $cleanPath . ", Type: " . $mediaType . ", PostID: " . $postId . ", AlbumID: " . $defaultGalleryAlbumId . ", Visibility: " . $postVisibility . ", Thumbnail: " . ($thumbnailUrl ?? 'NULL') . ", Size: " . ($fileSizeBytes ?? 'NULL'));
                 
@@ -295,19 +320,17 @@ class MediaUploader {
                     $userId,
                     $cleanPath,
                     $mediaType,
+                    $thumbnailUrl,
+                    $fileSizeBytes,
                     $postId,
                     $defaultGalleryAlbumId,
-                    $postVisibility,
-                    $thumbnailUrl, // Added thumbnail_url
-                    $fileSizeBytes // Added file_size_bytes
+                    $postVisibility
                 ];
                 
                 $executeSuccess = $insertStmt->execute($executeParams);
 
                 if (!$executeSuccess) {
                     error_log("trackPostMedia INSERT failed for path " . $cleanPath . ". SQL Error: " . print_r($insertStmt->errorInfo(), true) . " Parameters: " . print_r($executeParams, true));
-                    // Consider rolling back here if one insert fails, or collect errors and decide later
-                    // For now, continue to allow other files in the batch to be processed
                     continue; 
                 }
 
@@ -333,7 +356,9 @@ class MediaUploader {
             $this->pdo->commit();
             return true;
         } catch (PDOException $e) {
-            $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
             error_log("Error in trackPostMedia: " . $e->getMessage());
             return false;
         }
@@ -341,63 +366,6 @@ class MediaUploader {
 
     public function ensureTablesExist() {
         try {
-            $this->pdo->exec("
-                CREATE TABLE IF NOT EXISTS `users` (
-                  `id` int(11) NOT NULL AUTO_INCREMENT,
-                  `username` varchar(50) NOT NULL,
-                  `password` varchar(255) NOT NULL,
-                  `email` varchar(100) NOT NULL,
-                  `first_name` varchar(50) DEFAULT NULL,
-                  `last_name` varchar(50) DEFAULT NULL,
-                  `profile_pic` varchar(255) DEFAULT NULL,
-                  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-                  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-                  `role` ENUM('user', 'admin') NOT NULL DEFAULT 'user',
-                  `is_verified` tinyint(1) NOT NULL DEFAULT 0,
-                  `verification_token` varchar(255) DEFAULT NULL,
-                  `reset_token` varchar(255) DEFAULT NULL,
-                  `reset_token_expires_at` datetime DEFAULT NULL,
-                  `middle_name` varchar(50) DEFAULT NULL,
-                  `relationship_status` varchar(50) DEFAULT NULL,
-                  `location` varchar(255) DEFAULT NULL,
-                  `hometown` varchar(255) DEFAULT NULL,
-                  `company` varchar(255) DEFAULT NULL,
-                  `schools` text DEFAULT NULL,
-                  `occupation` varchar(255) DEFAULT NULL,
-                  `affiliations` text DEFAULT NULL,
-                  `hobbies` text DEFAULT NULL,
-                  `bio` text DEFAULT NULL,
-                  `favorite_books` text DEFAULT NULL,
-                  `favorite_tv` text DEFAULT NULL,
-                  `favorite_movies` text DEFAULT NULL,
-                  `favorite_music` text DEFAULT NULL,
-                  `custom_theme` text DEFAULT NULL,
-                  `birthdate` date DEFAULT NULL,
-                  `gender` enum('Male','Female','Other','Prefer not to say') DEFAULT NULL,
-                  PRIMARY KEY (`id`),
-                  UNIQUE KEY `username` (`username`),
-                  UNIQUE KEY `email` (`email`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            ");
-            // error_log("Users table ensured.");
-
-            $this->pdo->exec("
-                CREATE TABLE IF NOT EXISTS `posts` (
-                  `id` int(11) NOT NULL AUTO_INCREMENT,
-                  `user_id` int(11) NOT NULL,
-                  `content` text DEFAULT NULL,
-                  `media` text DEFAULT NULL,
-                  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-                  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-                  `visibility` enum('public','friends','private') DEFAULT 'public',
-                  `likes` int(11) DEFAULT 0,
-                  PRIMARY KEY (`id`),
-                  KEY `user_id` (`user_id`),
-                  CONSTRAINT `posts_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            ");
-            // error_log("Posts table ensured.");
-            
             $this->pdo->exec("
                 CREATE TABLE IF NOT EXISTS `user_media_albums` (
                   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -413,7 +381,6 @@ class MediaUploader {
                   KEY `idx_user_id_album_type` (`user_id`, `album_type`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
-            // error_log("user_media_albums table ensured.");
 
             $this->pdo->exec("
                 CREATE TABLE IF NOT EXISTS `user_media` (
@@ -433,7 +400,6 @@ class MediaUploader {
                   KEY `idx_album_id` (`album_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
-            // error_log("user_media table ensured.");
             
             $this->pdo->exec("
                 CREATE TABLE IF NOT EXISTS `album_media` (
@@ -447,7 +413,7 @@ class MediaUploader {
                   KEY `idx_media_id` (`media_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
-            // error_log("album_media table ensured.");
+            
             $this->ensureForeignKeyConstraints(); 
 
             return true;
@@ -459,11 +425,12 @@ class MediaUploader {
 
     private function tableExists($tableName) {
         try {
-            $result = $this->pdo->query("SELECT 1 FROM `$tableName` LIMIT 1");
+            $sql = "SELECT 1 FROM `" . $tableName . "` LIMIT 1";
+            $this->pdo->query($sql);
+            return true;
         } catch (Exception $e) {
             return false;
         }
-        return $result !== false;
     }
 
     private function columnExists($tableName, $columnName) {
@@ -472,7 +439,7 @@ class MediaUploader {
             $stmt->execute([$columnName]);
             return $stmt->fetch(PDO::FETCH_ASSOC) !== false;
         } catch (PDOException $e) {
-            error_log("Error checking if column {$columnName} exists in table {$tableName}: " . $e->getMessage());
+            error_log("Error checking if column " . $columnName . " exists in table " . $tableName . ": " . $e->getMessage());
             return false; 
         }
     }
@@ -488,44 +455,52 @@ class MediaUploader {
             $stmt->execute([$dbName, $tableName, $constraintName]);
             return $stmt->fetchColumn() !== false;
         } catch (PDOException $e) {
-            error_log("Error checking constraint {$constraintName} on table {$tableName}: " . $e->getMessage());
+            error_log("Error checking constraint " . $constraintName . " on table " . $tableName . ": " . $e->getMessage());
             return false;
         }
     }
 
     public function ensureForeignKeyConstraints() {
         try {
-            // Assuming 'users' and 'posts' tables definitely exist and have 'id' as primary key.
-            // For user_media_albums
-            if ($this->tableExists('user_media_albums') && $this->tableExists('users') && !$this->constraintExists('fk_album_user', 'user_media_albums')) {
-                $this->pdo->exec("ALTER TABLE `user_media_albums` ADD CONSTRAINT `fk_album_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;");
+            // Ensure users and posts tables exist before trying to add FKs to them
+            if (!$this->tableExists('users')) {
+                error_log("ensureForeignKeyConstraints: 'users' table does not exist. Skipping related FKs for user_media_albums and user_media.");
+                // Depending on how critical this is, you might return or allow other FKs to be checked.
+            } else {
+                if ($this->tableExists('user_media_albums') && !$this->constraintExists('fk_album_user', 'user_media_albums')) {
+                    $this->pdo->exec("ALTER TABLE `user_media_albums` ADD CONSTRAINT `fk_album_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;");
+                }
+                if ($this->tableExists('user_media') && !$this->constraintExists('fk_media_user', 'user_media')) {
+                    $this->pdo->exec("ALTER TABLE `user_media` ADD CONSTRAINT `fk_media_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;");
+                }
             }
+
+            if (!$this->tableExists('posts')) {
+                error_log("ensureForeignKeyConstraints: 'posts' table does not exist. Skipping related FKs for user_media.");
+            } else {
+                 if ($this->tableExists('user_media') && $this->columnExists('user_media', 'post_id') && !$this->constraintExists('fk_media_post', 'user_media')) {
+                    $colStmt = $this->pdo->query("SHOW COLUMNS FROM `user_media` WHERE Field = 'post_id'");
+                    $colDetails = $colStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($colDetails && strtoupper($colDetails['Null']) === 'YES') {
+                        $this->pdo->exec("ALTER TABLE `user_media` ADD CONSTRAINT `fk_media_post` FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;");
+                    } else if ($colDetails) { 
+                        $this->pdo->exec("ALTER TABLE `user_media` ADD CONSTRAINT `fk_media_post` FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;");
+                    }
+                }
+            }
+
             if ($this->tableExists('user_media_albums') && $this->tableExists('user_media') && $this->columnExists('user_media_albums', 'cover_image_id') && !$this->constraintExists('fk_album_cover_image', 'user_media_albums')) {
                 $colStmt = $this->pdo->query("SHOW COLUMNS FROM `user_media_albums` WHERE Field = 'cover_image_id'");
                 $colDetails = $colStmt->fetch(PDO::FETCH_ASSOC);
-                if ($colDetails && strtoupper($colDetails['Null']) === 'YES') { // Only add if nullable, as SET NULL needs it
+                if ($colDetails && strtoupper($colDetails['Null']) === 'YES') { 
                     $this->pdo->exec("ALTER TABLE `user_media_albums` ADD CONSTRAINT `fk_album_cover_image` FOREIGN KEY (`cover_image_id`) REFERENCES `user_media` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;");
                 }
             }
 
-            // For user_media
-            if ($this->tableExists('user_media') && $this->tableExists('users') && !$this->constraintExists('fk_media_user', 'user_media')) {
-                $this->pdo->exec("ALTER TABLE `user_media` ADD CONSTRAINT `fk_media_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;");
-            }
             if ($this->tableExists('user_media') && $this->tableExists('user_media_albums') && $this->columnExists('user_media', 'album_id') && !$this->constraintExists('fk_media_album_ref', 'user_media')) {
                 $this->pdo->exec("ALTER TABLE `user_media` ADD CONSTRAINT `fk_media_album_ref` FOREIGN KEY (`album_id`) REFERENCES `user_media_albums` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;");
             }
-            if ($this->tableExists('user_media') && $this->tableExists('posts') && $this->columnExists('user_media', 'post_id') && !$this->constraintExists('fk_media_post', 'user_media')) {
-                 $colStmt = $this->pdo->query("SHOW COLUMNS FROM `user_media` WHERE Field = 'post_id'");
-                 $colDetails = $colStmt->fetch(PDO::FETCH_ASSOC);
-                 if ($colDetails && strtoupper($colDetails['Null']) === 'YES') {
-                    $this->pdo->exec("ALTER TABLE `user_media` ADD CONSTRAINT `fk_media_post` FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;");
-                 } else if ($colDetails) { 
-                    $this->pdo->exec("ALTER TABLE `user_media` ADD CONSTRAINT `fk_media_post` FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;");
-                 }
-            }
 
-            // For album_media
             if ($this->tableExists('album_media') && $this->tableExists('user_media_albums') && !$this->constraintExists('fk_am_album', 'album_media')) {
                 $this->pdo->exec("ALTER TABLE `album_media` ADD CONSTRAINT `fk_am_album` FOREIGN KEY (`album_id`) REFERENCES `user_media_albums` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;");
             }
@@ -570,19 +545,15 @@ class MediaUploader {
         }
     }
 
-
     public function updateMediaPrivacy($mediaId, $userId, $privacy) {
         try {
             $checkStmt = $this->pdo->prepare("SELECT id FROM user_media WHERE id = ? AND user_id = ?");
             $checkStmt->execute([$mediaId, $userId]);
-
             if (!$checkStmt->fetch()) {
                 return false;
             }
-
             $updateStmt = $this->pdo->prepare("UPDATE user_media SET privacy = ? WHERE id = ?");
             $updateStmt->execute([$privacy, $mediaId]);
-
             return true;
         } catch (PDOException $e) {
             error_log("Error updating media privacy: " . $e->getMessage());
@@ -593,36 +564,31 @@ class MediaUploader {
     public function cleanupDuplicateDefaultAlbums($userId) {
         try {
             $this->pdo->beginTransaction();
-
             $this->_cleanupAlbumType(
                 $userId,
                 'default_gallery',
                 'Default Gallery',
                 'Your default media gallery containing all your uploaded photos and videos'
             );
-
             $this->_cleanupAlbumType(
                 $userId,
                 'profile_pictures',
                 'Profile Pictures',
                 'Your profile pictures collection'
             );
-
             $this->pdo->commit();
             return ['success' => true, 'message' => 'Duplicate system albums cleanup processed.'];
         } catch (PDOException $e) {
-            $this->pdo->rollBack();
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
             error_log("Error cleaning up duplicate system albums: " . $e->getMessage());
             return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
         }
     }
 
     private function _cleanupAlbumType($userId, $albumType, $canonicalName, $canonicalDescription) {
-        $stmt = $this->pdo->prepare("
-            SELECT id FROM user_media_albums
-            WHERE user_id = ? AND album_type = ?
-            ORDER BY id ASC
-        ");
+        $stmt = $this->pdo->prepare("SELECT id FROM user_media_albums WHERE user_id = ? AND album_type = ? ORDER BY id ASC");
         $stmt->execute([$userId, $albumType]);
         $albums = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
@@ -630,47 +596,28 @@ class MediaUploader {
             $keptAlbumId = $albums[0];
             $duplicateAlbumIds = array_slice($albums, 1);
 
-            $updateKeptStmt = $this->pdo->prepare("
-                UPDATE user_media_albums
-                SET album_name = ?, description = ?
-                WHERE id = ?
-            ");
+            $updateKeptStmt = $this->pdo->prepare("UPDATE user_media_albums SET album_name = ?, description = ? WHERE id = ?");
             $updateKeptStmt->execute([$canonicalName, $canonicalDescription, $keptAlbumId]);
 
             foreach ($duplicateAlbumIds as $duplicateAlbumId) {
-                $mediaStmt = $this->pdo->prepare("
-                    SELECT media_id FROM album_media WHERE album_id = ?
-                ");
+                $mediaStmt = $this->pdo->prepare("SELECT media_id FROM album_media WHERE album_id = ?");
                 $mediaStmt->execute([$duplicateAlbumId]);
                 $mediaIds = $mediaStmt->fetchAll(PDO::FETCH_COLUMN);
 
                 if (!empty($mediaIds)) {
+                    $insertLinkStmt = $this->pdo->prepare("INSERT INTO album_media (album_id, media_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE album_id = VALUES(album_id)");
                     foreach ($mediaIds as $mediaId) {
-                        $checkStmt = $this->pdo->prepare("
-                            SELECT 1 FROM album_media WHERE album_id = ? AND media_id = ?
-                        ");
-                        $checkStmt->execute([$keptAlbumId, $mediaId]);
-                        if (!$checkStmt->fetch()) {
-                            $simpleInsertStmt = $this->pdo->prepare(
-                                "INSERT INTO album_media (album_id, media_id) VALUES (?, ?)"
-                            );
-                            $simpleInsertStmt->execute([$keptAlbumId, $mediaId]);
-                        }
+                        $insertLinkStmt->execute([$keptAlbumId, $mediaId]);
                     }
                 }
                 $deleteMediaLinksStmt = $this->pdo->prepare("DELETE FROM album_media WHERE album_id = ?");
                 $deleteMediaLinksStmt->execute([$duplicateAlbumId]);
-
                 $deleteAlbumStmt = $this->pdo->prepare("DELETE FROM user_media_albums WHERE id = ?");
                 $deleteAlbumStmt->execute([$duplicateAlbumId]);
             }
         } elseif (count($albums) === 1) {
             $albumId = $albums[0];
-            $updateStmt = $this->pdo->prepare("
-                UPDATE user_media_albums
-                SET album_name = ?, description = ?
-                WHERE id = ? AND (album_name != ? OR description != ?)
-            ");
+            $updateStmt = $this->pdo->prepare("UPDATE user_media_albums SET album_name = ?, description = ? WHERE id = ? AND (album_name != ? OR description != ?)");
             $updateStmt->execute([$canonicalName, $canonicalDescription, $albumId, $canonicalName, $canonicalDescription]);
         }
     }
@@ -682,7 +629,6 @@ class MediaUploader {
             $defaultAlbum = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$defaultAlbum) {
-                // Use createMediaAlbum to ensure album_type is set
                 $albumId = $this->createMediaAlbum($userId, 'Default Gallery', 'Your default media gallery containing all your uploaded photos and videos', [], 'private', 'default_gallery');
                 if (!$albumId) {
                      error_log("ensureDefaultAlbum: Failed to create default_gallery for user ID " . $userId);
@@ -718,6 +664,75 @@ class MediaUploader {
         } catch (PDOException $e) {
             error_log("Error ensuring Profile Pictures album for user " . $userId . ": " . $e->getMessage());
             return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        }
+    }
+    
+    public function addMediaToAlbum($albumId, $mediaIds, $userId) {
+        try {
+            $stmt = $this->pdo->prepare("SELECT id FROM user_media_albums WHERE id = ? AND user_id = ?");
+            $stmt->execute([$albumId, $userId]);
+            $album = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$album) {
+                error_log("addMediaToAlbum: Album ID " . $albumId . " not found or not owned by User ID " . $userId . ".");
+                return false; 
+            }
+
+            if (!is_array($mediaIds)) {
+                $mediaIds = [$mediaIds];
+            }
+
+            $tableCheckStmt = $this->pdo->prepare("
+                SELECT COUNT(*) as table_exists
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                AND table_name = 'album_media'
+            ");
+            $tableCheckStmt->execute();
+            $tableExists = $tableCheckStmt->fetch(PDO::FETCH_ASSOC)['table_exists'] > 0;
+
+            if (!$tableExists) {
+                 error_log("addMediaToAlbum: album_media table does not exist. Cannot link Media ID(s) to Album ID " . $albumId . ".");
+                return false; 
+            }
+
+            $orderStmt = $this->pdo->prepare("SELECT MAX(display_order) as max_order FROM album_media WHERE album_id = ?");
+            $orderStmt->execute([$albumId]);
+            $maxOrder = $orderStmt->fetch(PDO::FETCH_ASSOC)['max_order'] ?? 0;
+
+            $insertLinkStmt = $this->pdo->prepare("INSERT INTO album_media (album_id, media_id, display_order) VALUES (?, ?, ?)");
+            $checkLinkStmt = $this->pdo->prepare("SELECT 1 FROM album_media WHERE album_id = ? AND media_id = ?");
+            $mediaCheckStmt = $this->pdo->prepare("SELECT id FROM user_media WHERE id = ? AND user_id = ?");
+
+            foreach ($mediaIds as $mediaId) {
+                if (!is_numeric($mediaId) || $mediaId <= 0) {
+                    error_log("addMediaToAlbum: Invalid Media ID " . $mediaId . " provided for Album ID " . $albumId . ". Skipping.");
+                    continue;
+                }
+
+                $mediaCheckStmt->execute([$mediaId, $userId]);
+                if (!$mediaCheckStmt->fetch()) {
+                    error_log("addMediaToAlbum: Media ID " . $mediaId . " not found or not owned by User ID " . $userId . ". Cannot link to album ID " . $albumId . ".");
+                    continue; 
+                }
+
+                $checkLinkStmt->execute([$albumId, $mediaId]);
+                if (!$checkLinkStmt->fetch()) {
+                    $maxOrder++;
+                    $executeInsertSuccess = $insertLinkStmt->execute([$albumId, $mediaId, $maxOrder]);
+                    if ($executeInsertSuccess) {
+                        error_log("addMediaToAlbum: Successfully linked Media ID " . $mediaId . " to Album ID " . $albumId . " for User ID " . $userId . ".");
+                    } else {
+                        error_log("addMediaToAlbum: Failed to execute insert for Media ID " . $mediaId . " to Album ID " . $albumId . ". Error: " . print_r($insertLinkStmt->errorInfo(), true));
+                    }
+                } else {
+                    error_log("addMediaToAlbum: Media ID " . $mediaId . " already linked to Album ID " . $albumId . ". Skipping.");
+                }
+            }
+            return true; 
+        } catch (PDOException $e) {
+            error_log("Error in addMediaToAlbum (AlbumID: " . $albumId . ", UserID: " . $userId . "): " . $e->getMessage());
+            return false;
         }
     }
     
@@ -759,9 +774,12 @@ class MediaUploader {
 
     public function addProfilePictureToAlbum($userId, $profilePicFilename) {
         try {
+            $this->pdo->beginTransaction(); 
+
             $profilePicturesAlbumResult = $this->ensureProfilePicturesAlbum($userId);
-            if (!$profilePicturesAlbumResult['success'] || !isset($profilePicturesAlbumResult['album_id']) || $profilePicturesAlbumResult['album_id'] <= 0) {
+            if (!isset($profilePicturesAlbumResult['success']) || !$profilePicturesAlbumResult['success'] || !isset($profilePicturesAlbumResult['album_id']) || $profilePicturesAlbumResult['album_id'] <= 0) {
                 error_log("addProfilePictureToAlbum: Could not ensure Profile Pictures album or got invalid ID for user " . $userId . ".");
+                $this->pdo->rollBack();
                 return false;
             }
             $profilePicturesAlbumId = $profilePicturesAlbumResult['album_id'];
@@ -770,6 +788,7 @@ class MediaUploader {
             $mediaId = $this->createProfilePictureMediaEntry($userId, $profilePicPath, $profilePicturesAlbumId);
             if (!$mediaId) {
                 error_log("addProfilePictureToAlbum: Failed to create media entry for profile picture " . $profilePicFilename . " for user " . $userId . ".");
+                $this->pdo->rollBack();
                 return false;
             }
 
@@ -789,8 +808,12 @@ class MediaUploader {
             } else {
                 error_log("addProfilePictureToAlbum: Could not ensure Default Gallery album or got invalid ID for user " . $userId . " when adding profile picture to it.");
             }
+            $this->pdo->commit();
             return true; 
         } catch (PDOException $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
             error_log("Error in addProfilePictureToAlbum for user " . $userId . ", file " . $profilePicFilename . ": " . $e->getMessage());
             return false;
         }
@@ -816,6 +839,7 @@ class MediaUploader {
             if ($existingMedia) {
                 $mediaIdToLink = $existingMedia['id'];
             } else {
+                // Pass profilePicturesAlbumId to ensure it's set as the primary album for this media
                 $mediaIdToLink = $this->createProfilePictureMediaEntry($userId, $profilePicPath, $profilePicturesAlbumId);
             }
 
@@ -829,15 +853,12 @@ class MediaUploader {
         }
     }
 
-    // --- Methods below are from the original file, ensure they are present and correct ---
-    // (Assuming these were largely okay or covered by prior refactoring, focus on logging style if needed)
-
-    public function getAlbumCount($userId) { // Renamed from getUserAlbumCount for consistency
+    public function getAlbumCount($userId) {
         try {
             $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM user_media_albums WHERE user_id = ?");
             $stmt->execute([$userId]);
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return (int)$result['count'];
+            return (int)($result['count'] ?? 0);
         } catch (PDOException $e) {
             error_log("Error getting user album count for user ID " . $userId . ": " . $e->getMessage());
             return 0;
@@ -853,7 +874,7 @@ class MediaUploader {
             $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM album_media WHERE album_id = ? AND media_id = ?");
             $stmt->execute([$albumId, $mediaId]);
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return (int)$result['count'] > 0;
+            return (int)($result['count'] ?? 0) > 0;
         } catch (PDOException $e) {
             error_log("Error checking if media ID " . $mediaId . " is in album ID " . $albumId . ": " . $e->getMessage());
             return false;
@@ -883,6 +904,116 @@ class MediaUploader {
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("Error getting albums containing media ID " . $mediaId . " for user ID " . $userId . ": " . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function deleteAlbum($albumId, $userId) {
+        try {
+            $stmt = $this->pdo->prepare("SELECT id, album_type FROM user_media_albums WHERE id = ? AND user_id = ?");
+            $stmt->execute([$albumId, $userId]);
+            $albumToDelete = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$albumToDelete) {
+                return ['success' => false, 'message' => 'Album not found or you don\'t have permission to delete it.'];
+            }
+
+            if ($albumToDelete['album_type'] === 'default_gallery' || $albumToDelete['album_type'] === 'profile_pictures') {
+                error_log("Attempt to delete system album (ID: " . $albumId . ", Type: " . $albumToDelete['album_type'] . ") by user " . $userId . ". Action denied.");
+                return ['success' => false, 'message' => 'Default albums cannot be deleted.'];
+            }
+
+            $this->pdo->beginTransaction();
+
+            $stmt = $this->pdo->prepare("DELETE FROM album_media WHERE album_id = ?");
+            $stmt->execute([$albumId]);
+
+            $mediaToDeleteStmt = $this->pdo->prepare("
+                SELECT um.id, um.media_url, um.thumbnail_url
+                FROM user_media um
+                LEFT JOIN album_media am ON um.id = am.media_id AND am.album_id != ?
+                WHERE um.album_id = ? AND um.user_id = ? AND am.id IS NULL AND um.post_id IS NULL
+            ");
+            $mediaToDeleteStmt->execute([$albumId, $albumId, $userId]);
+            $mediaItemsToDelete = $mediaToDeleteStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($mediaItemsToDelete as $mediaItem) {
+                if ($mediaItem['media_url'] && file_exists($mediaItem['media_url']) && strpos($mediaItem['media_url'], 'uploads/') === 0) {
+                    @unlink($mediaItem['media_url']);
+                    error_log("Deleted media file during album deletion: " . $mediaItem['media_url']);
+                }
+                if ($mediaItem['thumbnail_url'] && file_exists($mediaItem['thumbnail_url']) && strpos($mediaItem['thumbnail_url'], 'uploads/thumbnails/') === 0) {
+                    @unlink($mediaItem['thumbnail_url']);
+                    error_log("Deleted thumbnail file during album deletion: " . $mediaItem['thumbnail_url']);
+                }
+                $deleteMediaStmt = $this->pdo->prepare("DELETE FROM user_media WHERE id = ?");
+                $deleteMediaStmt->execute([$mediaItem['id']]);
+            }
+            
+            $updateMediaAlbumIdStmt = $this->pdo->prepare("UPDATE user_media SET album_id = NULL WHERE album_id = ? AND user_id = ?");
+            $updateMediaAlbumIdStmt->execute([$albumId, $userId]);
+
+            $stmt = $this->pdo->prepare("DELETE FROM user_media_albums WHERE id = ? AND user_id = ?");
+            $stmt->execute([$albumId, $userId]);
+
+            $this->pdo->commit();
+            return ['success' => true, 'message' => 'Album deleted successfully.'];
+        } catch (PDOException $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log("Error deleting album: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Failed to delete album: ' . $e->getMessage()];
+        }
+    }
+
+    public function updateAlbumMediaOrder($albumId, $mediaOrder, $userId) {
+        try {
+            $stmt = $this->pdo->prepare("SELECT id FROM user_media_albums WHERE id = ? AND user_id = ?");
+            $stmt->execute([$albumId, $userId]);
+            if (!$stmt->fetch()) {
+                return false; 
+            }
+
+            if (!$this->tableExists('album_media')) {
+                 error_log("updateAlbumMediaOrder: album_media table does not exist.");
+                return false; 
+            }
+
+            $this->pdo->beginTransaction();
+            $updateStmt = $this->pdo->prepare("UPDATE album_media SET display_order = ? WHERE album_id = ? AND media_id = ?");
+            foreach ($mediaOrder as $index => $mediaId) {
+                $updateStmt->execute([$index, $albumId, $mediaId]);
+            }
+            $this->pdo->commit();
+            return true;
+        } catch (PDOException $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log("Error updating album media order: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    public function getAlbumPhotos($album_id, $user_id, $limit = 20, $offset = 0) {
+        $sql = "SELECT um.*, uma.album_name 
+                FROM user_media um 
+                JOIN album_media am ON um.id = am.media_id 
+                JOIN user_media_albums uma ON am.album_id = uma.id 
+                WHERE um.user_id = :user_id AND am.album_id = :album_id AND um.media_type = 'image' 
+                ORDER BY um.created_at DESC 
+                LIMIT :limit OFFSET :offset";
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+            $stmt->bindParam(':album_id', $album_id, PDO::PARAM_INT);
+            $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+            $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error in getAlbumPhotos: " . $e->getMessage());
             return [];
         }
     }
