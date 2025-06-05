@@ -61,7 +61,7 @@ if ($mediaId > 0) {
 
     // If media not found or doesn't belong to user and is private, redirect
     if (!$media ||
-        ($media['user_id'] != $user['id'] && $user['role'] !== 'admin' &&
+        ($media['user_id'] != $user['id'] && ($user['role'] ?? '') !== 'admin' && // Corrected $user['role'] access
          (($media['privacy'] ?? 'public') === 'private' ||
           (($media['privacy'] ?? 'public') === 'friends' && !isFriend($pdo, $user['id'], $media['user_id']))))) {
         $_SESSION['flash_message'] = [
@@ -74,7 +74,7 @@ if ($mediaId > 0) {
 }
 
 // Function to check if users are friends
-function isFriend($pdo, $userId1, $userId2) {
+function isFriend($pdo, $userId1, $userId2) { // This function might be better in a general helpers file
     $stmt = $pdo->prepare("
         SELECT COUNT(*) as is_friend
         FROM friend_requests
@@ -137,7 +137,7 @@ if ($isModal) {
                         <img src="<?php echo htmlspecialchars($media['media_url']); ?>" alt="Media" class="img-fluid">
                     <?php elseif ($media['media_type'] === 'video'): ?>
                         <video controls autoplay class="img-fluid">
-                            <source src="<?php echo htmlspecialchars($media['media_url']); ?>">
+                            <source src="<?php echo htmlspecialchars($media['media_url']); ?>" type="<?php echo htmlspecialchars($media['mime_type'] ?? 'video/mp4'); ?>">
                             Your browser does not support the video tag.
                         </video>
                     <?php endif; ?>
@@ -149,7 +149,6 @@ if ($isModal) {
                             <span class="text-muted">Uploaded: <?php echo date('F j, Y, g:i a', strtotime($media['created_at'])); ?></span>
                         </div>
                         <div class="d-flex">
-                            <!-- Show privacy status for modal -->
                             <span class="badge bg-secondary me-2">
                                 <i class="fas fa-<?php echo ($media['privacy'] ?? 'public') === 'public' ? 'globe' : (($media['privacy'] ?? 'public') === 'friends' ? 'user-friends' : 'lock'); ?>"></i>
                                 <?php echo ucfirst($media['privacy'] ?? 'public'); ?>
@@ -158,9 +157,7 @@ if ($isModal) {
                     </div>
                 </div>
 
-                <!-- Reactions Section for Modal -->
                 <div class="reactions-section mt-3" id="modal-reactions-<?php echo $media['id']; ?>">
-                    <!-- Default React Button -->
                     <div class="d-flex align-items-center mb-2">
                         <button class="btn btn-sm btn-outline-light me-2 modal-react-btn post-react-btn"
                                 data-media-id="<?php echo $media['id']; ?>"
@@ -171,11 +168,8 @@ if ($isModal) {
                     </div>
                 </div>
 
-                <!-- Comments Section for Modal -->
                 <div class="comments-section mt-3" id="modal-comments-<?php echo $media['id']; ?>">
                     <h6 class="mb-3 text-light">Comments</h6>
-
-                    <!-- Comments Container with better styling -->
                     <div class="comments-container mb-3" data-media-id="<?php echo $media['id']; ?>"
                          style="max-height: 300px; overflow-y: auto; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 15px;">
                         <div class="text-center text-muted py-3">
@@ -183,8 +177,6 @@ if ($isModal) {
                             <p>Loading comments...</p>
                         </div>
                     </div>
-
-                    <!-- Comment Form with better styling -->
                     <form class="comment-form" data-media-id="<?php echo $media['id']; ?>">
                         <div class="input-group">
                             <input type="text" class="form-control comment-input bg-dark text-light border-secondary"
@@ -210,14 +202,14 @@ if ($isModal) {
         </div>
         <?php
     }
-    exit(); // Exit early for modal requests
+    exit(); 
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title><?php echo $pageTitle; ?> - Nubenta</title>
+    <title><?php echo htmlspecialchars($pageTitle); ?> - Nubenta</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -235,14 +227,12 @@ if ($isModal) {
             align-items: center;
             margin-bottom: 20px;
         }
-
         .media-container img,
         .media-container video {
             max-height: 70vh;
             max-width: 100%;
             object-fit: contain;
         }
-
         .media-nav {
             position: absolute;
             top: 50%;
@@ -259,94 +249,49 @@ if ($isModal) {
             text-decoration: none;
             transition: all 0.3s;
         }
-
         .media-nav:hover {
             background-color: rgba(0, 0, 0, 0.8);
             color: white;
         }
-
-        .media-nav.prev {
-            left: 10px;
-        }
-
-        .media-nav.next {
-            right: 10px;
-        }
-
-        .media-info {
-            margin-bottom: 20px;
-        }
-
-        .comments-section {
-            margin-top: 30px;
-        }
-
-        /* Custom button styling for blackish theme */
+        .media-nav.prev { left: 10px; }
+        .media-nav.next { right: 10px; }
+        .media-info { margin-bottom: 20px; }
+        .comments-section { margin-top: 30px; }
         .btn-primary {
             background-color: #2c2c2c;
             border-color: #333;
             color: #fff;
         }
-
         .btn-primary:hover {
             background-color: #404040;
             border-color: #444;
             color: #fff;
         }
-
-        .btn-outline-primary {
-            color: #2c2c2c;
-            border-color: #333;
-        }
-
-        .btn-outline-primary:hover {
-            background-color: #2c2c2c;
-            border-color: #333;
-            color: #fff;
-        }
-
-        .btn-dark, .btn-outline-dark {
-            background-color: #2c2c2c;
-            border-color: #333;
-            color: #fff;
-        }
-
-        .btn-dark:hover, .btn-outline-dark:hover {
-            background-color: #404040;
-            border-color: #444;
-            color: #fff;
-        }
-
-        .btn-outline-dark {
-            background-color: transparent;
-            color: #2c2c2c;
-        }
-
-        .btn-outline-dark:hover {
-            background-color: #2c2c2c;
-            color: #fff;
-        }
+        .btn-outline-primary { color: #2c2c2c; border-color: #333; }
+        .btn-outline-primary:hover { background-color: #2c2c2c; border-color: #333; color: #fff; }
+        .btn-dark, .btn-outline-dark { background-color: #2c2c2c; border-color: #333; color: #fff; }
+        .btn-dark:hover, .btn-outline-dark:hover { background-color: #404040; border-color: #444; color: #fff; }
+        .btn-outline-dark { background-color: transparent; color: #2c2c2c; }
+        .btn-outline-dark:hover { background-color: #2c2c2c; color: #fff; }
     </style>
 </head>
 <body>
     <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button>
 
     <div class="dashboard-grid">
-        <!-- Left Sidebar - Navigation -->
         <aside class="left-sidebar">
             <h1>Nubenta</h1>
             <?php
-            $currentUser = $user;
-            $currentPage = 'manage_media';
+            $currentUser = $user; 
+            $currentPage = 'manage_media'; 
             include 'assets/navigation.php';
             ?>
         </aside>
 
-        <!-- Main Content -->
         <main class="main-content">
             <?php if (isset($_SESSION['flash_message'])): ?>
                 <div class="alert alert-<?php echo $_SESSION['flash_message']['type']; ?> alert-dismissible fade show" role="alert">
-                    <?php echo $_SESSION['flash_message']['message']; ?>
+                    <?php echo htmlspecialchars($_SESSION['flash_message']['message']); ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
                 <?php unset($_SESSION['flash_message']); ?>
@@ -356,13 +301,13 @@ if ($isModal) {
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            <?php echo htmlspecialchars($media['caption'] ?? ''); ?>
+                            <?php echo htmlspecialchars($media['caption'] ?? 'Media'); ?>
                         </h5>
                         <div>
-                            <a href="user_albums.php?id=<?= htmlspecialchars(\$media['user_id']) ?>" class="btn btn-sm btn-outline-dark">
+                            <a href="user_albums.php?id=<?= htmlspecialchars($media['user_id'] ?? '') ?>" class="btn btn-sm btn-outline-dark">
                                 <i class="fas fa-images me-1"></i> Back to Albums
                             </a>
-                            <a href="view_user_media.php?id=<?= htmlspecialchars(\$media['user_id']) ?>&media_type=<?= htmlspecialchars(\$media['media_type']) ?>" class="btn btn-sm btn-outline-dark ms-2">
+                            <a href="view_user_media.php?id=<?= htmlspecialchars($media['user_id'] ?? '') ?>&media_type=<?= htmlspecialchars($media['media_type'] ?? '') ?>" class="btn btn-sm btn-outline-dark ms-2">
                                 <i class="fas fa-photo-video me-1"></i> Back to Gallery
                             </a>
                             <?php if ($media['post_id']): ?>
@@ -378,7 +323,7 @@ if ($isModal) {
                                 <img src="<?php echo htmlspecialchars($media['media_url']); ?>" alt="Media" class="img-fluid">
                             <?php elseif ($media['media_type'] === 'video'): ?>
                                 <video controls autoplay class="img-fluid">
-                                    <source src="<?php echo htmlspecialchars($media['media_url']); ?>">
+                                    <source src="<?php echo htmlspecialchars($media['media_url']); ?>" type="<?php echo htmlspecialchars($media['mime_type'] ?? 'video/mp4'); ?>">
                                     Your browser does not support the video tag.
                                 </video>
                             <?php endif; ?>
@@ -403,7 +348,6 @@ if ($isModal) {
                                 </div>
                                 <div class="d-flex">
                                     <?php if ($media['user_id'] === $user['id']): ?>
-                                        <!-- Privacy settings dropdown -->
                                         <div class="dropdown me-2">
                                             <form method="POST" id="updatePrivacyForm">
                                                 <input type="hidden" name="media_id" value="<?php echo $media['id']; ?>">
@@ -420,14 +364,12 @@ if ($isModal) {
                                             </form>
                                         </div>
                                     <?php else: ?>
-                                        <!-- Show privacy status for non-owners -->
                                         <span class="badge bg-secondary me-2">
                                             <i class="fas fa-<?php echo ($media['privacy'] ?? 'public') === 'public' ? 'globe' : (($media['privacy'] ?? 'public') === 'friends' ? 'user-friends' : 'lock'); ?>"></i>
                                             <?php echo ucfirst($media['privacy'] ?? 'public'); ?>
                                         </span>
                                     <?php endif; ?>
 
-                                    <!-- Delete button (existing) -->
                                     <?php if ($media && ($media['user_id'] === $user['id'] || ($user['role'] ?? '') === 'admin')): ?>
                                     <form method="POST" action="manage_media.php" onsubmit="return confirm('Are you sure you want to delete this media?');" class="d-inline">
                                         <input type="hidden" name="media_id" value="<?php echo $media['id']; ?>">
@@ -440,15 +382,31 @@ if ($isModal) {
                             </div>
                         </div>
 
-                        <!-- Comments Section (Placeholder for now) -->
-                        <div class="comments-section">
-                            <h5 class="mb-3">Comments</h5>
-                            <div class="card">
-                                <div class="card-body">
-                                    <p class="text-muted text-center">Comments feature coming soon!</p>
+                        <!-- Comments Section -->
+                        <div class="comments-section mt-3">
+                            <h6 class="mb-3">
+                                <i class="fas fa-comments me-2"></i>Comments
+                                <small class="text-muted ms-2" id="comment-count-<?php echo $media['id']; ?>">Loading...</small>
+                            </h6>
+                            <div class="comments-container mb-3"
+                                 data-media-id="<?php echo $media['id']; ?>"
+                                 style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.05); border-radius: 8px; padding: 15px;">
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-comments fa-2x mb-2"></i>
+                                    <p>Loading comments...</p>
                                 </div>
                             </div>
+                            <form class="comment-form" data-media-id="<?php echo $media['id']; ?>">
+                                <div class="input-group">
+                                    <input type="text" class="form-control comment-input"
+                                           placeholder="Write a comment..." required>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-paper-plane me-1"></i> Post
+                                    </button>
+                                </div>
+                            </form>
                         </div>
+
                     </div>
                 </div>
             <?php else: ?>
@@ -463,32 +421,60 @@ if ($isModal) {
             <?php endif; ?>
         </main>
 
-        <!-- Right Sidebar -->
-        <?php
-        // Include the modular right sidebar
-        include 'assets/add_ons.php';
-        ?>
+        <?php include 'assets/add_ons.php'; ?>
     </div>
 
-    <!-- Include JavaScript files -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/utils.js"></script>
+    <script src="assets/js/view-album-reactions.js"></script> 
     <script>
-    // Function to toggle sidebar on mobile
-    function toggleSidebar() {
-        document.querySelector('.left-sidebar').classList.toggle('show');
-    }
-
-    // Add keyboard navigation
-    document.addEventListener('keydown', function(e) {
-        // Left arrow key
-        if (e.keyCode === 37) {
-            const prevLink = document.querySelector('.media-nav.prev');
-            if (prevLink) prevLink.click();
+    document.addEventListener('DOMContentLoaded', function() {
+        function toggleSidebar() {
+            document.querySelector('.left-sidebar').classList.toggle('show');
         }
-        // Right arrow key
-        else if (e.keyCode === 39) {
-            const nextLink = document.querySelector('.media-nav.next');
-            if (nextLink) nextLink.click();
+        window.toggleSidebar = toggleSidebar;
+
+        document.addEventListener('keydown', function(e) {
+            if (e.keyCode === 37) { 
+                const prevLink = document.querySelector('.media-nav.prev');
+                if (prevLink) prevLink.click();
+            } else if (e.keyCode === 39) { 
+                const nextLink = document.querySelector('.media-nav.next');
+                if (nextLink) nextLink.click();
+            }
+        });
+
+        if (typeof window.reactionSystemInitialized === 'undefined') {
+            window.reactionSystemInitialized = false;
+        }
+
+        if (typeof safeInitReactionSystem === 'function') {
+            safeInitReactionSystem(); 
+        } else if (typeof SimpleReactionSystem !== 'undefined' && typeof SimpleReactionSystem.init === 'function' && !window.reactionSystemInitialized) {
+            console.log('Basic Initializing SimpleReactionSystem from view_media.php');
+            SimpleReactionSystem.init();
+            window.reactionSystemInitialized = true;
+            const mediaIdForReactions = <?php echo isset($media) ? $media['id'] : 'null'; ?>;
+            if (mediaIdForReactions && typeof SimpleReactionSystem.loadReactions === 'function') {
+                SimpleReactionSystem.loadReactions(mediaIdForReactions, 'media');
+            }
+        }
+
+        if (typeof initCommentSystem === 'function') {
+            initCommentSystem();
+        } else {
+            const mediaIdForComments = <?php echo isset($media) ? $media['id'] : 'null'; ?>;
+            if (mediaIdForComments && typeof loadComments === 'function') {
+                console.log('Basic Initializing comment system for media:', mediaIdForComments);
+                loadComments(mediaIdForComments);
+                const commentForm = document.querySelector(`.comment-form[data-media-id="${mediaIdForComments}"]`);
+                if (commentForm && typeof submitComment === 'function') {
+                    commentForm.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        submitComment(mediaIdForComments);
+                    });
+                }
+            }
         }
     });
     </script>

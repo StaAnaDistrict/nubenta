@@ -30,7 +30,7 @@ if ($albumId <= 0) {
 
 // Get album details
 $stmt = $pdo->prepare("
-    SELECT a.*, u.first_name, u.last_name, u.profile_pic as profile_picture
+    SELECT a.*, u.first_name, u.last_name, u.profile_pic as profile_picture, a.album_type
     FROM user_media_albums a
     JOIN users u ON a.user_id = u.id
     WHERE a.id = ?
@@ -46,97 +46,51 @@ if (!$album) {
 // Create a username from first_name and last_name
 $album['username'] = $album['first_name'] . ' ' . $album['last_name'];
 
-// For default album (id=1), get all user media
-if ($albumId == 1) {
-    // Check if viewing own album or has admin role
-    if ($album['user_id'] === $user['id'] || $user['role'] === 'admin') {
-        // Show all media for owner or admin
-        $stmt = $pdo->prepare("
-            SELECT m.*, m.created_at as added_at
-            FROM user_media m
-            WHERE m.user_id = ?
-            ORDER BY m.created_at DESC
-        ");
-        $stmt->execute([$album['user_id']]);
-    } else {
-        // Check if users are friends
-        $areFriends = false;
-        $friendStmt = $pdo->prepare("
-            SELECT COUNT(*) as is_friend
-            FROM friend_requests
-            WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
-            AND status = 'accepted'
-        ");
-        $friendStmt->execute([$user['id'], $album['user_id'], $album['user_id'], $user['id']]);
-        $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
-        $areFriends = ($friendship['is_friend'] > 0);
-
-        // Show only public media for non-friends, or public+friends for friends
-        if ($areFriends) {
-            $stmt = $pdo->prepare("
-                SELECT m.*, m.created_at as added_at
-                FROM user_media m
-                WHERE m.user_id = ? AND (m.privacy = 'public' OR m.privacy = 'friends')
-                ORDER BY m.created_at DESC
-            ");
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT m.*, m.created_at as added_at
-                FROM user_media m
-                WHERE m.user_id = ? AND m.privacy = 'public'
-                ORDER BY m.created_at DESC
-            ");
-        }
-        $stmt->execute([$album['user_id']]);
-    }
+// Standardized media fetching logic
+if ($album['user_id'] === $user['id'] || ($user['role'] ?? '') === 'admin') {
+    // Show all media for owner or admin
+    $stmt = $pdo->prepare("
+        SELECT m.*, am.created_at as added_at, p.content as post_content, p.id as linked_post_id
+        FROM user_media m
+        JOIN album_media am ON m.id = am.media_id
+        LEFT JOIN posts p ON m.post_id = p.id
+        WHERE am.album_id = ?
+        ORDER BY am.created_at DESC
+    ");
+    $stmt->execute([$albumId]);
 } else {
-    // Get album media with privacy filtering
-    if ($album['user_id'] === $user['id'] || $user['role'] === 'admin') {
-        // Show all media for owner or admin
+    // Check if users are friends
+    $areFriends = false; 
+    $friendStmt = $pdo->prepare("
+        SELECT COUNT(*) as is_friend
+        FROM friend_requests
+        WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
+        AND status = 'accepted'
+    ");
+    $friendStmt->execute([$user['id'], $album['user_id'], $album['user_id'], $user['id']]);
+    $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
+    $areFriends = ($friendship['is_friend'] > 0);
+
+    if ($areFriends) {
         $stmt = $pdo->prepare("
             SELECT m.*, am.created_at as added_at, p.content as post_content, p.id as linked_post_id
             FROM user_media m
             JOIN album_media am ON m.id = am.media_id
             LEFT JOIN posts p ON m.post_id = p.id
-            WHERE am.album_id = ?
+            WHERE am.album_id = ? AND (m.privacy = 'public' OR m.privacy = 'friends')
             ORDER BY am.created_at DESC
         ");
-        $stmt->execute([$albumId]);
     } else {
-        // Check if users are friends
-        $areFriends = false;
-        $friendStmt = $pdo->prepare("
-            SELECT COUNT(*) as is_friend
-            FROM friend_requests
-            WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
-            AND status = 'accepted'
+        $stmt = $pdo->prepare("
+            SELECT m.*, am.created_at as added_at, p.content as post_content, p.id as linked_post_id
+            FROM user_media m
+            JOIN album_media am ON m.id = am.media_id
+            LEFT JOIN posts p ON m.post_id = p.id
+            WHERE am.album_id = ? AND m.privacy = 'public'
+            ORDER BY am.created_at DESC
         ");
-        $friendStmt->execute([$user['id'], $album['user_id'], $album['user_id'], $user['id']]);
-        $friendship = $friendStmt->fetch(PDO::FETCH_ASSOC);
-        $areFriends = ($friendship['is_friend'] > 0);
-
-        // Show only public media for non-friends, or public+friends for friends
-        if ($areFriends) {
-            $stmt = $pdo->prepare("
-                SELECT m.*, am.created_at as added_at, p.content as post_content, p.id as linked_post_id
-                FROM user_media m
-                JOIN album_media am ON m.id = am.media_id
-                LEFT JOIN posts p ON m.post_id = p.id
-                WHERE am.album_id = ? AND (m.privacy = 'public' OR m.privacy = 'friends')
-                ORDER BY am.created_at DESC
-            ");
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT m.*, am.created_at as added_at, p.content as post_content, p.id as linked_post_id
-                FROM user_media m
-                JOIN album_media am ON m.id = am.media_id
-                LEFT JOIN posts p ON m.post_id = p.id
-                WHERE am.album_id = ? AND m.privacy = 'public'
-                ORDER BY am.created_at DESC
-            ");
-        }
-        $stmt->execute([$albumId]);
     }
+    $stmt->execute([$albumId]);
 }
 $media = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -588,7 +542,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                                     <i class="fas fa-arrow-left"></i> Back to Profile
                                 </a>
                             <?php endif; ?>
-                            <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
+                            <?php if ($album['user_id'] === $user['id'] && $albumId != 1): // Keep a check for ID=1 for edit button if it has special meaning not to be edited ?>
                                 <a href="edit_album.php?id=<?php echo $albumId; ?>" class="btn btn-sm btn-outline-dark">
                                     <i class="fas fa-edit"></i> Edit
                                 </a>
@@ -606,7 +560,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                             <div class="text-center py-5">
                                 <i class="fas fa-photo-video fa-3x mb-3 text-muted"></i>
                                 <p class="text-muted">This album is empty.</p>
-                                <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
+                                <?php if ($album['user_id'] === $user['id'] && $album['album_type'] !== 'default_gallery' && $album['album_type'] !== 'profile_pictures'): // Allow adding media to custom albums ?>
                                     <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#addMediaModal">
                                         <i class="fas fa-plus"></i> Add Media
                                     </button>
@@ -641,7 +595,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                                                     </div>
                                                 <?php endif; ?>
 
-                                                <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
+                                                <?php if ($album['user_id'] === $user['id'] && $album['album_type'] !== 'default_gallery' && $album['album_type'] !== 'profile_pictures'): ?>
                                                     <div class="position-absolute top-0 end-0 p-2">
                                                         <button type="button" class="btn btn-sm btn-dark" data-bs-toggle="modal" data-bs-target="#removeMediaModal<?php echo $item['id']; ?>">
                                                             <i class="fas fa-times"></i>
@@ -671,7 +625,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                                         </div>
                                     </div>
 
-                                    <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
+                                    <?php if ($album['user_id'] === $user['id'] && $album['album_type'] !== 'default_gallery' && $album['album_type'] !== 'profile_pictures'): ?>
                                         <!-- Remove Media Modal -->
                                         <div class="modal fade" id="removeMediaModal<?php echo $item['id']; ?>" tabindex="-1" aria-hidden="true">
                                             <div class="modal-dialog">
@@ -711,7 +665,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
     </div>
 
     <!-- Add Media Modal -->
-    <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
+    <?php if ($album['user_id'] === $user['id'] && $album['album_type'] !== 'default_gallery' && $album['album_type'] !== 'profile_pictures'): ?>
     <div class="modal fade" id="addMediaModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -779,7 +733,7 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
         }
     });
 
-    <?php if ($album['user_id'] === $user['id'] && $albumId != 1): ?>
+    <?php if ($album['user_id'] === $user['id'] && $album['album_type'] !== 'default_gallery' && $album['album_type'] !== 'profile_pictures'): ?>
     // Load user media for the Add Media modal
     document.getElementById('addMediaModal').addEventListener('show.bs.modal', function () {
         const mediaSelector = document.querySelector('.media-selector');
@@ -823,13 +777,14 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
 
                     html += '</div>';
                     html += '<div class="mt-3 d-flex justify-content-end">';
-                    html += '<button type="button" class="btn btn-dark" id="addSelectedMedia">Add Selected Media</button>';
+                    // Corrected the ID of the button inside the mediaSelector to be unique if necessary or ensure it's correctly targeted.
+                    // For now, assuming it's fine as it's within the modal's context.
                     html += '</div>';
 
                     mediaSelector.innerHTML = html;
 
                     // Add event listeners to checkboxes
-                    document.querySelectorAll('.media-checkbox').forEach(checkbox => {
+                    document.querySelectorAll('.media-selector .media-checkbox').forEach(checkbox => {
                         checkbox.addEventListener('change', function() {
                             const mediaItem = this.closest('.media-item');
                             if (this.checked) {
@@ -841,14 +796,11 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                     });
 
                     // Add event listener to media items for easier selection
-                    document.querySelectorAll('.media-item').forEach(item => {
+                    document.querySelectorAll('.media-selector .media-item').forEach(item => {
                         item.addEventListener('click', function(e) {
-                            // Don't toggle if clicking on the checkbox directly
                             if (e.target.type !== 'checkbox') {
                                 const checkbox = this.querySelector('.media-checkbox');
                                 checkbox.checked = !checkbox.checked;
-
-                                // Trigger change event
                                 const event = new Event('change');
                                 checkbox.dispatchEvent(event);
                             }
@@ -864,8 +816,8 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
             });
     });
 
-    // Handle adding selected media to album
-    document.getElementById('addSelectedMedia').addEventListener('click', function() {
+    // Re-target the main Add Selected Media button in the modal footer
+    document.querySelector('#addMediaModal .modal-footer #addSelectedMedia').addEventListener('click', function() {
         const checkboxes = document.querySelectorAll('.media-selector input[type="checkbox"]:checked');
         const mediaIds = Array.from(checkboxes).map(cb => cb.value);
 
@@ -874,7 +826,6 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
             return;
         }
 
-        // Send request to add media to album
         fetch('api/add_media_to_album.php', {
             method: 'POST',
             headers: {
@@ -888,7 +839,6 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Reload the page to show updated album
                 window.location.reload();
             } else {
                 alert('Error adding media: ' + (data.message || 'Unknown error'));
@@ -901,49 +851,34 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
     });
     <?php endif; ?>
 
-    // Safe initialization function that handles errors
     function safeInitReactionSystem() {
       try {
         console.log('Checking SimpleReactionSystem');
-
-        // Initialize SimpleReactionSystem if available and not already initialized
         if (window.SimpleReactionSystem && !window.reactionSystemInitialized) {
           console.log('Initializing SimpleReactionSystem');
           window.SimpleReactionSystem.init();
-
-          // Load reactions for the current media
-          const mediaId = <?php echo isset($currentMedia) ? $currentMedia['id'] : 'null'; ?>;
-          if (mediaId) {
-            console.log('Loading reactions for media ID:', mediaId);
-            window.SimpleReactionSystem.loadReactions(mediaId);
-          }
-        } else if (window.reactionSystemInitialized) {
-          console.log('SimpleReactionSystem already initialized');
-
-          // Still load reactions for the current media
-          const mediaId = <?php echo isset($currentMedia) ? $currentMedia['id'] : 'null'; ?>;
-          if (mediaId) {
-            console.log('Loading reactions for media ID:', mediaId);
-            window.SimpleReactionSystem.loadReactions(mediaId);
-          }
+          window.reactionSystemInitialized = true; // Set flag after successful init
+        }
+        // Always try to load reactions if system is available (even if already initialized)
+        if (window.SimpleReactionSystem) {
+            const mediaId = <?php echo isset($currentMedia) ? $currentMedia['id'] : 'null'; ?>;
+            if (mediaId) {
+                console.log('Loading reactions for media ID:', mediaId);
+                window.SimpleReactionSystem.loadReactions(mediaId, 'media'); // Specify contentType
+            }
         }
       } catch (error) {
         console.error('Error initializing reaction system:', error);
       }
     }
 
-    // Initialize comment system for view_album.php
     function initCommentSystem() {
       const mediaId = <?php echo isset($currentMedia) ? $currentMedia['id'] : 'null'; ?>;
       if (!mediaId) return;
 
       console.log('Initializing comment system for media:', mediaId);
-
-      // Load existing comments
       loadComments(mediaId);
-
-      // Set up comment form
-      const commentForm = document.querySelector(`form[data-media-id="${mediaId}"]`);
+      const commentForm = document.querySelector(`.comment-form[data-media-id="${mediaId}"]`);
       if (commentForm) {
         commentForm.addEventListener('submit', function(e) {
           e.preventDefault();
@@ -952,14 +887,10 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
       }
     }
 
-    // Load comments for media
     async function loadComments(mediaId) {
       try {
         const response = await fetch(`api/get_media_comments.php?media_id=${mediaId}`);
-        if (!response.ok) {
-          throw new Error('Failed to load comments');
-        }
-
+        if (!response.ok) throw new Error('Failed to load comments');
         const data = await response.json();
         if (data.success) {
           displayComments(mediaId, data.comments);
@@ -971,42 +902,31 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
       }
     }
 
-    // Display comments
     function displayComments(mediaId, comments) {
-      const commentsContainer = document.querySelector(`[data-media-id="${mediaId}"].comments-container`);
+      const commentsContainer = document.querySelector(`.comments-container[data-media-id="${mediaId}"]`);
       const countDisplay = document.getElementById(`comment-count-${mediaId}`);
-
       if (!commentsContainer) return;
 
-      // Update comment count
-      if (countDisplay) {
-        countDisplay.textContent = `(${comments.length})`;
-      }
+      if (countDisplay) countDisplay.textContent = `(${comments.length})`;
 
       if (comments.length === 0) {
-        commentsContainer.innerHTML = `
-          <div class="text-center text-muted py-4">
+        commentsContainer.innerHTML = 
+          `<div class="text-center text-muted py-4">
             <i class="fas fa-comments fa-3x mb-3 opacity-50"></i>
             <p class="mb-0">No comments yet.</p>
             <small>Be the first to share your thoughts!</small>
-          </div>
-        `;
+          </div>`;
         return;
       }
 
       let commentsHTML = '';
       comments.forEach(comment => {
         const timeAgo = formatTimeAgo(comment.created_at);
-
-        commentsHTML += `
-          <div class="comment mb-3 p-3 rounded" data-comment-id="${comment.id}"
-               style="background: rgba(0,0,0,0.05); border-left: 3px solid #007bff;">
+        commentsHTML += 
+          `<div class="comment mb-3 p-3 rounded" data-comment-id="${comment.id}" style="background: rgba(0,0,0,0.05); border-left: 3px solid #007bff;">
             <div class="d-flex">
               <a href="view_profile.php?id=${comment.author_id}" class="text-decoration-none">
-                <img src="${comment.profile_pic}" alt="${comment.author}"
-                     class="rounded-circle me-3"
-                     style="width: 40px; height: 40px; object-fit: cover; cursor: pointer;"
-                     title="View ${comment.author}'s profile">
+                <img src="${comment.profile_pic}" alt="${comment.author}" class="rounded-circle me-3" style="width: 40px; height: 40px; object-fit: cover; cursor: pointer;" title="View ${comment.author}'s profile">
               </a>
               <div class="comment-content flex-grow-1">
                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -1014,30 +934,19 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                     <a href="view_profile.php?id=${comment.author_id}" class="text-decoration-none">
                       <strong class="d-block" style="cursor: pointer; color: #2c3e50;" title="View ${comment.author}'s profile">${comment.author}</strong>
                     </a>
-                    <small class="text-muted">
-                      <i class="fas fa-clock me-1"></i>${timeAgo}
-                    </small>
+                    <small class="text-muted"><i class="fas fa-clock me-1"></i>${timeAgo}</small>
                   </div>
-                  ${comment.is_own_comment ?
-                    `<button class="btn btn-sm btn-outline-danger delete-comment-btn"
-                             data-comment-id="${comment.id}"
-                             data-media-id="${mediaId}"
-                             title="Delete comment">
+                  ${comment.is_own_comment ? 
+                    `<button class="btn btn-sm btn-outline-danger delete-comment-btn" data-comment-id="${comment.id}" data-media-id="${mediaId}" title="Delete comment">
                         <i class="fas fa-trash-alt"></i>
-                     </button>` :
-                    ''
-                  }
+                     </button>` : ''}
                 </div>
                 <p class="mb-0" style="line-height: 1.4;">${comment.content}</p>
               </div>
             </div>
-          </div>
-        `;
+          </div>`;
       });
-
       commentsContainer.innerHTML = commentsHTML;
-
-      // Set up delete comment handlers
       commentsContainer.querySelectorAll('.delete-comment-btn').forEach(btn => {
         btn.addEventListener('click', function() {
           const commentId = this.getAttribute('data-comment-id');
@@ -1047,49 +956,31 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
       });
     }
 
-    // Submit comment
     async function submitComment(mediaId) {
-      const commentForm = document.querySelector(`form[data-media-id="${mediaId}"]`);
+      const commentForm = document.querySelector(`.comment-form[data-media-id="${mediaId}"]`);
       if (!commentForm) return;
-
       const commentInput = commentForm.querySelector('.comment-input');
       if (!commentInput) return;
-
       const content = commentInput.value.trim();
       if (!content) return;
-
       const submitButton = commentForm.querySelector('button[type="submit"]');
       if (submitButton) {
         submitButton.disabled = true;
         submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Posting...';
       }
-
       try {
         const formData = new FormData();
         formData.append('media_id', mediaId);
         formData.append('content', content);
-
-        const response = await fetch('api/post_media_comment.php', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to post comment');
-        }
-
+        const response = await fetch('api/post_media_comment.php', { method: 'POST', body: formData });
+        if (!response.ok) throw new Error('Failed to post comment');
         const data = await response.json();
         if (data.success) {
           commentInput.value = '';
-          // Reload comments to show the new comment
           await loadComments(mediaId);
-
-          // Show brief success feedback
           if (submitButton) {
             submitButton.innerHTML = '<i class="fas fa-check me-1"></i> Posted!';
-            setTimeout(() => {
-              submitButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Post';
-            }, 2000);
+            setTimeout(() => { submitButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Post'; }, 2000);
           }
         } else {
           console.error('Error posting comment:', data.error);
@@ -1108,28 +999,17 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
       }
     }
 
-    // Delete comment
     async function deleteComment(commentId, mediaId) {
-      if (!confirm('Are you sure you want to delete this comment?')) {
-        return;
-      }
-
+      if (!confirm('Are you sure you want to delete this comment?')) return;
       try {
         const response = await fetch('api/delete_media_comment.php', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `comment_id=${commentId}`
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to delete comment');
-        }
-
+        if (!response.ok) throw new Error('Failed to delete comment');
         const data = await response.json();
         if (data.success) {
-          // Reload comments to reflect the deletion
           await loadComments(mediaId);
         } else {
           console.error('Error deleting comment:', data.error);
@@ -1141,38 +1021,27 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
       }
     }
 
-    // Utility function to format time ago
     function formatTimeAgo(dateString) {
       const now = new Date();
       const date = new Date(dateString);
       const diffInSeconds = Math.floor((now - date) / 1000);
-
       if (diffInSeconds < 60) return 'Just now';
       if (diffInSeconds < 3600) return Math.floor(diffInSeconds / 60) + ' minutes ago';
       if (diffInSeconds < 86400) return Math.floor(diffInSeconds / 3600) + ' hours ago';
       if (diffInSeconds < 2592000) return Math.floor(diffInSeconds / 86400) + ' days ago';
-
       return date.toLocaleDateString();
     }
 
-    // Initialize reaction system when DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
       console.log('DOM loaded for view_album.php');
-
-      // Remove any existing reaction pickers to prevent duplicates
       document.querySelectorAll('.reaction-picker:not(#simple-reaction-picker)').forEach(picker => {
         console.log('Removing duplicate reaction picker:', picker);
         picker.remove();
       });
-
-      // Safely initialize the reaction system
       safeInitReactionSystem();
-
-      // Initialize comment system
       initCommentSystem();
     });
 
-    // Add window resize handler to reposition picker if needed
     window.addEventListener('resize', function() {
         const picker = document.getElementById('simple-reaction-picker');
         if (picker && picker.style.display !== 'none') {
@@ -1184,7 +1053,6 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
         }
     });
 
-    // Add scroll handler to reposition picker if needed
     window.addEventListener('scroll', function() {
         const picker = document.getElementById('simple-reaction-picker');
         if (picker && picker.style.display !== 'none') {
@@ -1197,19 +1065,14 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
     });
     </script>
 
-    <!-- Remove any debug buttons that might be added directly in HTML -->
     <script>
-    // Enhanced debug button removal script
     document.addEventListener('DOMContentLoaded', function() {
-        // Function to remove debug buttons
         function removeDebugButtons() {
-            // More comprehensive selector to catch all debug buttons
             const debugButtons = document.querySelectorAll(
                 '.debug-button, #debug-reactions-btn, [id*="debug"], [class*="debug"], ' +
                 'button[style*="position: fixed"][style*="bottom: 10px"][style*="right: 10px"], ' +
                 'button[style*="background-color: #f44336"]'
             );
-
             debugButtons.forEach(button => {
                 if (button.textContent &&
                     (button.textContent.toLowerCase().includes('debug') ||
@@ -1220,16 +1083,12 @@ $pageTitle = $currentMedia ? "Viewing Media" : $displayAlbumName;
                 }
             });
         }
-
-        // Override any methods that might add debug buttons
         if (window.SimpleReactionSystem) {
             window.SimpleReactionSystem.addDebugButton = function() {
                 console.log('Debug button creation prevented');
                 return;
             };
         }
-
-        // Run immediately and after delays
         removeDebugButtons();
         setTimeout(removeDebugButtons, 500);
         setTimeout(removeDebugButtons, 1000);
