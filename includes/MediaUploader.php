@@ -364,6 +364,65 @@ class MediaUploader {
         }
     }
 
+    public function createMediaAlbum($userId, $albumName, $description = '', $mediaIds = [], $privacy = 'public', $albumType = 'custom') {
+        try {
+            $this->pdo->beginTransaction();
+    
+            $stmt = $this->pdo->prepare("
+                INSERT INTO user_media_albums
+                (user_id, album_name, description, privacy, album_type, created_at)
+                VALUES (?, ?, ?, ?, ?, NOW())
+            ");
+    
+            $stmt->execute([$userId, $albumName, $description, $privacy, $albumType]);
+            $albumId = $this->pdo->lastInsertId();
+    
+            if (!$albumId || $albumId == 0) { // Check if lastInsertId returned a valid ID
+                throw new PDOException("Failed to create album, lastInsertId returned invalid or zero ID.");
+            }
+    
+            if (!empty($mediaIds)) {
+                $coverImageId = null;
+                $mediaCheckStmt = $this->pdo->prepare("SELECT media_type FROM user_media WHERE id = ? AND user_id = ?");
+                $linkStmt = $this->pdo->prepare("INSERT INTO album_media (album_id, media_id, display_order) VALUES (?, ?, ?)");
+                
+                foreach ($mediaIds as $index => $mediaId) {
+                    $mediaCheckStmt->execute([$mediaId, $userId]);
+                    $media = $mediaCheckStmt->fetch(PDO::FETCH_ASSOC);
+    
+                    if (!$media) {
+                        error_log("createMediaAlbum: Media ID " . $mediaId . " not found or not owned by User ID " . $userId . ". Skipping link to album ID " . $albumId);
+                        continue; 
+                    }
+    
+                    $linkStmt->execute([$albumId, $mediaId, $index]);
+    
+                    if ($coverImageId === null && $media['media_type'] === 'image') {
+                        $coverImageId = $mediaId;
+                    }
+                }
+    
+                if ($coverImageId !== null) {
+                    $updateCoverStmt = $this->pdo->prepare("
+                        UPDATE user_media_albums
+                        SET cover_image_id = ?
+                        WHERE id = ?
+                    ");
+                    $updateCoverStmt->execute([$coverImageId, $albumId]);
+                }
+            }
+    
+            $this->pdo->commit();
+            return $albumId;
+        } catch (PDOException $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log("Error in createMediaAlbum (Name: " . $albumName . ", Type: " . $albumType . "): " . $e->getMessage());
+            return false;
+        }
+    }    
+
     public function ensureTablesExist() {
         try {
             $this->pdo->exec("
@@ -627,12 +686,12 @@ class MediaUploader {
             $stmt = $this->pdo->prepare("SELECT id FROM user_media_albums WHERE user_id = ? AND album_type = 'default_gallery' LIMIT 1");
             $stmt->execute([$userId]);
             $defaultAlbum = $stmt->fetch(PDO::FETCH_ASSOC);
-
+    
             if (!$defaultAlbum) {
-                $albumId = $this->createMediaAlbum($userId, 'Default Gallery', 'Your default media gallery containing all your uploaded photos and videos', [], 'private', 'default_gallery');
+                $albumId = $this->createMediaAlbum($userId, 'Default Gallery', 'Your default media gallery containing all your uploaded photos and videos', [], 'public', 'default_gallery');
                 if (!$albumId) {
                      error_log("ensureDefaultAlbum: Failed to create default_gallery for user ID " . $userId);
-                     return ['success' => false, 'message' => 'Failed to create default gallery.'];
+                     return ['success' => false, 'message' => 'Failed to create default gallery.', 'album_id' => null];
                 }
                 error_log("Default Gallery album created for user " . $userId . ", Album ID: " . $albumId . ".");
                 return ['success' => true, 'message' => 'Default Gallery album created successfully.', 'album_id' => $albumId];
@@ -640,32 +699,34 @@ class MediaUploader {
             return ['success' => true, 'message' => 'Default Gallery album already exists.', 'album_id' => $defaultAlbum['id']];
         } catch (PDOException $e) {
             error_log("Error ensuring Default Gallery album for user " . $userId . ": " . $e->getMessage());
-            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage(), 'album_id' => null];
         }
-    }
+    }    
+    
 
     public function ensureProfilePicturesAlbum($userId) {
         try {
             $stmt = $this->pdo->prepare("SELECT id FROM user_media_albums WHERE user_id = ? AND album_type = 'profile_pictures' LIMIT 1");
             $stmt->execute([$userId]);
             $profileAlbum = $stmt->fetch(PDO::FETCH_ASSOC);
-
+    
             if (!$profileAlbum) {
                 $albumId = $this->createMediaAlbum($userId, 'Profile Pictures', 'Your profile pictures collection', [], 'public', 'profile_pictures');
                 if (!$albumId) {
                     error_log("ensureProfilePicturesAlbum: Failed to create profile_pictures album for user ID " . $userId);
-                    return ['success' => false, 'message' => 'Failed to create profile pictures album.'];
+                    return ['success' => false, 'message' => 'Failed to create profile pictures album.', 'album_id' => null];
                 }
                 error_log("Profile Pictures album created for user " . $userId . ", Album ID: " . $albumId . ".");
-                $this->syncExistingProfilePicture($userId, $albumId);
+                // $this->syncExistingProfilePicture($userId, $albumId); // Keeping this commented for now to isolate testing
                 return ['success' => true, 'message' => 'Profile Pictures album created successfully.', 'album_id' => $albumId];
             }
             return ['success' => true, 'message' => 'Profile Pictures album already exists.', 'album_id' => $profileAlbum['id']];
         } catch (PDOException $e) {
             error_log("Error ensuring Profile Pictures album for user " . $userId . ": " . $e->getMessage());
-            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage(), 'album_id' => null];
         }
     }
+    
     
     public function addMediaToAlbum($albumId, $mediaIds, $userId) {
         try {

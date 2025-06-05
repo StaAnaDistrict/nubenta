@@ -386,16 +386,21 @@ if ($isModal) {
                         <div class="comments-section mt-3">
                             <h6 class="mb-3">
                                 <i class="fas fa-comments me-2"></i>Comments
-                                <small class="text-muted ms-2" id="comment-count-<?php echo $media['id']; ?>">Loading...</small>
+                                <small class="text-muted ms-2" id="comment-count-<?php echo $media ? $media['id'] : '0'; ?>"><?php echo ($media && isset($media['id'])) ? 'Loading...' : ''; ?></small>
                             </h6>
                             <div class="comments-container mb-3"
-                                 data-media-id="<?php echo $media['id']; ?>"
+                                 data-media-id="<?php echo $media ? $media['id'] : '0'; ?>"
                                  style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.05); border-radius: 8px; padding: 15px;">
+                                <?php if ($media && isset($media['id'])): ?>
                                 <div class="text-center text-muted py-3">
                                     <i class="fas fa-comments fa-2x mb-2"></i>
                                     <p>Loading comments...</p>
                                 </div>
+                                <?php else: ?>
+                                <p class="text-muted">No media selected to load comments for.</p> 
+                                <?php endif; ?>
                             </div>
+                            <?php if ($media && isset($media['id'])): ?>
                             <form class="comment-form" data-media-id="<?php echo $media['id']; ?>">
                                 <div class="input-group">
                                     <input type="text" class="form-control comment-input"
@@ -405,6 +410,7 @@ if ($isModal) {
                                     </button>
                                 </div>
                             </form>
+                            <?php endif; ?>
                         </div>
 
                     </div>
@@ -478,5 +484,189 @@ if ($isModal) {
         }
     });
     </script>
+    <script>
+function initCommentSystem() {
+  const mediaId = <?php echo ($media && isset($media['id'])) ? $media['id'] : 'null'; ?>;
+  if (!mediaId) {
+    return;
+  }
+  console.log('Initializing comment system for media (view_media.php):', mediaId);
+  loadComments(mediaId);
+  const commentForm = document.querySelector(`.comment-form[data-media-id="${mediaId}"]`);
+  if (commentForm) {
+    commentForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      submitComment(mediaId);
+    });
+  }
+}
+
+async function loadComments(mediaId) {
+  if (!mediaId) return;
+  const commentsContainer = document.querySelector(`.comments-container[data-media-id="${mediaId}"]`);
+  if (!commentsContainer) return;
+  commentsContainer.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Loading comments...</p></div>';
+  try {
+    const response = await fetch(`api/get_media_comments.php?media_id=${mediaId}`);
+    if (!response.ok) throw new Error('Failed to load comments. Status: ' + response.status);
+    const data = await response.json();
+    if (data.success) {
+      displayComments(mediaId, data.comments);
+    } else {
+      console.error('Error loading comments (API success false):', data.error);
+      if(commentsContainer) commentsContainer.innerHTML = '<p class="text-danger">Could not load comments: ' + (data.error || 'Unknown API error') + '</p>';
+    }
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    if(commentsContainer) commentsContainer.innerHTML = '<p class="text-danger">Error fetching comments: ' + error.message + '</p>';
+  }
+}
+
+function displayComments(mediaId, comments) {
+  const commentsContainer = document.querySelector(`.comments-container[data-media-id="${mediaId}"]`);
+  const countDisplay = document.getElementById(`comment-count-${mediaId}`);
+  if (!commentsContainer) return;
+
+  if (countDisplay) countDisplay.textContent = `(${comments.length})`;
+
+  if (comments.length === 0) {
+    commentsContainer.innerHTML =
+      `<div class="text-center text-muted py-4">
+        <i class="fas fa-comments fa-3x mb-3 opacity-50"></i>
+        <p class="mb-0">No comments yet.</p>
+        <small>Be the first to share your thoughts!</small>
+      </div>`;
+    return;
+  }
+
+  let commentsHTML = '';
+  comments.forEach(comment => {
+    const timeAgo = formatTimeAgo(comment.created_at);
+    const authorId = comment.author_id || '#';
+    const profilePic = comment.profile_pic || 'assets/images/default-profile.png';
+    const authorName = comment.author || 'Unknown User';
+    const commentContent = comment.content || '';
+    const isOwnComment = comment.is_own_comment || false;
+
+    commentsHTML +=
+      `<div class="comment mb-3 p-3 rounded" data-comment-id="${comment.id}" style="background: rgba(0,0,0,0.05); border-left: 3px solid #007bff;">
+        <div class="d-flex">
+          <a href="view_profile.php?id=${authorId}" class="text-decoration-none">
+            <img src="${profilePic}" alt="${authorName}" class="rounded-circle me-3" style="width: 40px; height: 40px; object-fit: cover; cursor: pointer;" title="View ${authorName}'s profile">
+          </a>
+          <div class="comment-content flex-grow-1">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <a href="view_profile.php?id=${authorId}" class="text-decoration-none">
+                  <strong class="d-block" style="cursor: pointer; color: #2c3e50;" title="View ${authorName}'s profile">${authorName}</strong>
+                </a>
+                <small class="text-muted"><i class="fas fa-clock me-1"></i>${timeAgo}</small>
+              </div>
+              ${isOwnComment ?
+                `<button class="btn btn-sm btn-outline-danger delete-comment-btn" data-comment-id="${comment.id}" data-media-id="${mediaId}" title="Delete comment">
+                    <i class="fas fa-trash-alt"></i>
+                 </button>` : ''}
+            </div>
+            <p class="mb-0" style="line-height: 1.4;">${commentContent}</p>
+          </div>
+        </div>
+      </div>`;
+  });
+  commentsContainer.innerHTML = commentsHTML;
+  commentsContainer.querySelectorAll('.delete-comment-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const commentId = this.getAttribute('data-comment-id');
+      const mediaIdForDelete = this.getAttribute('data-media-id');
+      deleteComment(commentId, mediaIdForDelete);
+    });
+  });
+}
+
+async function submitComment(mediaId) {
+  if (!mediaId) return;
+  const commentForm = document.querySelector(`.comment-form[data-media-id="${mediaId}"]`);
+  if (!commentForm) return;
+  const commentInput = commentForm.querySelector('.comment-input');
+  if (!commentInput) return;
+  const content = commentInput.value.trim();
+  if (!content) return;
+  const submitButton = commentForm.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Posting...';
+  }
+  try {
+    const formData = new FormData();
+    formData.append('media_id', mediaId);
+    formData.append('content', content);
+    const response = await fetch('api/post_media_comment.php', { method: 'POST', body: formData });
+    if (!response.ok) throw new Error('Failed to post comment. Status: ' + response.status);
+    const data = await response.json();
+    if (data.success) {
+      commentInput.value = '';
+      await loadComments(mediaId);
+      if (submitButton) {
+        submitButton.innerHTML = '<i class="fas fa-check me-1"></i> Posted!';
+        setTimeout(() => { submitButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Post'; }, 2000);
+      }
+    } else {
+      console.error('Error posting comment (API success false):', data.error);
+      alert('Error posting comment: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error submitting comment:', error);
+    alert('An error occurred while posting your comment: ' + error.message);
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      if (!submitButton.innerHTML.includes('Posted!')) {
+        submitButton.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Post';
+      }
+    }
+  }
+}
+
+async function deleteComment(commentId, mediaId) {
+  if (!mediaId || !commentId) return;
+  if (!confirm('Are you sure you want to delete this comment?')) return;
+  try {
+    const response = await fetch('api/delete_media_comment.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `comment_id=${commentId}`
+    });
+    if (!response.ok) throw new Error('Failed to delete comment. Status: ' + response.status);
+    const data = await response.json();
+    if (data.success) {
+      await loadComments(mediaId);
+    } else {
+      console.error('Error deleting comment (API success false):', data.error);
+      alert('Error deleting comment: ' + data.error);
+    }
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    alert('An error occurred while deleting your comment.');
+  }
+}
+
+function formatTimeAgo(dateString) {
+  if (!dateString) return '';
+  const now = new Date();
+  const date = new Date(dateString);
+  const diffInSeconds = Math.floor((now - date) / 1000);
+  if (diffInSeconds < 60) return 'Just now';
+  const minutes = Math.floor(diffInSeconds / 60);
+  if (minutes < 60) return minutes + ' minute' + (minutes > 1 ? 's' : '') + ' ago';
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + ' hour' + (hours > 1 ? 's' : '') + ' ago';
+  const days = Math.floor(hours / 24);
+  if (days < 30) return days + ' day' + (days > 1 ? 's' : '') + ' ago';
+  return date.toLocaleDateString();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  initCommentSystem();
+});
+</script>
 </body>
 </html>
