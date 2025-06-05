@@ -352,10 +352,10 @@ $userMedia = [];
                             <div class="card-footer d-flex justify-content-between align-items-center">
                                 <?php if ($album['album_type'] === 'default_gallery'): ?>
                                 <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="privacyToggle_<?php echo $album['id']; ?>"
+                                    <input class="form-check-input" type="checkbox" id="defaultGalleryPrivacyToggleInput"
                                            <?php echo ($album['privacy'] === 'public') ? 'checked' : ''; ?>
                                            data-album-id="<?php echo $album['id']; ?>">
-                                    <label class="form-check-label" for="privacyToggle_<?php echo $album['id']; ?>">
+                                    <label class="form-check-label" for="defaultGalleryPrivacyToggleInput">
                                         <?php echo ($album['privacy'] === 'public') ? 'Public' : 'Private'; ?>
                                     </label>
                                 </div>
@@ -561,7 +561,7 @@ $userMedia = [];
             });
 
             // Default gallery privacy toggle
-            const defaultGalleryPrivacyToggle = document.getElementById('defaultGalleryPrivacy');
+            const defaultGalleryPrivacyToggle = document.getElementById('defaultGalleryPrivacyToggleInput');
 
             if (defaultGalleryPrivacyToggle) {
                 defaultGalleryPrivacyToggle.addEventListener('change', function() {
