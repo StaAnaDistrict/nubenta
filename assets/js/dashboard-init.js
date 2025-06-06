@@ -85,3 +85,47 @@ function toggleSidebar() {
 
 // Make functions available globally
 window.toggleSidebar = toggleSidebar;
+
+async function handleDeletePost(postId) {
+  if (!postId) {
+    console.error('No Post ID provided for deletion.');
+    return;
+  }
+
+  if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+    return;
+  }
+
+  try {
+    const response = await fetch('api/delete_post.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ post_id: postId })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Remove the post element from the DOM
+      const postElement = document.querySelector(`.post[data-post-id='${postId}']`);
+      if (postElement) {
+        postElement.remove();
+        // Optionally, show a success message to you (e.g., using a toast notification)
+        alert('Post deleted successfully.'); // Simple alert for now
+      } else {
+        // If the specific post element isn't found, maybe just reload for now or log error
+        console.warn('Could not find post element to remove, but deletion was successful. Post ID:', postId);
+        // Consider a page reload if posts are dynamically loaded and counts need updating
+        // window.location.reload(); 
+      }
+    } else {
+      alert('Error deleting post: ' + (result.error || 'Unknown server error'));
+      console.error('Error deleting post:', result.error);
+    }
+  } catch (error) {
+    alert('An error occurred while trying to delete the post. Please check the console.');
+    console.error('Fetch error for handleDeletePost:', error);
+  }
+}

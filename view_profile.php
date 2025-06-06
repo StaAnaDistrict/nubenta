@@ -1194,6 +1194,22 @@ try {
                 console.error("Error loading reactions for visible posts:", error);
             }
         }
+        // Inside initializePostInteractions() in view_profile.php
+        document.querySelectorAll('#user-posts-container .post-delete-btn').forEach(btn => {
+            // Remove existing listener to avoid duplicates
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+
+            newBtn.addEventListener('click', function() {
+                const postId = this.getAttribute('data-post-id');
+                if (typeof handleDeletePost === 'function') {
+                    handleDeletePost(postId);
+                } else {
+                    console.error('handleDeletePost function is not defined. Make sure dashboard-init.js is included.');
+                    alert('Error: Delete function not available.');
+                }
+            });
+        });
     }
 
     // EXACT SAME loadCommentCount function as dashboard.php

@@ -456,7 +456,18 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
                 // Add event listeners for post actions
                 setupPostActionListeners();
+                
+                // Inside setupPostActionListeners() in dashboard.php
+                document.querySelectorAll('.post-delete-btn').forEach(btn => {
+                    // Remove existing listener to avoid duplicates if this function is called multiple times
+                    const newBtn = btn.cloneNode(true);
+                    btn.parentNode.replaceChild(newBtn, btn);
 
+                    newBtn.addEventListener('click', function() {
+                        const postId = this.getAttribute('data-post-id');
+                        handleDeletePost(postId);
+                    });
+                });
                 // Initialize reaction system for the newly loaded posts
                 console.log("Checking SimpleReactionSystem availability:", !!window.SimpleReactionSystem);
                 if (window.SimpleReactionSystem) {

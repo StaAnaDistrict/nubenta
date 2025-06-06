@@ -632,6 +632,50 @@ class MediaUploader {
         }
     }
 
+    public function deleteMedia($mediaId, $userId) {
+        try {
+            // Check if media belongs to user
+            $checkStmt = $this->pdo->prepare("SELECT media_url, thumbnail_url FROM user_media WHERE id = ? AND user_id = ?");
+            $checkStmt->execute([$mediaId, $userId]);
+            $media = $checkStmt->fetch(PDO::FETCH_ASSOC);
+    
+            if (!$media) {
+                error_log("deleteMedia: Media ID " . $mediaId . " not found or not owned by User ID " . $userId . ".");
+                return false; // Or consider throwing an exception here too
+            }
+    
+            // REMOVED: $this->pdo->beginTransaction();
+    
+            if ($this->tableExists('album_media')) {
+                $stmt = $this->pdo->prepare("DELETE FROM album_media WHERE media_id = ?");
+                $stmt->execute([$mediaId]);
+            }
+    
+            $stmt = $this->pdo->prepare("DELETE FROM user_media WHERE id = ?");
+            $stmt->execute([$mediaId]);
+    
+            $mediaUrl = $media['media_url'];
+            if ($mediaUrl && file_exists($mediaUrl) && strpos($mediaUrl, 'uploads/') === 0) {
+                @unlink($mediaUrl);
+                error_log("Deleted media file: " . $mediaUrl);
+            }
+    
+            $thumbnailUrl = $media['thumbnail_url'] ?? null;
+            if ($thumbnailUrl && file_exists($thumbnailUrl) && strpos($thumbnailUrl, 'uploads/thumbnails/') === 0) {
+                @unlink($thumbnailUrl);
+                error_log("Deleted thumbnail file: " . $thumbnailUrl);
+            }
+    
+            // REMOVED: $this->pdo->commit();
+            return true;
+        } catch (PDOException $e) {
+            // REMOVED: if ($this->pdo->inTransaction()) { $this->pdo->rollBack(); }
+            error_log("Error in deleteMedia (ID: " . $mediaId . ", User: " . $userId . "): " . $e->getMessage());
+            throw $e; // Re-throw the exception to be caught by the caller's transaction handler
+        }
+    }
+    
+
     public function cleanupDuplicateDefaultAlbums($userId) {
         try {
             $this->pdo->beginTransaction();
