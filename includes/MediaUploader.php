@@ -42,33 +42,44 @@ class MediaUploader {
             error_log("Video file not found: " . $videoPath);
             return false;
         }
-        $thumbnailDir = __DIR__ . '/../uploads/thumbnails/';
-        if (!is_dir($thumbnailDir)) {
-            if (!mkdir($thumbnailDir, 0775, true) && !is_dir($thumbnailDir)) {
-                error_log("Failed to create thumbnail directory: " . $thumbnailDir);
+    
+        // Define the web-accessible relative base directory for storing in DB
+        $relativeThumbnailDirForDB = 'uploads/thumbnails/';
+    
+        // Define the absolute filesystem base directory for file operations
+        // Assuming MediaUploader.php is in 'includes', so __DIR__ . '/../' goes to project root
+        $absoluteThumbnailDir = __DIR__ . '/../' . $relativeThumbnailDirForDB;
+    
+        if (!is_dir($absoluteThumbnailDir)) {
+            if (!mkdir($absoluteThumbnailDir, 0775, true) && !is_dir($absoluteThumbnailDir)) {
+                error_log("Failed to create thumbnail directory: " . $absoluteThumbnailDir);
                 return false;
             }
         }
+    
         $thumbnailName = uniqid('thumb_', true) . '.jpg';
-        $thumbnailPath = $thumbnailDir . $thumbnailName;
-
+        $absoluteThumbnailPath = $absoluteThumbnailDir . $thumbnailName; // Full path for saving the file
+        $relativeThumbnailPathForDB = $relativeThumbnailDirForDB . $thumbnailName; // Relative path for DB
+    
         if ($this->isCommandAvailable('ffmpeg')) {
             $command = "ffmpeg -i " . escapeshellarg($videoPath) .
                        " -ss " . escapeshellarg((string)$timeOffset) .
-                       " -vframes 1 -q:v 2 " . escapeshellarg($thumbnailPath) .
+                       " -vframes 1 -q:v 2 " . escapeshellarg($absoluteThumbnailPath) .
                        " -y 2>&1";
             $output = [];
             $returnVar = -1;
             @exec($command, $output, $returnVar);
-            if ($returnVar === 0 && file_exists($thumbnailPath) && filesize($thumbnailPath) > 0) {
-                return $thumbnailPath;
+    
+            if ($returnVar === 0 && file_exists($absoluteThumbnailPath) && filesize($absoluteThumbnailPath) > 0) {
+                return $relativeThumbnailPathForDB; // Return RELATIVE path
             } else {
                 error_log("FFmpeg thumbnail generation failed for " . $videoPath . ". Output: " . implode("\n", $output) . " Return var: " . $returnVar);
+                // Fall through to GD fallback if FFmpeg fails
             }
         } else {
              error_log("FFmpeg not available. Attempting GD fallback for video thumbnail for: " . $videoPath);
         }
-        
+    
         if (extension_loaded('gd')) {
             $img = @imagecreatetruecolor(320, 180);
             if ($img) {
@@ -82,19 +93,20 @@ class MediaUploader {
                 $x = (320 - $textWidth) / 2;
                 $y = (180 - $textHeight) / 2;
                 imagestring($img, $font, (int)$x, (int)$y, $text, $textColor);
-                if (imagejpeg($img, $thumbnailPath, 80)) {
+                if (imagejpeg($img, $absoluteThumbnailPath, 80)) { // Save to absolute path
                     imagedestroy($img);
-                    return $thumbnailPath;
+                    return $relativeThumbnailPathForDB; // Return RELATIVE path
                 }
                 imagedestroy($img);
-                error_log("Fallback thumbnail generation: imagejpeg failed for " . $thumbnailPath);
+                error_log("Fallback thumbnail generation: imagejpeg failed for " . $absoluteThumbnailPath);
             } else {
                  error_log("Fallback thumbnail generation: imagecreatetruecolor failed.");
             }
         } else {
             error_log("Fallback thumbnail generation: GD library not available.");
         }
-        return false; 
+        error_log("Failed to generate video thumbnail for: " . $videoPath);
+        return false;
     }
 
     public function handleMediaUploads($files) {
