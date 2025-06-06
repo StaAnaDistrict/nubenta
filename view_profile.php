@@ -2041,4 +2041,5 @@ try {
 </body>
 <script src="assets/js/profile-tabs.js"></script>
 <script src="assets/js/popup-chat.js?v=<?= time() ?>"></script>
+<script src="assets/js/dashboard-init.js" defer></script>
 </html>
