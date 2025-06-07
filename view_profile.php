@@ -684,7 +684,28 @@ try {
                 <?php endif; ?>
             </div>
   </div>
-
+    
+    <!-- Media Modal -->
+    <div id="mediaModal" class="modal fade" tabindex="-1" aria-labelledby="mediaModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="mediaModalLabel">Media Viewer</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="mediaModalContent">
+                        <!-- Content will be loaded here -->
+                        <div class="text-center p-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
         <!-- Favorites Section -->
   <div class="profile-section">
             <h3 class="section-title">Favorites</h3>
@@ -947,98 +968,95 @@ try {
     }
 
     // Function to render post media constrained to section width
-    function renderPostMediaConstrained(media, isBlurred, postId) {
-        if (!media) return '';
+function renderPostMediaConstrained(media, isBlurred, postId) { // postId is crucial here
+    if (!media) return '';
 
-        const blurClass = isBlurred ? 'blurred-image' : '';
-        let mediaArray;
+    const blurClass = isBlurred ? 'blurred-image' : '';
+    let mediaArray;
 
-        // Universal media parsing (matches PHP MediaParser logic)
-        if (typeof media === 'string') {
-            // Handle null or empty values
-            if (!media || media === '[]' || media === 'null') {
-                return '';
-            }
-
-            try {
-                // Try to decode as JSON first
-                const jsonDecoded = JSON.parse(media);
-                if (Array.isArray(jsonDecoded)) {
-                    // It's a JSON array - filter out empty values
-                    mediaArray = jsonDecoded.filter(path => path && path.trim() !== '');
-                } else {
-                    // JSON but not array, treat as single string
-                    const trimmedPath = media.trim();
-                    mediaArray = trimmedPath ? [trimmedPath] : [];
-                }
-            } catch (e) {
-                // If JSON decode failed, treat as single string path
+    if (typeof media === 'string') {
+        if (!media || media === '[]' || media === 'null') {
+            return '';
+        }
+        try {
+            const jsonDecoded = JSON.parse(media);
+            if (Array.isArray(jsonDecoded)) {
+                mediaArray = jsonDecoded.filter(path => path && path.trim() !== '');
+            } else {
                 const trimmedPath = media.trim();
                 mediaArray = trimmedPath ? [trimmedPath] : [];
             }
-        } else if (Array.isArray(media)) {
-            // Already an array - filter out empty values
-            mediaArray = media.filter(path => path && path.trim() !== '');
-        } else {
-            return '';
+        } catch (e) {
+            const trimmedPath = media.trim();
+            mediaArray = trimmedPath ? [trimmedPath] : [];
         }
-
-        if (!mediaArray || mediaArray.length === 0) {
-            return '';
-        }
-
-        // For single media item - constrained size
-        if (mediaArray.length === 1) {
-            const mediaItem = mediaArray[0];
-            if (mediaItem.match(/\.(jpg|jpeg|png|gif)$/i)) {
-                return `<div class="media mt-2">
-                    <img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
-                         style="cursor: pointer; max-height: 250px; width: 100%; object-fit: cover; border-radius: 6px;">
-                </div>`;
-            } else if (mediaItem.match(/\.mp4$/i)) {
-                return `<div class="media mt-2">
-                    <video controls class="img-fluid ${blurClass}"
-                           style="max-height: 250px; width: 100%; border-radius: 6px;">
-                        <source src="${mediaItem}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
-                </div>`;
-            }
-        }
-
-        // For multiple media items - smaller grid
-        let mediaHTML = '<div class="post-media-container mt-2"><div class="row g-1">';
-        mediaArray.slice(0, 4).forEach((mediaItem, index) => {
-            const colClass = mediaArray.length === 1 ? 'col-12' :
-                           mediaArray.length === 2 ? 'col-6' :
-                           index === 0 ? 'col-12' : 'col-6';
-
-            mediaHTML += `<div class="${colClass}">`;
-            if (mediaItem.match(/\.(jpg|jpeg|png|gif)$/i)) {
-                mediaHTML += `<img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
-                                   style="cursor: pointer; height: 120px; width: 100%; object-fit: cover; border-radius: 6px;">`;
-            } else if (mediaItem.match(/\.mp4$/i)) {
-                mediaHTML += `<video controls class="img-fluid ${blurClass}"
-                                     style="height: 120px; width: 100%; object-fit: cover; border-radius: 6px;">
-                                  <source src="${mediaItem}" type="video/mp4">
-                              </video>`;
-            }
-            mediaHTML += '</div>';
-        });
-
-        if (mediaArray.length > 4) {
-            mediaHTML += `<div class="col-6 position-relative">
-                <div class="d-flex align-items-center justify-content-center bg-dark text-white"
-                     style="height: 120px; border-radius: 6px; cursor: pointer;">
-                    <span class="h6">+${mediaArray.length - 4} more</span>
-                </div>
-            </div>`;
-        }
-
-        mediaHTML += '</div></div>';
-        return mediaHTML;
+    } else if (Array.isArray(media)) {
+        mediaArray = media.filter(path => path && path.trim() !== '');
+    } else {
+        return '';
     }
 
+    if (!mediaArray || mediaArray.length === 0) {
+        return '';
+    }
+
+    if (mediaArray.length === 1) {
+        const mediaItem = mediaArray[0];
+        if (mediaItem.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            return `<div class="media mt-2">
+                        <img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
+                             style="cursor: pointer; max-height: 250px; width: 100%; object-fit: cover; border-radius: 6px;"
+                             onclick="openMediaModal('${postId}', 0)">
+                    </div>`;
+        } else if (mediaItem.match(/\.(mp4)$/i)) { // Added $ to mp4 to be more specific
+            return `<div class="media mt-2 position-relative">
+                        <video class="img-fluid ${blurClass} clickable-media"
+                               style="cursor: pointer; max-height: 250px; width: 100%; object-fit: cover; border-radius: 6px;"
+                               onclick="openMediaModal('${postId}', 0)">
+                            <source src="${mediaItem}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="play-icon-overlay" onclick="openMediaModal('${postId}', 0)"><i class="fas fa-play-circle"></i></div>
+                    </div>`;
+        }
+    }
+
+    let mediaHTML = '<div class="post-media-container mt-2"><div class="row g-1">';
+    mediaArray.slice(0, 4).forEach((mediaItem, index) => {
+        const colClass = mediaArray.length === 1 ? 'col-12' :
+                       mediaArray.length === 2 ? 'col-6' :
+                       (mediaArray.length === 3 && index === 0) ? 'col-12' : 'col-6';
+
+        mediaHTML += `<div class="${colClass} ${ (mediaArray.length === 3 && index === 0) ? 'mb-1' : '' }">`;
+        if (mediaItem.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            mediaHTML += `<img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass} clickable-media"
+                               style="cursor: pointer; height: 120px; width: 100%; object-fit: cover; border-radius: 6px;"
+                               onclick="openMediaModal('${postId}', ${index})">`;
+        } else if (mediaItem.match(/\.(mp4)$/i)) { // Added $ to mp4
+            mediaHTML += `<div class="position-relative">
+                            <video class="img-fluid ${blurClass} clickable-media"
+                                 style="cursor: pointer; height: 120px; width: 100%; object-fit: cover; border-radius: 6px;"
+                                 onclick="openMediaModal('${postId}', ${index})">
+                              <source src="${mediaItem}" type="video/mp4">
+                            </video>
+                            <div class="play-icon-overlay" onclick="openMediaModal('${postId}', ${index})"><i class="fas fa-play-circle"></i></div>
+                          </div>`;
+        }
+        
+        if (mediaArray.length > 4 && index === 3) {
+             mediaHTML = mediaHTML.replace(/<img src[^>]+>/, `
+                <div class="position-relative clickable-media" onclick="openMediaModal('${postId}', ${index})">
+                    <img src="${mediaItem}" alt="Post media" class="img-fluid ${blurClass}" style="cursor: pointer; height: 120px; width: 100%; object-fit: cover; border-radius: 6px;">
+                    <div class="more-media-overlay">+${mediaArray.length - 4}</div>
+                </div>
+            `);
+        }
+        mediaHTML += '</div>';
+    });
+
+    mediaHTML += '</div></div>';
+    return mediaHTML;
+}
     // Function to render post media (reuse from dashboard)
     function renderPostMedia(media, isBlurred, postId) {
         if (!media) return '';
@@ -2038,8 +2056,9 @@ try {
         }
     }
 </script>
+<script src="assets/js/media-handler.js"></script>
 </body>
 <script src="assets/js/profile-tabs.js"></script>
 <script src="assets/js/popup-chat.js?v=<?= time() ?>"></script>
-<script src="assets/js/dashboard-init.js" defer></script>
+
 </html>
