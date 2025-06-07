@@ -321,3 +321,25 @@ Review - Evaluate - Plan - Anticipate - Review Anticipations vs Plan - Revise - 
 The current project has 2 important .md files which are CHANGELOG.md and TaskLog.md. As mentioned recently, when you will be executing modifications, alterations, additions, or deletions on the existing codes and files, always document it in our CHANGELOG.md. Once you've successfully made your implemented your task or subtasks, make sure to document it on a new .md file named "Actual_Accomplishment". What is this?
 
 For example, you've made your creation of files, and then modified some files etc, you will modify the CHANGELOG.md immediately. I will test the implementations you've provided and see if it was successful or it was able to address a few things but not all of it; all of my feedbacks should be recorded in the Actual_Accomplishment.md file as a validation of your CHANGELOG.md if it was TRULY successful or not. Since you will now make a new plan or revise your approach, these parts will be recorded in the CHANGELOG.md again; and of course, I'll test and verify your new modifications and provide feedback etc; and you'd again record it inside the Actual_Accomplishment.md file. This will be the cycle of our activities until we will be able to fully implement this recording in our TaskLog.md
+
+### PS
+
+I actually prepared a "follows" table in my SQL table. You may alter it, modify, delete columns or what with it. Just provide me with the SQL code if you can't directly modify it. But here's it's description:
+
+localhost/nubenta_db/follows/		http://localhost/phpmyadmin/index.php?route=/table/sql&db=nubenta_db&table=follows
+Your SQL query has been executed successfully.
+
+DESCRIBE follows;
+
+
+
+id	int(10) unsigned	NO	PRI	
+    NULL
+	auto_increment	
+follower_id	int(10) unsigned	NO	MUL	
+    NULL
+		
+followed_id	int(10) unsigned	NO	MUL	
+    NULL
+		
+created_at	timestamp	NO		current_timestamp()		
