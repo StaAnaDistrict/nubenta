@@ -1068,7 +1068,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
         await loadCommentsForModal(mediaId);
 
         // Set up comment form with SINGLE event handler
-        const commentForm = document.querySelector(`form[data-media-id="${mediaId}"]`);
+        const commentForm = document.querySelector(`form.modal-media-comment-form[data-media-id="${mediaId}"]`);
         if (commentForm) {
             console.log('Setting up comment form for media:', mediaId);
 
@@ -1196,7 +1196,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
     // Submit comment for modal - IMPROVED with double-submission prevention
     async function submitCommentForModal(mediaId) {
-        const commentForm = document.querySelector(`form[data-media-id="${mediaId}"]`);
+        const commentForm = document.querySelector(`form.modal-media-comment-form[data-media-id="${mediaId}"]`);
         if (!commentForm) {
             console.error('Comment form not found for media:', mediaId);
             return;

@@ -331,17 +331,31 @@ function modalDisplayComments(mediaId, comments) {
 
 async function modalSubmitComment(mediaId) {
   if (!mediaId) return;
-  const commentForm = document.querySelector(`#mediaModal .comment-form[data-media-id="${mediaId}"]`);
-  if (!commentForm) return;
+
+  // UPDATED SELECTOR to use '.modal-media-comment-form'
+  const commentForm = document.querySelector(`#mediaModal .modal-media-comment-form[data-media-id="${mediaId}"]`);
+
+  if (!commentForm) {
+    console.error("Modal submit: Comment form with class 'modal-media-comment-form' NOT found for media ID:", mediaId);
+    return;
+  }
   const commentInput = commentForm.querySelector('.comment-input');
-  if (!commentInput) return;
+  if (!commentInput) {
+    console.error("Modal submit: Comment input not found for media ID:", mediaId);
+    return;
+  }
   const content = commentInput.value.trim();
-  if (!content) return;
+  if (!content) {
+    console.log("Modal submit: Empty comment content for media ID:", mediaId);
+    return;
+  }
+
   const submitButton = commentForm.querySelector('button[type="submit"]');
   if (submitButton) {
     submitButton.disabled = true;
     submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Posting...';
   }
+
   try {
     const formData = new FormData();
     formData.append('media_id', mediaId);
@@ -349,14 +363,17 @@ async function modalSubmitComment(mediaId) {
     const response = await fetch('api/post_media_comment.php', { method: 'POST', body: formData });
     if (!response.ok) throw new Error('Failed to post comment. Status: ' + response.status);
     const data = await response.json();
+
     if (data.success) {
       commentInput.value = '';
-      await modalLoadComments(mediaId);
+      await modalLoadComments(mediaId); // Ensure this function is not affected if it also looks for the form by class.
     } else {
-      alert('Error posting comment: ' + (data.error || 'Unknown error'));
+      // CHANGED ALERT TO CONSOLE.ERROR
+      console.error('Modal submit: Error from api/post_media_comment.php:', (data.error || 'Unknown error'));
     }
   } catch (error) {
-    alert('An error occurred: ' + error.message);
+    // CHANGED ALERT TO CONSOLE.ERROR
+    console.error('Modal submit: Exception while posting comment:', error.message);
   } finally {
     if (submitButton) {
       submitButton.disabled = false;
@@ -364,6 +381,7 @@ async function modalSubmitComment(mediaId) {
     }
   }
 }
+
 
 async function modalDeleteComment(commentId, mediaId) {
   if (!mediaId || !commentId) return;
@@ -393,20 +411,30 @@ async function modalDeleteComment(commentId, mediaId) {
 function modalInitCommentSystem(mediaId) {
   if (!mediaId) return;
   console.log('Modal: Initializing comment system for media ID:', mediaId);
-  modalLoadComments(mediaId);
-  const commentForm = document.querySelector(`#mediaModal .comment-form[data-media-id="${mediaId}"]`);
+  modalLoadComments(mediaId); // Ensure this function is not affected if it also looks for the form by class.
+
+  // UPDATED SELECTOR to use '.modal-media-comment-form'
+  const commentForm = document.querySelector(`#mediaModal .modal-media-comment-form[data-media-id="${mediaId}"]`);
+
+  console.log('Modal Comment Form selected by modalInitCommentSystem for mediaId ' + mediaId + ':', commentForm); // Debug
+
   if (commentForm) {
-    // Remove existing listener before adding a new one to prevent duplicates
     const newForm = commentForm.cloneNode(true);
     commentForm.parentNode.replaceChild(newForm, commentForm);
+
     newForm.addEventListener('submit', function (e) {
+      console.log('MODAL specific event listener fired for mediaId ' + mediaId); // Debug
       e.preventDefault();
+      e.stopPropagation(); // ADDED THIS LINE
+      console.log('Event default prevented and propagation stopped for modal form.'); // Debug
       modalSubmitComment(mediaId);
     });
+    console.log('MODAL event listener ATTACHED to form.modal-media-comment-form for media ID ' + mediaId); // Debug
   } else {
-    console.error("Modal: Comment form not found for media ID:", mediaId);
+    console.error("Modal: Comment form with class 'modal-media-comment-form' NOT found for media ID:", mediaId); // Updated error
   }
 }
+
 
 // --- Reaction System Functions (Adapted for Modal) ---
 async function modalInitReactionSystem(mediaId) {

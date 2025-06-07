@@ -215,7 +215,7 @@ function generateViewAlbumHTML($media, $prevMedia, $nextMedia, $user_id) {
                                     </div>
 
                                     <!-- Comment Form -->
-                                    <form class="comment-form" data-media-id="' . $mediaId . '">
+                                     <form class="modal-media-comment-form" data-media-id="' . $mediaId . '">
                                         <div class="input-group">
                                             <input type="text" class="form-control comment-input"
                                                    placeholder="Write a comment..." required>
