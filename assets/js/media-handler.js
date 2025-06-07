@@ -77,9 +77,16 @@ function renderPostMedia(mediaJson, postId = null, isFlagged = false) {
 
 
 // --- Media Modal Functions ---
-let currentModalPostId = null;
-let currentModalMediaIndex = 0;
-let currentModalMediaItems = []; // Stores {id, media_url, media_type, ...} for the current post's media
+var currentModalPostId = window.currentModalPostId || null;
+var currentModalMediaIndex = window.currentModalMediaIndex || 0;
+var currentModalMediaItems = window.currentModalMediaItems || [];
+// Or, to be safer and avoid polluting window explicitly if not needed:
+// if (typeof currentModalPostId === 'undefined') { let currentModalPostId = null; }
+// (Repeat for others, but the window check is simpler for ensuring they are truly global and accessible)
+// For now, let's try with 'var' for simplicity at the global scope of this script:
+var currentModalPostId = null;
+var currentModalMediaIndex = 0;
+var currentModalMediaItems = [];
 
 async function openMediaModal(postId, mediaIndex = 0) {
   if (!postId) {
@@ -158,14 +165,15 @@ async function loadMediaInModal(mediaIndex) {
         console.log("Modal: Attempting to initialize comments for media_id: ", data.media_id);
         modalInitCommentSystem(data.media_id);
       } else {
-        console.error('modalInitCommentSystem function not found. Make sure it is in media-handler.js');
+        console.error('modalInitCommentSystem function not found.');
       }
 
-      // We'll add reactions later, let's get comments working first.
-      // if (typeof modalInitReactionSystem === 'function') { 
-      //    console.log("Modal: Attempting to initialize reactions for media_id: ", data.media_id);
-      //    modalInitReactionSystem(data.media_id);
-      // }
+      if (typeof modalInitReactionSystem === 'function') {
+        console.log("Modal: Attempting to initialize reactions for media_id: ", data.media_id);
+        modalInitReactionSystem(data.media_id);
+      } else {
+        console.error('modalInitReactionSystem function not found.');
+      }
     } else {
       console.error('API response did not include a media_id for initializing comments/reactions.');
     }
@@ -397,5 +405,43 @@ function modalInitCommentSystem(mediaId) {
     });
   } else {
     console.error("Modal: Comment form not found for media ID:", mediaId);
+  }
+}
+
+// --- Reaction System Functions (Adapted for Modal) ---
+async function modalInitReactionSystem(mediaId) {
+  if (!mediaId) return;
+  console.log(`Modal: Initializing reactions for media ID: ${mediaId}`);
+
+  const reactionSection = document.querySelector(`#mediaModal .reactions-section[data-media-id='${mediaId}'], #mediaModal .reactions-section .post-react-btn[data-post-id='${mediaId}']`);
+
+  if (!reactionSection) {
+    console.error(`Modal: Reaction section or button not found for media ID: ${mediaId}`);
+    return;
+  }
+
+  try {
+    if (window.SimpleReactionSystem) {
+      const reactButton = document.querySelector(`#mediaModal .post-react-btn[data-post-id='${mediaId}']`);
+      if (reactButton) {
+        reactButton.setAttribute('data-content-type', 'media');
+      }
+
+      if (typeof window.SimpleReactionSystem.initSingle === 'function') {
+        window.SimpleReactionSystem.initSingle(reactionSection.closest('.reactions-section'), mediaId, 'media');
+      } else if (typeof window.SimpleReactionSystem.loadReactions === 'function') {
+        if (!window.SimpleReactionSystem.initialized) {
+          window.SimpleReactionSystem.init();
+        }
+        window.SimpleReactionSystem.loadReactions(mediaId, 'media');
+      } else {
+        console.error('Modal: SimpleReactionSystem does not have expected initSingle or loadReactions method.');
+      }
+      console.log(`Modal: Reaction system processing requested for media ID: ${mediaId}`);
+    } else {
+      console.error('Modal: SimpleReactionSystem not found.');
+    }
+  } catch (error) {
+    console.error('Error initializing modal reaction system:', error);
   }
 }

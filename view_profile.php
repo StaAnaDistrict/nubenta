@@ -780,11 +780,12 @@ try {
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- EXACT SAME JavaScript files as dashboard.php -->
-    <script src="assets/js/utils.js"></script>
-    <script src="assets/js/media-handler.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
+    <script src="assets/js/utils.js" defer></script> 
+    <script src="assets/js/view-album-reactions.js" defer></script> <!-- Key change here -->
+    <script src="assets/js/media-handler.js" defer></script>
+    <script src="assets/js/profile-tabs.js" defer></script>
+    <script src="assets/js/popup-chat.js?v=<?= time() ?>" defer></script>
 
     <!-- Global flag to track reaction system initialization -->
     <script>
@@ -1203,14 +1204,22 @@ function renderPostMediaConstrained(media, isBlurred, postId) { // postId is cru
             });
         });
 
-        // Initialize reaction system for the newly loaded posts (EXACT SAME as dashboard.php)
-        if (window.ReactionSystem) {
-            console.log("Loading reactions for visible posts");
-            try {
-                window.ReactionSystem.loadReactionsForVisiblePosts();
-            } catch (error) {
-                console.error("Error loading reactions for visible posts:", error);
-            }
+        // Initialize reaction system for the newly loaded posts
+        if (window.SimpleReactionSystem) {
+            console.log("Initializing reactions for posts in Contents section (view_profile.php)");
+            document.querySelectorAll('#user-posts-container .post').forEach(postElement => {
+                const postId = postElement.getAttribute('data-post-id');
+                if (postId && !postId.startsWith('social_')) { // Ensure it's a regular post
+                    // console.log("Loading reactions for post (in profile contents):", postId);
+                    try {
+                        window.SimpleReactionSystem.loadReactions(postId, 'post'); // Assuming 'post' is the contentType
+                    } catch (error) {
+                        console.error("Error loading reactions for post " + postId + ":", error);
+                    }
+                }
+            });
+        } else {
+            console.error("SimpleReactionSystem not found on view_profile.php for Contents section.");
         }
         // Inside initializePostInteractions() in view_profile.php
         document.querySelectorAll('#user-posts-container .post-delete-btn').forEach(btn => {
@@ -2056,9 +2065,9 @@ function renderPostMediaConstrained(media, isBlurred, postId) { // postId is cru
         }
     }
 </script>
-<script src="assets/js/media-handler.js"></script>
+
 </body>
-<script src="assets/js/profile-tabs.js"></script>
-<script src="assets/js/popup-chat.js?v=<?= time() ?>"></script>
+
+
 
 </html>
