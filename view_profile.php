@@ -3,6 +3,7 @@ ini_set('display_errors',1); error_reporting(E_ALL);
 session_start();
 require_once 'db.php';
 require_once 'includes/MediaParser.php';                // PDO $pdo
+require_once 'includes/FollowManager.php';
 
 if(!isset($_SESSION['user'])){header('Location:login.php');exit;}
 $current = $_SESSION['user'];
@@ -23,6 +24,20 @@ FROM users WHERE id = ?";
 $st=$pdo->prepare($sql);$st->execute([$profileId]);
 $u=$st->fetch(PDO::FETCH_ASSOC);
 if(!$u) die('User not found');
+
+// --- FollowManager Integration ---
+$followManager = new FollowManager($pdo);
+
+$isFollowing = false;
+$followerCount = 0;
+
+// $current is defined earlier, $profileId is also defined.
+// $pdo is available from db.php
+if (isset($current['id']) && $current['id'] != $profileId) { // Only check if logged in and not viewing own profile
+    $isFollowing = $followManager->isFollowing((int)$current['id'], (string)$profileId, 'user');
+}
+$followerCount = $followManager->getFollowersCount((string)$profileId, 'user');
+// --- End FollowManager Integration ---
 
 /* ---------------------------------------------------
    What is *my* relationship with the profile owner ?
@@ -51,6 +66,7 @@ if(!$u) die('User not found');
 $followerCount = 0;      // placeholder
 $friendStatus  = 'none'; // placeholder
 $isFollowing   = false;  // placeholder
+// $followerCount and $isFollowing are now handled by FollowManager integration above.
 
 // Get user's albums for Media Gallery section
 $albumStmt = $pdo->prepare("
@@ -353,7 +369,13 @@ try {
 
                             <?php endif; ?>
                             <button class="btn btn-outline-primary mb-2">Refer to Friend</button>
-                            <button class="btn btn-outline-primary">Follow</button>
+                            <?php if ($current['id'] !== $profileId): // Only show follow button if not viewing own profile ?>
+                                <?php if ($isFollowing): ?>
+                                    <button id="followButton" data-profile-id="<?= $profileId ?>" class="btn btn-primary mb-2">Following</button>
+                                <?php else: ?>
+                                    <button id="followButton" data-profile-id="<?= $profileId ?>" class="btn btn-outline-primary mb-2">Follow</button>
+                                <?php endif; ?>
+                            <?php endif; ?>
                         </div>
                         <div class="action-column">
                             <button class="btn btn-outline-primary mb-2" onclick="openWriteTestimonialModal(<?= $profileId ?>)">Add Testimonial</button>
@@ -494,6 +516,13 @@ try {
                             }
                             ?>
                             <!-- Average Star Rating Display END -->
+
+                            <!-- Follower Count Display START -->
+                            <div class="info-line" id="follower-count-section">
+                                <span class="info-label"><i class="fas fa-users me-1"></i>Followers:</span>
+                                <span id="followerCountDisplay"><?= htmlspecialchars($followerCount ?? 0) ?></span>
+                            </div>
+                            <!-- Follower Count Display END -->
                         </div>
                     </div>
                 </div>
@@ -1697,6 +1726,62 @@ function renderPostMediaConstrained(media, isBlurred, postId) { // postId is cru
                             const j  = await hit('assets/unfriend.php', { id });
                             if (j.ok) location.reload();
                         });
+
+        /* --- Follow / Unfollow Button --- */
+        document.getElementById('followButton')?.addEventListener('click', async e => {
+            const button = e.target; // Store button reference
+            const profileId = button.dataset.profileId;
+
+            if (!profileId) {
+                console.error('Profile ID not found for follow button.');
+                return;
+            }
+
+            const originalButtonText = button.textContent; // Store original text for error cases
+            button.disabled = true;
+            button.textContent = 'Processing...';
+
+            try {
+                // The hit() function should make a POST request and parse JSON.
+                // We assume 'process_follow.php.php' is the correct target.
+                // The data sent is { followed_id: profileId }
+                const responseData = await hit('process_follow.php.php', { followed_id: profileId });
+
+                if (responseData && responseData.success) {
+                    // Update button text and class based on the new 'isFollowing' status
+                    if (responseData.isFollowing) {
+                        button.textContent = 'Following';
+                        button.classList.remove('btn-outline-primary');
+                        button.classList.add('btn-primary');
+                    } else {
+                        button.textContent = 'Follow';
+                        button.classList.remove('btn-primary');
+                        button.classList.add('btn-outline-primary');
+                    }
+
+                    // Update follower count display
+                    const followerCountDisplay = document.getElementById('followerCountDisplay');
+                    if (followerCountDisplay) {
+                        followerCountDisplay.textContent = responseData.followerCount;
+                    }
+                    // No need to alert success message unless desired, UI update is feedback.
+
+                } else {
+                    // Handle unsuccessful action (e.g., responseData.success is false)
+                    console.error('Follow/Unfollow action failed:', responseData.message || 'Unknown error from server.');
+                    alert('An error occurred: ' + (responseData.message || 'Please try again.'));
+                    button.textContent = originalButtonText; // Restore original text on failure
+                }
+            } catch (error) {
+                // Handle network or other critical errors
+                console.error('Error during follow/unfollow action:', error);
+                alert('A network error occurred. Please check the console and try again.');
+                button.textContent = originalButtonText; // Restore original text on critical error
+            } finally {
+                // Re-enable the button in all cases (success or failure) after processing
+                button.disabled = false;
+            }
+        });
     </script>
 
     <script>

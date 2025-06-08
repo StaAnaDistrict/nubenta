@@ -1,3 +1,40 @@
+## [2025-06-07] - Feature: Follow Account Implementation - Phase 1
+
+### Added
+-   **`follows` Table Schema Update:**
+    -   Renamed `id` to `follow_id` (PK, INT UNSIGNED AUTO_INCREMENT).
+    -   Renamed `followed_id` to `followed_entity_id` (INT UNSIGNED NOT NULL).
+    -   Added `followed_entity_type` (ENUM('user', 'page') NOT NULL DEFAULT 'user').
+    -   Modified `created_at` to DATETIME DEFAULT CURRENT_TIMESTAMP.
+    -   Added unique constraint `uq_follower_followed_type` on (`follower_id`, `followed_entity_id`, `followed_entity_type`).
+    -   Ensured `follower_id` is `INT UNSIGNED NOT NULL`.
+    -   (SQL for these changes was provided in `alter_follows_table.sql`).
+-   **`includes/FollowManager.php`:**
+    -   New class `FollowManager` to handle all follow/unfollow logic.
+    -   Methods: `__construct(PDO)`, `toggleFollow()`, `isFollowing()`, `getFollowersCount()`, `getFollowingCount()`.
+    -   Uses prepared statements and includes error logging.
+
+### Changed
+-   **`process_follow.php.php` (or `process_follow.php`):**
+    -   Updated to use the new `FollowManager->toggleFollow()` method.
+    -   Removed direct SQL database queries.
+    -   Improved input validation for `followed_id` and error handling.
+    -   Hardcoded `followed_entity_type` to 'user' for current implementation.
+-   **`newsfeed.php`:**
+    -   Modified the main post fetching SQL query to include public posts from users that the current user follows.
+    -   Added a new `OR` condition to the `WHERE` clause, joining with the `follows` table (`WHERE follower_id = :user_id_followed AND followed_entity_type = 'user'`).
+    -   Bound the new `:user_id_followed` parameter.
+
+### Enhancements
+-   **AJAX for Follow Button (`view_profile.php` & `process_follow.php.php`):**
+    -   Modified `process_follow.php.php` to detect AJAX requests. If an AJAX request is detected, it now returns a JSON response containing the success status, new follow state (`isFollowing`), and updated follower count (`followerCount`), instead of redirecting. Non-AJAX requests still redirect.
+    -   Updated the JavaScript for the 'Follow' button in `view_profile.php` to handle the JSON response. The button text/style and the displayed follower count now update dynamically without a page reload, providing a smoother user experience.
+
+### Notes
+-   This implementation primarily supports user-to-user follows. The schema supports user-to-page follows for future extension.
+-   UI changes (Follow/Unfollow buttons, follower counts) are needed on the frontend to utilize this backend functionality. `process_follow.php.php` handles the button actions.
+
+---
 # Project Nubent Development Changelog
 
 ## **June 7, 2025 - Media Modal Commenting Fix**
