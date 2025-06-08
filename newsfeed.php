@@ -59,6 +59,22 @@ try {
         -- Only show public or friends-only posts from friends
         AND (posts.visibility = 'public' OR posts.visibility = 'friends'))
 
+        OR
+
+        -- Public posts from users the current user follows
+        (
+            posts.visibility = 'public' AND
+            posts.user_id IN (
+                SELECT fe.followed_entity_id FROM follows fe
+                WHERE fe.follower_id = :user_id_followed
+                  AND fe.followed_entity_type = 'user'
+            )
+            -- Note: posts.user_id != :user_id1 -- This simple exclusion might be useful
+            -- to avoid showing user's own posts if they somehow follow themselves,
+            -- though FollowManager should prevent self-follow.
+            -- More complex exclusions for friends are omitted for now.
+        )
+
       ORDER BY posts.created_at DESC
       LIMIT 20
     ");
@@ -69,6 +85,8 @@ try {
     $stmt->bindParam(':user_id3', $user_id, PDO::PARAM_INT);
     $stmt->bindParam(':user_id4', $user_id, PDO::PARAM_INT);
     $stmt->bindParam(':user_id5', $user_id, PDO::PARAM_INT);
+    // Add binding for the new parameter
+    $stmt->bindParam(':user_id_followed', $user_id, PDO::PARAM_INT);
 
     $stmt->execute();
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
