@@ -8,23 +8,19 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once 'bootstrap.php'; // Should handle db.php
 require_once 'includes/FollowManager.php';
-// require_once 'includes/NotificationHelper.php'; // Only if navigation.php strictly needs it passed or globally
 
 if (!isset($_SESSION['user'])) {
     header("Location: login.php");
     exit();
 }
-// $current_user is often set in bootstrap or a common header after session_start and user validation.
-// If not, ensure it's available for assets/navigation.php if it uses it.
+// Ensure $current_user is available for assets/navigation.php if it uses it.
 if (isset($_SESSION['user'])) {
     $current_user = $_SESSION['user'];
 }
 
-
 $targetUserId = filter_input(INPUT_GET, 'user_id', FILTER_VALIDATE_INT);
 
 if (!$targetUserId) {
-    // Consider a more user-friendly error page or redirect
     die("Invalid or missing user ID.");
 }
 
@@ -50,8 +46,7 @@ $defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
 $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
 $pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
-// $currentPageNav might be needed by navigation.php to highlight the active link
-// $currentPageNav = 'profile'; // Or a more specific identifier
+// $currentPageNav = 'profile'; // Example for navigation active state
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -72,7 +67,7 @@ $pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
             padding: 10px;
             border: 1px solid #eee;
             border-radius: 8px;
-            background-color: #fff; /* White background for items */
+            background-color: #fff;
         }
         .user-list-item img {
             width: 50px; 
@@ -84,7 +79,7 @@ $pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
         .user-list-item .user-info a {
             font-weight: bold;
             text-decoration: none;
-            color: #333; /* Ensuring link color is visible */
+            color: #333;
         }
         .user-list-item .user-info a:hover {
             text-decoration: underline;
@@ -118,14 +113,17 @@ $pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
     </style>
 </head>
 <body>
-    <div class="dashboard-grid">
+    <div class="dashboard-grid">  <!-- Applied .dashboard-grid class -->
         <?php
-        // It's assumed assets/navigation.php defines its own column class e.g. "left-sidebar"
-        // or is styled by a direct child selector of .dashboard-grid
+        // assets/navigation.php is expected to render content suitable for the first grid column.
+        // If it needs a specific class like .left-sidebar for styling from dashboard_style.css,
+        // and doesn't output it itself, you might wrap it:
+        // echo '<div class="left-sidebar">';
         include 'assets/navigation.php';
+        // echo '</div>';
         ?>
 
-        <div class="main-content">
+        <div class="main-content"> <!-- This is the second grid column -->
             <?php include 'topnav.php'; ?>
             <div class="content-area py-4"> 
                 <div class="container-fluid">
@@ -182,15 +180,12 @@ $pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
             </div>
         </div>
 
-        <div class="right-sidebar">
+        <div class="right-sidebar"> <!-- Applied .right-sidebar class -->
              <?php include_once __DIR__ . "/api/add_ons_middle_element_html.php"; ?>
              <?php include_once __DIR__ . "/api/add_ons_bottom_element_html.php"; ?>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <?php 
-    // include 'includes/footer.php'; // If you have a common footer with JS
-    ?>
 </body>
 </html>
