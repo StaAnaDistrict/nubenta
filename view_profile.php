@@ -353,47 +353,44 @@ try {
                         <?php endif; ?>
                     </div>
                     <div class="profile-actions">
-                        <div class="action-column">
-                            <?php if ($current['id'] !== $profileId): ?>
-                                <button class="btn btn-primary mb-2 w-100" onclick="startMessage(<?= $profileId ?>)">Send Message</button>
+                        <div class="action-column"> <!-- First Column -->
+                            <?php if (isset($current['id']) && $current['id'] !== $profileId): ?>
+                                <button class="btn btn-outline-primary mb-2 w-100" onclick="startMessage(<?= $profileId ?>)">Send Message</button>
+                            <?php else: // Placeholder for alignment if viewing own profile ?>
+                                <div class="mb-2" style="height: 38px;"></div> <!-- Adjust height to match button -->
                             <?php endif; ?>
-                            <?php if ($current['id'] !== $profileId): ?>
-                                <?php if ($friendBtnState === 'add'): ?>
-                                    <button id="addFriend"
-                                            data-id="<?= $profileId ?>"
-                                            class="btn btn-outline-primary mb-2 w-100">Add Friend</button>
 
+                            <?php if (isset($current['id']) && $current['id'] !== $profileId): ?>
+                                <?php if ($friendBtnState === 'add'): ?>
+                                    <button id="addFriend" data-id="<?= $profileId ?>" class="btn btn-outline-primary mb-2 w-100">Add Friend</button>
                                 <?php elseif ($friendBtnState === 'pending_sent'): ?>
                                     <button class="btn btn-secondary mb-2 w-100" disabled>Request Sent</button>
-
                                 <?php elseif ($friendBtnState === 'pending_recv'): ?>
-                                    <button id="acceptReq"
-                                            data-req="<?= $rel['id'] ?>"
-                                            class="btn btn-success mb-2 w-100">Accept Request</button>
-                                    <button id="declineReq"
-                                            data-req="<?= $rel['id'] ?>"
-                                            class="btn btn-outline-danger mb-2 w-100">Decline Request</button>
-
+                                    <button id="acceptReq" data-req="<?= $rel['id'] ?>" class="btn btn-success mb-2 w-100">Accept Request</button>
+                                    <!-- Consider moving decline button if layout is an issue with two buttons here -->
+                                    <button id="declineReq" data-req="<?= $rel['id'] ?>" class="btn btn-outline-danger mb-2 w-100">Decline Request</button> 
                                 <?php elseif ($friendBtnState === 'friends'): ?>
-                                    <button id="unfriend"
-                                            data-id="<?= $profileId ?>"
-                                            class="btn btn-danger mb-2 w-100">Unfriend</button>
+                                    <button id="unfriend" data-id="<?= $profileId ?>" class="btn btn-danger mb-2 w-100">Unfriend</button>
                                 <?php endif; ?>
+                            <?php else: ?>
+                                <div class="mb-2" style="height: 38px;"></div> 
                             <?php endif; ?>
-                             <?php if ($current['id'] !== $profileId): // Only show follow button if not viewing own profile ?>
-                                <button id="followButton" 
-                                        data-profile-id="<?= $profileId ?>" 
-                                        class="btn <?= $isFollowing ? 'btn-secondary' : 'btn-primary' ?> mb-2 w-100">
-                                    <?= $isFollowing ? 'Unfollow' : 'Follow' ?>
+                            
+                            <?php if (isset($current['id']) && $current['id'] !== $profileId): ?>
+                                <button id="followButton" data-profile-id="<?= $profileId ?>" class="btn <?= $isFollowing ? 'btn-secondary' : 'btn-outline-primary' ?> mb-2 w-100"> <!-- Follow is now btn-outline-primary -->
+                                    <?= $isFollowing ? 'Following' : 'Follow' ?> <!-- Text changed to 'Following' for active state -->
                                 </button>
+                            <?php else: ?>
+                                <a href="edit_profile.php" class="btn btn-outline-secondary mb-2 w-100">Edit Profile</a>
                             <?php endif; ?>
-                        </div>
-                        <div class="action-column">
+
                             <button class="btn btn-outline-primary mb-2 w-100">Refer to Friend</button>
-                            <button class="btn btn-outline-primary mb-2" onclick="openWriteTestimonialModal(<?= $profileId ?>)">Add Testimonial</button>
-                            <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=photo" class="btn btn-outline-primary mb-2">View Photos</a>
-                            <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=video" class="btn btn-outline-primary mb-2">View Videos</a>
-                            <button class="btn btn-outline-primary">View Website</button>
+                        </div>
+                        <div class="action-column"> <!-- Second Column -->
+                            <button class="btn btn-outline-primary mb-2 w-100" onclick="openWriteTestimonialModal(<?= $profileId ?>)">Add Testimonial</button>
+                            <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=photo" class="btn btn-outline-primary mb-2 w-100">View Photos</a>
+                            <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=video" class="btn btn-outline-primary mb-2 w-100">View Videos</a>
+                            <button class="btn btn-outline-primary mb-2 w-100">View Website</button>
                         </div>
                     </div>
                 </div>
