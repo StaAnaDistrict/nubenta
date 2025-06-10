@@ -28,9 +28,6 @@ if(!$u) die('User not found');
 // --- FollowManager Integration ---
 $followManager = new FollowManager($pdo);
 
-$isFollowing = false; // <--- DELETE THIS LINE
-$followerCount = 0;   // <--- DELETE THIS LINE
-
 // $current is defined earlier, $profileId is also defined.
 // $pdo is available from db.php (FollowManager should be instantiated already, e.g., $followManager = new FollowManager($pdo);)
 
@@ -52,6 +49,7 @@ if (isset($current['id']) && $current['id'] != $profileId) { // Only check if lo
 }
 // This line correctly gets the follower count
 $followerCount = $followManager->getFollowersCount((string)$profileId, 'user');
+$followingCount = $followManager->getFollowingCount((int)$profileId, 'user'); 
 // --- End FollowManager Integration ---
 
 /* ---------------------------------------------------
