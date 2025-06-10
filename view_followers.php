@@ -1,39 +1,49 @@
 <?php
-ini_set('display_errors', 1);
 error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
-require_once 'bootstrap.php'; // Should handle db.php
+require_once 'bootstrap.php';
 require_once 'includes/FollowManager.php';
 
 if (!isset($_SESSION['user'])) {
     header("Location: login.php");
     exit();
 }
-// Ensure $current_user is available for assets/navigation.php if it uses it.
-if (isset($_SESSION['user'])) {
-    $current_user = $_SESSION['user'];
-}
+
+// Ensure $user and $current_user are available for included files like navigation.php
+$user = $_SESSION['user'];
+$current_user = $_SESSION['user']; // Can be the same if navigation expects $current_user
+$my_id = $user['id']; // Used in friends.php, define for consistency if navigation expects it
 
 $targetUserId = filter_input(INPUT_GET, 'user_id', FILTER_VALIDATE_INT);
 
 if (!$targetUserId) {
-    die("Invalid or missing user ID.");
+    die('Invalid or missing user ID.');
 }
 
-$stmtUser = $pdo->prepare("SELECT CONCAT_WS(' ', first_name, last_name) AS full_name, id FROM users WHERE id = ?");
-$stmtUser->execute([$targetUserId]);
-$targetUser = $stmtUser->fetch(PDO::FETCH_ASSOC);
+// Fetch target user's details
+try {
+    $stmtTargetUser = $pdo->prepare("SELECT id, CONCAT_WS(' ', first_name, last_name) AS full_name FROM users WHERE id = :user_id");
+    $stmtTargetUser->bindParam(':user_id', $targetUserId, PDO::PARAM_INT);
+    $stmtTargetUser->execute();
+    $targetUser = $stmtTargetUser->fetch(PDO::FETCH_ASSOC);
 
-if (!$targetUser) {
-    die("User not found.");
+    if (!$targetUser) {
+        die('User not found.');
+    }
+} catch (PDOException $e) {
+    error_log("Error fetching target user in view_followers: " . $e->getMessage());
+    die('An error occurred while fetching user details.');
 }
+
+$pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
 
 $followManager = new FollowManager($pdo);
 
+// Pagination settings
 $limit = 20;
 $currentPage = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
 $offset = ($currentPage - 1) * $limit;
@@ -45,8 +55,7 @@ $totalPages = ceil($totalFollowers / $limit);
 $defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
 $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
-$pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
-// $currentPageNav = 'profile'; // Example for navigation active state
+// $currentPageName = "view_followers"; // For navigation active state, if needed
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,46 +68,42 @@ $pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="assets/css/dashboard_style.css?v=<?php echo time(); ?>">
     <style>
-        /* Styles specific to this page or minor overrides if necessary */
-        .user-list-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-            padding: 10px;
-            border: 1px solid #eee;
+        /* Using styles similar to friends.php for consistency, plus specific item styles */
+        .user-list-item { /* Adapted from .friend-card for this context */
+            border: 1px solid #ddd;
             border-radius: 8px;
-            background-color: #fff;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: white;
+            display: flex; /* For aligning image and info */
+            align-items: center; /* Vertically align items */
         }
         .user-list-item img {
-            width: 50px; 
-            height: 50px;
-            border-radius: 50%;
-            margin-right: 15px;
+            width: 60px;
+            height: 60px;
+            border-radius: 8px; /* Matching friends.php card image */
             object-fit: cover;
+            margin-right: 15px; /* Space between image and text */
         }
-        .user-list-item .user-info a {
-            font-weight: bold;
+        .user-list-item .user-info h5 { /* For name */
+            margin: 0 0 5px 0; /* Adjust spacing */
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        .user-list-item .user-info .btn { /* For View Profile button */
+            padding: 4px 12px;
+            font-size: 13px;
+        }
+        .user-name-link { /* Specific class for user name link */
+            color: #1a1a1a;
             text-decoration: none;
-            color: #333;
+            font-weight: 500;
         }
-        .user-list-item .user-info a:hover {
+        .user-name-link:hover {
+            color: #333;
             text-decoration: underline;
         }
-        .pagination .page-link {
-            color: #333; 
-        }
-        .pagination .page-item.active .page-link {
-            background-color: #333; 
-            border-color: #333;
-            color: #fff;
-        }
-        .dashboard-grid > .main-content .content-area .main-content-column {
-             padding: 20px;
-             background-color: #fff; 
-             border-radius: 8px;
-             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        }
-        .content-header {
+        .page-header-flex { /* For header with back button */
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -106,86 +111,114 @@ $pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
             padding-bottom: 15px;
             border-bottom: 1px solid #dee2e6;
         }
-        .content-header h3 {
+        .page-header-flex h2 {
             margin: 0;
-            font-size: 1.75rem; 
+            color: #1a1a1a;
+            font-weight: bold;
+        }
+        .pagination-container {
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="dashboard-grid">  <!-- Applied .dashboard-grid class -->
-        <?php
-        // assets/navigation.php is expected to render content suitable for the first grid column.
-        // If it needs a specific class like .left-sidebar for styling from dashboard_style.css,
-        // and doesn't output it itself, you might wrap it:
-        // echo '<div class="left-sidebar">';
-        include 'assets/navigation.php';
-        // echo '</div>';
-        ?>
+    <button class="hamburger" onclick="toggleSidebar()" id="hamburgerBtn">☰</button>
 
-        <div class="main-content"> <!-- This is the second grid column -->
-            <?php include 'topnav.php'; ?>
-            <div class="content-area py-4"> 
-                <div class="container-fluid">
-                    <div class="main-content-column"> 
-                        <div class="content-header">
-                            <h3><?= htmlspecialchars($pageTitle) ?></h3>
-                            <a href="view_profile.php?id=<?= htmlspecialchars($targetUser['id']) ?>" class="btn btn-sm btn-outline-secondary">
-                                <i class="fas fa-arrow-left"></i> Back to <?= htmlspecialchars($targetUser['full_name']) ?>'s Profile
-                            </a>
-                        </div>
+    <div class="dashboard-grid">
+        <aside class="left-sidebar">
+            <?php include 'assets/navigation.php'; ?>
+        </aside>
 
-                        <?php if (empty($followers)): ?>
-                            <p class="text-center mt-4"><?= htmlspecialchars($targetUser['full_name']) ?> doesn't have any followers yet.</p>
-                        <?php else: ?>
-                            <div class="user-list">
-                                <?php foreach ($followers as $follower): ?>
-                                    <?php
-                                    $profilePic = $defaultMalePic;
-                                    if (!empty($follower['profile_pic'])) {
-                                        $profilePic = 'uploads/profile_pics/' . htmlspecialchars($follower['profile_pic']);
-                                    } elseif (isset($follower['gender']) && $follower['gender'] === 'Female') {
-                                        $profilePic = $defaultFemalePic;
-                                    }
-                                    ?>
-                                    <div class="user-list-item">
-                                        <img src="<?= htmlspecialchars($profilePic) ?>" alt="<?= htmlspecialchars($follower['full_name']) ?>'s Profile Picture">
-                                        <div class="user-info">
-                                            <a href="view_profile.php?id=<?= htmlspecialchars($follower['id']) ?>"><?= htmlspecialchars($follower['full_name']) ?></a>
-                                            <br>
-                                            <a href="view_profile.php?id=<?= htmlspecialchars($follower['id']) ?>" class="btn btn-sm btn-outline-dark mt-1">View Profile</a>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-
-                            <?php if ($totalPages > 1): ?>
-                                <nav aria-label="Page navigation" class="mt-4 d-flex justify-content-center">
-                                    <ul class="pagination">
-                                        <?php if ($currentPage > 1): ?>
-                                            <li class="page-item"><a class="page-link" href="?user_id=<?= $targetUserId ?>&page=<?= $currentPage - 1 ?>">Previous</a></li>
-                                        <?php endif; ?>
-                                        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                                            <li class="page-item <?= ($i == $currentPage) ? 'active' : '' ?>"><a class="page-link" href="?user_id=<?= $targetUserId ?>&page=<?= $i ?>"><?= $i ?></a></li>
-                                        <?php endfor; ?>
-                                        <?php if ($currentPage < $totalPages): ?>
-                                            <li class="page-item"><a class="page-link" href="?user_id=<?= $targetUserId ?>&page=<?= $currentPage + 1 ?>">Next</a></li>
-                                        <?php endif; ?>
-                                    </ul>
-                                </nav>
-                            <?php endif; ?>
-                        <?php endif; ?>
-                    </div>
+        <main class="main-content">
+            <?php include 'topnav.php'; // Including topnav for consistency ?>
+            <div class="container-fluid mt-3"> <!-- Add some margin/padding for content start -->
+                <div class="page-header-flex">
+                    <h2 class="h4"><?= htmlspecialchars($pageTitle) ?></h2>
+                    <a href="view_profile.php?id=<?= htmlspecialchars($targetUser['id']) ?>" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to <?= htmlspecialchars($targetUser['full_name']) ?>'s Profile
+                    </a>
                 </div>
-            </div>
-        </div>
 
-        <div class="right-sidebar"> <!-- Applied .right-sidebar class -->
-             <?php include_once __DIR__ . "/api/add_ons_middle_element_html.php"; ?>
-             <?php include_once __DIR__ . "/api/add_ons_bottom_element_html.php"; ?>
-        </div>
-    </div>
+                <?php if (empty($followers)): ?>
+                    <div class="alert alert-info text-center">
+                        <?= htmlspecialchars($targetUser['full_name']) ?> doesn't have any followers yet.
+                    </div>
+                <?php else: ?>
+                    <div class="user-list-container"> <!-- Changed from list-group to avoid conflicts if any -->
+                        <?php foreach ($followers as $follower): ?>
+                            <?php
+                            $profilePic = $defaultMalePic;
+                            if (!empty($follower['profile_pic'])) {
+                                $profilePic = 'uploads/profile_pics/' . htmlspecialchars($follower['profile_pic']);
+                            } elseif (isset($follower['gender']) && $follower['gender'] === 'Female') {
+                                $profilePic = $defaultFemalePic;
+                            }
+                            ?>
+                            <div class="user-list-item">
+                                <img src="<?= htmlspecialchars($profilePic) ?>" alt="Profile Picture of <?= htmlspecialchars($follower['full_name']) ?>">
+                                <div class="user-info flex-grow-1">
+                                    <h5>
+                                        <a href="view_profile.php?id=<?= htmlspecialchars($follower['id']) ?>" class="user-name-link">
+                                            <?= htmlspecialchars($follower['full_name']) ?>
+                                        </a>
+                                    </h5>
+                                    <a href="view_profile.php?id=<?= htmlspecialchars($follower['id']) ?>" class="btn btn-sm btn-outline-primary">
+                                        View Profile
+                                    </a>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <?php if ($totalPages > 1): ?>
+                        <nav aria-label="Page navigation" class="pagination-container d-flex justify-content-center">
+                            <ul class="pagination">
+                                <?php if ($currentPage > 1): ?>
+                                    <li class="page-item">
+                                        <a class="page-link" href="view_followers.php?user_id=<?= $targetUserId ?>&page=<?= $currentPage - 1 ?>">Previous</a>
+                                    </li>
+                                <?php endif; ?>
+                                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                                    <li class="page-item <?= ($i == $currentPage) ? 'active' : '' ?>">
+                                        <a class="page-link" href="view_followers.php?user_id=<?= $targetUserId ?>&page=<?= $i ?>"><?= $i ?></a>
+                                    </li>
+                                <?php endfor; ?>
+                                <?php if ($currentPage < $totalPages): ?>
+                                    <li class="page-item">
+                                        <a class="page-link" href="view_followers.php?user_id=<?= $targetUserId ?>&page=<?= $currentPage + 1 ?>">Next</a>
+                                    </li>
+                                <?php endif; ?>
+                            </ul>
+                        </nav>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div> <!-- end container-fluid -->
+        </main>
+
+        <?php
+        // This include for right sidebar is from friends.php.
+        // Ensure assets/add_ons.php creates a .right-sidebar classed div or is styled as the third grid item.
+        include 'assets/add_ons.php';
+        ?>
+    </div> <!-- end dashboard-grid -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.left-sidebar');
+            sidebar.classList.toggle('show'); // 'show' class should be defined in your CSS for mobile view
+        }
+
+        // Optional: Close sidebar if clicking outside on mobile
+        document.addEventListener('click', function(event) {
+            const sidebar = document.querySelector('.left-sidebar');
+            const hamburger = document.getElementById('hamburgerBtn');
+            // Check if sidebar is shown (usually via a class like 'show')
+            // and if the click is outside both the sidebar and the hamburger button
+            if (sidebar.classList.contains('show') && !sidebar.contains(event.target) && !hamburger.contains(event.target)) {
+                sidebar.classList.remove('show');
+            }
+        });
+    </script>
 </body>
 </html>
