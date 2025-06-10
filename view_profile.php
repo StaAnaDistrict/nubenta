@@ -529,22 +529,19 @@ try {
                             ?>
                             <!-- Average Star Rating Display END -->
 
-                            <!-- Follower Count Display START -->
-                            <div class="info-line" id="follower-count-section">
+                            <!-- Follower and Following Counts START -->
+                            <div class="info-line" id="follow-stats-section">
                                 <a href="view_followers.php?user_id=<?= htmlspecialchars($profileId) ?>" class="text-decoration-none text-dark">
                                     <span class="info-label"><i class="fas fa-users me-1"></i>Followers:</span>
                                     <span id="followerCountDisplay" class="fw-bold"><?= htmlspecialchars($followerCount ?? 0) ?></span>
                                 </a>
-                            </div>
-                            <!-- Follower Count Display END -->
-                            <!-- Following Count Display START -->
-                            <div class="info-line" id="following-count-section">
+                                <span class="mx-2">|</span> <!-- Separator -->
                                 <a href="view_following.php?user_id=<?= htmlspecialchars($profileId) ?>" class="text-decoration-none text-dark">
                                     <span class="info-label"><i class="fas fa-user-plus me-1"></i>Following:</span>
                                     <span id="followingCountDisplay" class="fw-bold"><?= htmlspecialchars($followingCount ?? 0) ?></span>
                                 </a>
                             </div>
-                            <!-- Following Count Display END -->
+                            <!-- Follower and Following Counts END -->
                         </div>
                     </div>
                 </div>
