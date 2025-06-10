@@ -2,10 +2,8 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once 'bootstrap.php';
+require_once 'bootstrap.php'; // bootstrap.php now handles session_start()
+require_once 'includes/FollowManager.php'; // Keep other necessary requires
 require_once 'includes/FollowManager.php';
 
 if (!isset($_SESSION['user'])) {
