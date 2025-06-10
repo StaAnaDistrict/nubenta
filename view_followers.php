@@ -2,221 +2,195 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-session_start();
-require_once 'bootstrap.php'; // Should include db.php and start sessions
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once 'bootstrap.php'; // Should handle db.php
 require_once 'includes/FollowManager.php';
+// require_once 'includes/NotificationHelper.php'; // Only if navigation.php strictly needs it passed or globally
 
-if (!isset($_SESSION['user']['id'])) {
-    header('Location: login.php');
-    exit;
+if (!isset($_SESSION['user'])) {
+    header("Location: login.php");
+    exit();
 }
-$currentUserId = $_SESSION['user']['id'];
-
-// Get target user ID from GET parameter
-$targetUserId = isset($_GET['user_id']) ? intval($_GET['user_id']) : 0;
-
-if ($targetUserId <= 0) {
-    // Instead of die, render a proper error page or redirect with an error message
-    // For now, simple die:
-    die('Invalid user ID specified.');
+// $current_user is often set in bootstrap or a common header after session_start and user validation.
+// If not, ensure it's available for assets/navigation.php if it uses it.
+if (isset($_SESSION['user'])) {
+    $current_user = $_SESSION['user'];
 }
 
-// Fetch target user's details
-try {
-    $stmt = $pdo->prepare("SELECT id, CONCAT_WS(' ', first_name, middle_name, last_name) AS full_name FROM users WHERE id = :user_id");
-    $stmt->bindParam(':user_id', $targetUserId, PDO::PARAM_INT);
-    $stmt->execute();
-    $targetUser = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$targetUser) {
-        die('User not found.');
-    }
-} catch (PDOException $e) {
-    error_log("Error fetching target user: " . $e->getMessage());
-    die('An error occurred while fetching user details.');
+$targetUserId = filter_input(INPUT_GET, 'user_id', FILTER_VALIDATE_INT);
+
+if (!$targetUserId) {
+    // Consider a more user-friendly error page or redirect
+    die("Invalid or missing user ID.");
 }
 
-$pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
+$stmtUser = $pdo->prepare("SELECT CONCAT_WS(' ', first_name, last_name) AS full_name, id FROM users WHERE id = ?");
+$stmtUser->execute([$targetUserId]);
+$targetUser = $stmtUser->fetch(PDO::FETCH_ASSOC);
 
-// Instantiate FollowManager
+if (!$targetUser) {
+    die("User not found.");
+}
+
 $followManager = new FollowManager($pdo);
 
-// Pagination settings
-$limit = 20; // Number of followers per page
-$currentPage = isset($_GET['page']) ? intval($_GET['page']) : 1;
-if ($currentPage < 1) {
-    $currentPage = 1;
-}
+$limit = 20;
+$currentPage = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
 $offset = ($currentPage - 1) * $limit;
 
-// Get follower list
 $followers = $followManager->getFollowerList((string)$targetUserId, 'user', $limit, $offset);
-
-// Get total number of followers for pagination
 $totalFollowers = $followManager->getFollowersCount((string)$targetUserId, 'user');
 $totalPages = ceil($totalFollowers / $limit);
 
-// Define default profile picture paths
 $defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
 $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
-// Determine which main navigation to use: topnav.php or assets/navigation.php
-// Assuming assets/navigation.php for a 3-column layout as in friends.php or user_connections.php
-$useThreeColumnLayout = true; 
-// If you have a global variable or a way to determine layout, use that.
-// For example, if $currentUser is set by bootstrap.php and used by assets/navigation.php:
-if (!isset($currentUser) && isset($_SESSION['user'])) {
-    $currentUser = $_SESSION['user']; // Make sure $currentUser is available for navigation
-}
-// If assets/navigation.php needs specific variables like $currentPageName, set them.
-$currentPageName = "view_followers";
-
-
+$pageTitle = "People Following " . htmlspecialchars($targetUser['full_name']);
+// $currentPageNav might be needed by navigation.php to highlight the active link
+// $currentPageNav = 'profile'; // Or a more specific identifier
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $pageTitle; ?></title>
+    <title><?= htmlspecialchars($pageTitle) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- Link to your project's main CSS file -->
-    <link href="assets/css/style.css?v=<?php echo time(); ?>" rel="stylesheet"> 
-    <link href="assets/css/dashboard_style.css?v=<?php echo time(); ?>" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="assets/css/dashboard_style.css?v=<?php echo time(); ?>">
     <style>
-        /* Basic styling for follower list - can be moved to a CSS file */
-        .follower-item {
+        /* Styles specific to this page or minor overrides if necessary */
+        .user-list-item {
             display: flex;
             align-items: center;
             margin-bottom: 15px;
             padding: 10px;
-            border: 1px solid #ddd;
+            border: 1px solid #eee;
             border-radius: 8px;
-            background-color: #fff;
+            background-color: #fff; /* White background for items */
         }
-        .follower-item img {
-            width: 60px; /* Slightly larger for better visibility */
-            height: 60px;
+        .user-list-item img {
+            width: 50px; 
+            height: 50px;
             border-radius: 50%;
             margin-right: 15px;
             object-fit: cover;
-            border: 2px solid #eee;
         }
-        .follower-item a {
+        .user-list-item .user-info a {
             font-weight: bold;
             text-decoration: none;
-            color: #333;
+            color: #333; /* Ensuring link color is visible */
         }
-        .follower-item a:hover {
+        .user-list-item .user-info a:hover {
             text-decoration: underline;
-            color: #007bff;
         }
-        .pagination-container {
-            margin-top: 20px;
+        .pagination .page-link {
+            color: #333; 
         }
-        .content-area {
-            background-color: #f8f9fa; /* Light background for the content area */
-            padding: 20px;
-            border-radius: 8px;
+        .pagination .page-item.active .page-link {
+            background-color: #333; 
+            border-color: #333;
+            color: #fff;
         }
-        .profile-link-button {
-            margin-bottom:20px;
+        .dashboard-grid > .main-content .content-area .main-content-column {
+             padding: 20px;
+             background-color: #fff; 
+             border-radius: 8px;
+             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .content-header h3 {
+            margin: 0;
+            font-size: 1.75rem; 
         }
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <?php if ($useThreeColumnLayout): ?>
-                <div class="col-md-3">
-                    <?php include 'assets/navigation.php'; ?>
-                </div>
-                <div class="col-md-6">
-            <?php else: ?>
-                <?php include 'topnav.php'; // Fallback or alternative navigation ?>
-                <div class="col-md-12"> 
-            <?php endif; ?>
-                <!-- Main Content Area -->
-                <main class="content-area">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h1 class="h4">Followers of <?php echo htmlspecialchars($targetUser['full_name']); ?></h1>
-                        <a href="view_profile.php?id=<?php echo $targetUserId; ?>" class="btn btn-outline-primary profile-link-button">
-                            <i class="fas fa-arrow-left"></i> Back to <?php echo htmlspecialchars($targetUser['full_name']); ?>'s Profile
-                        </a>
-                    </div>
+    <div class="dashboard-grid">
+        <?php
+        // It's assumed assets/navigation.php defines its own column class e.g. "left-sidebar"
+        // or is styled by a direct child selector of .dashboard-grid
+        include 'assets/navigation.php';
+        ?>
 
-                    <?php if (empty($followers)): ?>
-                        <div class="alert alert-info text-center">
-                            <?php echo htmlspecialchars($targetUser['full_name']); ?> doesn't have any followers yet.
+        <div class="main-content">
+            <?php include 'topnav.php'; ?>
+            <div class="content-area py-4"> 
+                <div class="container-fluid">
+                    <div class="main-content-column"> 
+                        <div class="content-header">
+                            <h3><?= htmlspecialchars($pageTitle) ?></h3>
+                            <a href="view_profile.php?id=<?= htmlspecialchars($targetUser['id']) ?>" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to <?= htmlspecialchars($targetUser['full_name']) ?>'s Profile
+                            </a>
                         </div>
-                    <?php else: ?>
-                        <div class="list-group">
-                            <?php foreach ($followers as $follower): ?>
-                                <?php
-                                $profilePic = $defaultMalePic; // Default to male
-                                if (!empty($follower['profile_pic'])) {
-                                    $profilePic = 'uploads/profile_pics/' . htmlspecialchars($follower['profile_pic']);
-                                } elseif (isset($follower['gender'])) {
-                                    if ($follower['gender'] === 'Female') {
+
+                        <?php if (empty($followers)): ?>
+                            <p class="text-center mt-4"><?= htmlspecialchars($targetUser['full_name']) ?> doesn't have any followers yet.</p>
+                        <?php else: ?>
+                            <div class="user-list">
+                                <?php foreach ($followers as $follower): ?>
+                                    <?php
+                                    $profilePic = $defaultMalePic;
+                                    if (!empty($follower['profile_pic'])) {
+                                        $profilePic = 'uploads/profile_pics/' . htmlspecialchars($follower['profile_pic']);
+                                    } elseif (isset($follower['gender']) && $follower['gender'] === 'Female') {
                                         $profilePic = $defaultFemalePic;
                                     }
-                                }
-                                ?>
-                                <div class="follower-item">
-                                    <img src="<?php echo $profilePic; ?>" alt="Profile Picture of <?php echo htmlspecialchars($follower['full_name']); ?>">
-                                    <div>
-                                        <a href="view_profile.php?id=<?php echo htmlspecialchars($follower['id']); ?>">
-                                            <?php echo htmlspecialchars($follower['full_name']); ?>
-                                        </a>
-                                        <br>
-                                        <a href="view_profile.php?id=<?php echo htmlspecialchars($follower['id']); ?>" class="btn btn-sm btn-outline-secondary mt-1">
-                                            View Profile
-                                        </a>
+                                    ?>
+                                    <div class="user-list-item">
+                                        <img src="<?= htmlspecialchars($profilePic) ?>" alt="<?= htmlspecialchars($follower['full_name']) ?>'s Profile Picture">
+                                        <div class="user-info">
+                                            <a href="view_profile.php?id=<?= htmlspecialchars($follower['id']) ?>"><?= htmlspecialchars($follower['full_name']) ?></a>
+                                            <br>
+                                            <a href="view_profile.php?id=<?= htmlspecialchars($follower['id']) ?>" class="btn btn-sm btn-outline-dark mt-1">View Profile</a>
+                                        </div>
                                     </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
+                                <?php endforeach; ?>
+                            </div>
 
-                        <!-- Pagination Links -->
-                        <?php if ($totalPages > 1): ?>
-                            <nav aria-label="Page navigation" class="pagination-container d-flex justify-content-center">
-                                <ul class="pagination">
-                                    <?php if ($currentPage > 1): ?>
-                                        <li class="page-item">
-                                            <a class="page-link" href="view_followers.php?user_id=<?php echo $targetUserId; ?>&page=<?php echo $currentPage - 1; ?>">Previous</a>
-                                        </li>
-                                    <?php endif; ?>
-
-                                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                                        <li class="page-item <?php echo ($i == $currentPage) ? 'active' : ''; ?>">
-                                            <a class="page-link" href="view_followers.php?user_id=<?php echo $targetUserId; ?>&page=<?php echo $i; ?>"><?php echo $i; ?></a>
-                                        </li>
-                                    <?php endfor; ?>
-
-                                    <?php if ($currentPage < $totalPages): ?>
-                                        <li class="page-item">
-                                            <a class="page-link" href="view_followers.php?user_id=<?php echo $targetUserId; ?>&page=<?php echo $currentPage + 1; ?>">Next</a>
-                                        </li>
-                                    <?php endif; ?>
-                                </ul>
-                            </nav>
+                            <?php if ($totalPages > 1): ?>
+                                <nav aria-label="Page navigation" class="mt-4 d-flex justify-content-center">
+                                    <ul class="pagination">
+                                        <?php if ($currentPage > 1): ?>
+                                            <li class="page-item"><a class="page-link" href="?user_id=<?= $targetUserId ?>&page=<?= $currentPage - 1 ?>">Previous</a></li>
+                                        <?php endif; ?>
+                                        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                                            <li class="page-item <?= ($i == $currentPage) ? 'active' : '' ?>"><a class="page-link" href="?user_id=<?= $targetUserId ?>&page=<?= $i ?>"><?= $i ?></a></li>
+                                        <?php endfor; ?>
+                                        <?php if ($currentPage < $totalPages): ?>
+                                            <li class="page-item"><a class="page-link" href="?user_id=<?= $targetUserId ?>&page=<?= $currentPage + 1 ?>">Next</a></li>
+                                        <?php endif; ?>
+                                    </ul>
+                                </nav>
+                            <?php endif; ?>
                         <?php endif; ?>
-                    <?php endif; ?>
-                </main>
-            </div> <!-- end main content col -->
-
-            <?php if ($useThreeColumnLayout): ?>
-                <div class="col-md-3">
-                    <?php include 'assets/add_ons_middle_element_html.php'; ?>
-                    <?php include 'assets/add_ons_bottom_element_html.php'; ?>
+                    </div>
                 </div>
-            <?php endif; ?>
+            </div>
+        </div>
 
-        </div> <!-- end row -->
-    </div> <!-- end container-fluid -->
+        <div class="right-sidebar">
+             <?php include_once __DIR__ . "/api/add_ons_middle_element_html.php"; ?>
+             <?php include_once __DIR__ . "/api/add_ons_bottom_element_html.php"; ?>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <?php include 'includes/footer.php'; // Common footer ?>
+    <?php 
+    // include 'includes/footer.php'; // If you have a common footer with JS
+    ?>
 </body>
 </html>
