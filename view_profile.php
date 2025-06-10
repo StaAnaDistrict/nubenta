@@ -37,6 +37,7 @@ if (isset($current['id']) && $current['id'] != $profileId) { // Only check if lo
     $isFollowing = $followManager->isFollowing((int)$current['id'], (string)$profileId, 'user');
 }
 $followerCount = $followManager->getFollowersCount((string)$profileId, 'user');
+$followingCount = $followManager->getFollowingCount((int)$profileId, 'user'); // Added for this task
 // --- End FollowManager Integration ---
 
 /* ---------------------------------------------------
@@ -342,42 +343,41 @@ try {
                     <div class="profile-actions">
                         <div class="action-column">
                             <?php if ($current['id'] !== $profileId): ?>
-                                <button class="btn btn-primary mb-2" onclick="startMessage(<?= $profileId ?>)">Send Message</button>
+                                <button class="btn btn-primary mb-2 w-100" onclick="startMessage(<?= $profileId ?>)">Send Message</button>
                             <?php endif; ?>
                             <?php if ($current['id'] !== $profileId): ?>
                                 <?php if ($friendBtnState === 'add'): ?>
                                     <button id="addFriend"
                                             data-id="<?= $profileId ?>"
-                                            class="btn btn-outline-primary mb-2">Add as Friend</button>
+                                            class="btn btn-outline-primary mb-2 w-100">Add Friend</button>
 
                                 <?php elseif ($friendBtnState === 'pending_sent'): ?>
-                                    <button class="btn btn-secondary mb-2" disabled>Request sent</button>
+                                    <button class="btn btn-secondary mb-2 w-100" disabled>Request Sent</button>
 
                                 <?php elseif ($friendBtnState === 'pending_recv'): ?>
                                     <button id="acceptReq"
                                             data-req="<?= $rel['id'] ?>"
-                                            class="btn btn-primary mb-2">Accept</button>
+                                            class="btn btn-success mb-2 w-100">Accept Request</button>
                                     <button id="declineReq"
                                             data-req="<?= $rel['id'] ?>"
-                                            class="btn btn-outline-secondary mb-2">Decline</button>
+                                            class="btn btn-outline-danger mb-2 w-100">Decline Request</button>
 
                                 <?php elseif ($friendBtnState === 'friends'): ?>
                                     <button id="unfriend"
                                             data-id="<?= $profileId ?>"
-                                            class="btn btn-danger mb-2">Unfriend</button>
+                                            class="btn btn-danger mb-2 w-100">Unfriend</button>
                                 <?php endif; ?>
-
                             <?php endif; ?>
-                            <button class="btn btn-outline-primary mb-2">Refer to Friend</button>
-                            <?php if ($current['id'] !== $profileId): // Only show follow button if not viewing own profile ?>
-                                <?php if ($isFollowing): ?>
-                                    <button id="followButton" data-profile-id="<?= $profileId ?>" class="btn btn-primary mb-2">Following</button>
-                                <?php else: ?>
-                                    <button id="followButton" data-profile-id="<?= $profileId ?>" class="btn btn-outline-primary mb-2">Follow</button>
-                                <?php endif; ?>
+                             <?php if ($current['id'] !== $profileId): // Only show follow button if not viewing own profile ?>
+                                <button id="followButton"
+                                        data-profile-id="<?= $profileId ?>"
+                                        class="btn <?= $isFollowing ? 'btn-secondary' : 'btn-primary' ?> mb-2 w-100">
+                                    <?= $isFollowing ? 'Unfollow' : 'Follow' ?>
+                                </button>
                             <?php endif; ?>
                         </div>
                         <div class="action-column">
+                            <button class="btn btn-outline-primary mb-2 w-100">Refer to Friend</button>
                             <button class="btn btn-outline-primary mb-2" onclick="openWriteTestimonialModal(<?= $profileId ?>)">Add Testimonial</button>
                             <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=photo" class="btn btn-outline-primary mb-2">View Photos</a>
                             <a href="view_user_media.php?id=<?= htmlspecialchars($profileId) ?>&media_type=video" class="btn btn-outline-primary mb-2">View Videos</a>
@@ -519,10 +519,20 @@ try {
 
                             <!-- Follower Count Display START -->
                             <div class="info-line" id="follower-count-section">
-                                <span class="info-label"><i class="fas fa-users me-1"></i>Followers:</span>
-                                <span id="followerCountDisplay"><?= htmlspecialchars($followerCount ?? 0) ?></span>
+                                <a href="view_followers.php?user_id=<?= htmlspecialchars($profileId) ?>" class="text-decoration-none text-dark">
+                                    <span class="info-label"><i class="fas fa-users me-1"></i>Followers:</span>
+                                    <span id="followerCountDisplay" class="fw-bold"><?= htmlspecialchars($followerCount ?? 0) ?></span>
+                                </a>
                             </div>
                             <!-- Follower Count Display END -->
+                            <!-- Following Count Display START -->
+                            <div class="info-line" id="following-count-section">
+                                <a href="view_following.php?user_id=<?= htmlspecialchars($profileId) ?>" class="text-decoration-none text-dark">
+                                    <span class="info-label"><i class="fas fa-user-plus me-1"></i>Following:</span>
+                                    <span id="followingCountDisplay" class="fw-bold"><?= htmlspecialchars($followingCount ?? 0) ?></span>
+                                </a>
+                            </div>
+                            <!-- Following Count Display END -->
                         </div>
                     </div>
                 </div>
@@ -1738,66 +1748,63 @@ function renderPostMediaConstrained(media, isBlurred, postId) { // postId is cru
                 console.log('Clicked inside .profile-actions, target is:', e.target, 'target.id is:', e.target.id); // <-- This is the existing outer log
 
                 if (e.target && e.target.id === 'followButton') {
-                    console.log('[FollowBtn] "followButton" condition met. Event target:', e.target); // Log 1
+                    console.log('[FollowBtn] "followButton" condition met. Event target:', e.target);
                     const button = e.target;
                     const profileId = button.dataset.profileId;
-                    console.log('[FollowBtn] profileId extracted:', profileId, 'Type:', typeof profileId); // Log 2
 
-                    if (!profileId) { // Check if profileId is null, undefined, or empty string
+                    if (!profileId) {
                         console.error('[FollowBtn] Profile ID is missing or empty. Cannot proceed.');
-                        return; // Exit if no profileId
+                        return;
                     }
-                    console.log('[FollowBtn] Profile ID check passed. Attempting to change button state...'); // Log 3
 
-                    const originalButtonText = button.textContent;
-                    console.log('[FollowBtn] Original button text captured:', originalButtonText); // Log 4
-
+                    const originalButtonText = button.textContent.trim();
                     button.disabled = true;
-                    console.log('[FollowBtn] button.disabled set to:', button.disabled); // Log 5
-                    
-                    button.textContent = 'Processing...';
-                    console.log('[FollowBtn] button.textContent set to "Processing..."'); // Log 6
+                    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
 
-                    // This is where the try/catch/finally block for hit() call would start
                     try {
-                        console.log('[FollowBtn] Entering try block for hit() call...'); // Log 7
-                        const responseData = await hit('process_follow.php.php', { followed_id: profileId });
-                        console.log('[FollowBtn] hit() call completed. Response data:', responseData); // Log 8
+                        const formData = new FormData();
+                        formData.append('followed_id', profileId);
+                        formData.append('action', 'toggle');
+
+                        const response = await fetch('api/toggle_follow.php', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const responseData = await response.json();
 
                         if (responseData && responseData.success) {
-                            console.log('[FollowBtn] hit() successful. Updating UI.'); // Log 9
                             if (responseData.isFollowing) {
-                                button.textContent = 'Following';
-                                button.classList.remove('btn-outline-primary');
-                                button.classList.add('btn-primary');
+                                button.textContent = 'Unfollow';
+                                button.classList.remove('btn-primary');
+                                button.classList.add('btn-secondary');
                             } else {
                                 button.textContent = 'Follow';
-                                button.classList.remove('btn-primary');
-                                button.classList.add('btn-outline-primary');
+                                button.classList.remove('btn-secondary');
+                                button.classList.add('btn-primary');
                             }
                             const followerCountDisplay = document.getElementById('followerCountDisplay');
                             if (followerCountDisplay) {
-                                followerCountDisplay.textContent = responseData.followerCount;
+                                followerCountDisplay.textContent = responseData.newFollowersCount;
                             }
-                            console.log('[FollowBtn] UI updated based on response.'); // Log 10
+                            console.log('[FollowBtn] UI updated:', responseData);
                         } else {
-                            console.error('[FollowBtn] Follow/Unfollow action failed on server or bad response:', responseData ? responseData.message : 'No responseData', 'Full response:', responseData); // Log 11
+                            console.error('[FollowBtn] Follow/Unfollow action failed on server:', responseData ? responseData.message : 'No responseData');
                             alert('An error occurred: ' + (responseData && responseData.message ? responseData.message : 'Please try again.'));
-                            button.textContent = originalButtonText; 
+                            button.textContent = originalButtonText;
                         }
                     } catch (error) {
-                        console.error('[FollowBtn] Error during follow/unfollow action (catch block):', error); // Log 12
+                        console.error('[FollowBtn] Error during follow/unfollow AJAX action:', error);
                         alert('A network error occurred. Please check the console and try again.');
-                        button.textContent = originalButtonText; 
+                        button.textContent = originalButtonText;
                     } finally {
-                        console.log('[FollowBtn] Entering finally block. Re-enabling button.'); // Log 13
                         button.disabled = false;
-                        console.log('[FollowBtn] Button disabled state after finally:', button.disabled); // Log 14
+                        // If button text wasn't updated due to error, it's already reset.
+                        // If it was updated, no need to reset to original.
                     }
                 }
             });
         } else {
-            // This console warning is helpful for debugging if '.profile-actions' isn't found
             console.warn("'.profile-actions' container not found. Follow button event listener not attached via delegation.");
         }
     </script>

@@ -145,5 +145,84 @@ class FollowManager {
             return 0;
         }
     }
+
+    /**
+     * Gets a list of users who are following a specific entity.
+     *
+     * @param string $followedEntityId The ID of the entity.
+     * @param string $followedEntityType The type of entity (e.g., 'user'). Defaults to 'user'.
+     * @param int $limit Max number of followers to fetch.
+     * @param int $offset Offset for pagination.
+     * @return array An array of follower user data (id, full_name, profile_pic, gender).
+     */
+    public function getFollowerList(string $followedEntityId, string $followedEntityType = 'user', int $limit = 20, int $offset = 0): array {
+        try {
+            $sql = "
+                SELECT u.id, CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS full_name, u.profile_pic, u.gender
+                FROM follows f
+                JOIN users u ON f.follower_id = u.id
+                WHERE f.followed_entity_id = :followed_entity_id
+                  AND f.followed_entity_type = :followed_entity_type
+                ORDER BY u.first_name ASC, u.last_name ASC
+                LIMIT :limit OFFSET :offset
+            ";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindParam(':followed_entity_id', $followedEntityId, PDO::PARAM_STR);
+            $stmt->bindParam(':followed_entity_type', $followedEntityType, PDO::PARAM_STR);
+            $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+            $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error getting follower list: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Gets a list of entities that a specific user is following.
+     * For now, assumes following 'user' entities.
+     *
+     * @param int $followerId The ID of the user.
+     * @param string $followedEntityType The type of entity being followed (e.g., 'user'). Defaults to 'user'.
+     * @param int $limit Max number of followed entities to fetch.
+     * @param int $offset Offset for pagination.
+     * @return array An array of followed user data (id, full_name, profile_pic, gender).
+     */
+    public function getFollowingList(int $followerId, string $followedEntityType = 'user', int $limit = 20, int $offset = 0): array {
+        try {
+            // This query assumes we are interested in users being followed.
+            // If followedEntityType could be 'page', a more complex query or separate method might be needed
+            // to join with a 'pages' table instead of 'users' table for page details.
+            if ($followedEntityType !== 'user') {
+                // For now, only support fetching list of followed USERS.
+                // Future enhancement: handle 'page' type by joining with a pages table.
+                error_log("getFollowingList currently only supports followedEntityType 'user'");
+                return [];
+            }
+
+            $sql = "
+                SELECT u.id, CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS full_name, u.profile_pic, u.gender
+                FROM follows f
+                JOIN users u ON f.followed_entity_id = u.id
+                WHERE f.follower_id = :follower_id
+                  AND f.followed_entity_type = :followed_entity_type
+                  -- Ensure the followed_entity_id actually refers to a user if type is 'user'
+                  -- This join condition (f.followed_entity_id = u.id) implicitly does this.
+                ORDER BY u.first_name ASC, u.last_name ASC
+                LIMIT :limit OFFSET :offset
+            ";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindParam(':follower_id', $followerId, PDO::PARAM_INT);
+            $stmt->bindParam(':followed_entity_type', $followedEntityType, PDO::PARAM_STR);
+            $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+            $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error getting following list: " . $e->getMessage());
+            return [];
+        }
+    }
 }
 ?>
