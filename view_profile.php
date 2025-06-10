@@ -28,16 +28,30 @@ if(!$u) die('User not found');
 // --- FollowManager Integration ---
 $followManager = new FollowManager($pdo);
 
-$isFollowing = false;
-$followerCount = 0;
+$isFollowing = false; // <--- DELETE THIS LINE
+$followerCount = 0;   // <--- DELETE THIS LINE
 
 // $current is defined earlier, $profileId is also defined.
-// $pdo is available from db.php
+// $pdo is available from db.php (FollowManager should be instantiated already, e.g., $followManager = new FollowManager($pdo);)
+
 if (isset($current['id']) && $current['id'] != $profileId) { // Only check if logged in and not viewing own profile
+
+    // DEBUG LINES TO ADD:
+    error_log("[VIEW_PROFILE_DEBUG] Current User ID (followerId): " . $current['id'] . " (Type: " . gettype($current['id']) . ")");
+    error_log("[VIEW_PROFILE_DEBUG] Profile User ID (followedEntityId): " . $profileId . " (Type: " . gettype($profileId) . ")");
+
     $isFollowing = $followManager->isFollowing((int)$current['id'], (string)$profileId, 'user');
+
+    // DEBUG LINE TO ADD:
+    error_log("[VIEW_PROFILE_DEBUG] Result of isFollowing() on page load: " . ($isFollowing ? 'true' : 'false'));
+
+} else {
+    // It's good practice to ensure $isFollowing is defined for all paths
+    // though the button won't be shown if $current['id'] == $profileId
+    $isFollowing = false;
 }
+// This line correctly gets the follower count
 $followerCount = $followManager->getFollowersCount((string)$profileId, 'user');
-$followingCount = $followManager->getFollowingCount((int)$profileId, 'user'); // Added for this task
 // --- End FollowManager Integration ---
 
 /* ---------------------------------------------------
@@ -64,9 +78,9 @@ $followingCount = $followManager->getFollowingCount((int)$profileId, 'user'); //
 
 
 // simple follower / friend counts (dummy until wired)
-$followerCount = 0;      // placeholder
+// $followerCount = 0;      // placeholder
 $friendStatus  = 'none'; // placeholder
-$isFollowing   = false;  // placeholder
+// $isFollowing   = false;  // placeholder
 // $followerCount and $isFollowing are now handled by FollowManager integration above.
 
 // Get user's albums for Media Gallery section
