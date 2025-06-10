@@ -2,10 +2,11 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once 'bootstrap.php'; // For DB connection, session, and utilities
+// bootstrap.php should handle session_start() if it has the conditional check
+// if (session_status() === PHP_SESSION_NONE) {
+//     session_start();
+// }
+require_once 'bootstrap.php';
 require_once 'includes/FollowManager.php';
 
 if (!isset($_SESSION['user'])) {
@@ -13,9 +14,13 @@ if (!isset($_SESSION['user'])) {
     exit();
 }
 
-$user = $_SESSION['user'];
-$current_user = $_SESSION['user'];
-$my_id = $user['id'];
+// Ensure $user and $current_user are available for included files like navigation.php
+if (isset($_SESSION['user'])) {
+    $user = $_SESSION['user'];
+    $current_user = $_SESSION['user'];
+    $my_id = $user['id'];
+}
+
 
 $targetUserId = filter_input(INPUT_GET, 'user_id', FILTER_VALIDATE_INT);
 
@@ -39,11 +44,10 @@ try {
 }
 
 $pageTitle = htmlspecialchars($targetUser['full_name']) . " is Following";
-
 $followManager = new FollowManager($pdo);
 
 // Pagination settings
-$limit = 20; 
+$limit = 18; // Adjusted for potentially 3 cards per row
 $currentPage = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
 $offset = ($currentPage - 1) * $limit;
 
@@ -67,30 +71,32 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="assets/css/dashboard_style.css?v=<?php echo time(); ?>">
     <style>
-        .user-list-item {
+        .user-card-item { /* Reflects card nature */
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 15px;
-            margin-bottom: 15px;
             background: white;
             display: flex;
-            align-items: center; 
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            height: 100%;
+            margin-bottom: 15px;
         }
-        .user-list-item img {
-            width: 60px;
-            height: 60px;
-            border-radius: 8px;
+        .user-card-item img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
             object-fit: cover;
-            margin-right: 15px;
+            margin-bottom: 10px;
         }
-        .user-list-item .user-info h5 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
-            line-height: 1.4;
+        .user-card-item .user-info h5 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
         }
-        .user-list-item .user-info .btn {
-            padding: 4px 12px;
-            font-size: 13px;
+        .user-card-item .user-info .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: .875rem;
         }
         .user-name-link {
             color: #1a1a1a;
@@ -113,9 +119,16 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
             margin: 0;
             color: #1a1a1a;
             font-weight: bold;
+            font-size: 1.75rem;
         }
         .pagination-container {
             margin-top: 20px;
+        }
+         .dashboard-grid > .main-content .main-content-column { /* Adjusted selector for clarity */
+             padding: 20px;
+             background-color: #fff;
+             border-radius: 8px;
+             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
     </style>
 </head>
@@ -129,68 +142,72 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
         <main class="main-content">
             <?php include 'topnav.php'; ?>
-            <div class="container-fluid mt-3">
-                <div class="page-header-flex">
-                    <h2 class="h4"><?= htmlspecialchars($pageTitle) ?></h2>
-                    <a href="view_profile.php?id=<?= htmlspecialchars($targetUser['id']) ?>" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to <?= htmlspecialchars($targetUser['full_name']) ?>'s Profile
-                    </a>
-                </div>
-
-                <?php if (empty($followingList)): ?>
-                    <div class="alert alert-info text-center">
-                        <?= htmlspecialchars($targetUser['full_name']) ?> is not following anyone yet.
+            <div class="container-fluid mt-3"> <!-- Added container-fluid & mt-3 for padding -->
+                <div class="main-content-column"> <!-- Added this wrapper -->
+                    <div class="page-header-flex">
+                        <h2 class="h4"><?= htmlspecialchars($pageTitle) ?></h2>
+                        <a href="view_profile.php?id=<?= htmlspecialchars($targetUser['id']) ?>" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to <?= htmlspecialchars($targetUser['full_name']) ?>'s Profile
+                        </a>
                     </div>
-                <?php else: ?>
-                    <div class="user-list-container">
-                        <?php foreach ($followingList as $followedUser): ?>
-                            <?php
-                            $profilePic = $defaultMalePic;
-                            if (!empty($followedUser['profile_pic'])) {
-                                $profilePic = 'uploads/profile_pics/' . htmlspecialchars($followedUser['profile_pic']);
-                            } elseif (isset($followedUser['gender']) && $followedUser['gender'] === 'Female') {
-                                $profilePic = $defaultFemalePic;
-                            }
-                            ?>
-                            <div class="user-list-item">
-                                <img src="<?= htmlspecialchars($profilePic) ?>" alt="Profile Picture of <?= htmlspecialchars($followedUser['full_name']) ?>">
-                                <div class="user-info flex-grow-1">
-                                    <h5>
-                                        <a href="view_profile.php?id=<?= htmlspecialchars($followedUser['id']) ?>" class="user-name-link">
-                                            <?= htmlspecialchars($followedUser['full_name']) ?>
-                                        </a>
-                                    </h5>
-                                    <a href="view_profile.php?id=<?= htmlspecialchars($followedUser['id']) ?>" class="btn btn-sm btn-outline-primary">
-                                        View Profile
-                                    </a>
+
+                    <?php if (empty($followingList)): ?>
+                        <div class="alert alert-info text-center">
+                            <?= htmlspecialchars($targetUser['full_name']) ?> is not following anyone yet.
+                        </div>
+                    <?php else: ?>
+                        <div class="row"> <!-- Bootstrap Row for card layout -->
+                            <?php foreach ($followingList as $followedUser): ?>
+                                <div class="col-sm-12 col-md-6 col-lg-4"> <!-- Bootstrap Columns -->
+                                    <?php
+                                    $profilePic = $defaultMalePic;
+                                    if (!empty($followedUser['profile_pic'])) {
+                                        $profilePic = 'uploads/profile_pics/' . htmlspecialchars($followedUser['profile_pic']);
+                                    } elseif (isset($followedUser['gender']) && $followedUser['gender'] === 'Female') {
+                                        $profilePic = $defaultFemalePic;
+                                    }
+                                    ?>
+                                    <div class="user-card-item">
+                                        <img src="<?= htmlspecialchars($profilePic) ?>" alt="Profile Picture of <?= htmlspecialchars($followedUser['full_name']) ?>">
+                                        <div class="user-info flex-grow-1">
+                                            <h5>
+                                                <a href="view_profile.php?id=<?= htmlspecialchars($followedUser['id']) ?>" class="user-name-link">
+                                                    <?= htmlspecialchars($followedUser['full_name']) ?>
+                                                </a>
+                                            </h5>
+                                            <a href="view_profile.php?id=<?= htmlspecialchars($followedUser['id']) ?>" class="btn btn-sm btn-outline-primary">
+                                                View Profile
+                                            </a>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
+                            <?php endforeach; ?>
+                        </div> <!-- End Bootstrap Row -->
 
-                    <?php if ($totalPages > 1): ?>
-                        <nav aria-label="Page navigation" class="pagination-container d-flex justify-content-center">
-                            <ul class="pagination">
-                                <?php if ($currentPage > 1): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="view_following.php?user_id=<?= $targetUserId ?>&page=<?= $currentPage - 1 ?>">Previous</a>
-                                    </li>
-                                <?php endif; ?>
-                                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
-                                    <li class="page-item <?= ($i == $currentPage) ? 'active' : '' ?>">
-                                        <a class="page-link" href="view_following.php?user_id=<?= $targetUserId ?>&page=<?= $i ?>"><?= $i ?></a>
-                                    </li>
-                                <?php endfor; ?>
-                                <?php if ($currentPage < $totalPages): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="view_following.php?user_id=<?= $targetUserId ?>&page=<?= $currentPage + 1 ?>">Next</a>
-                                    </li>
-                                <?php endif; ?>
-                            </ul>
-                        </nav>
+                        <?php if ($totalPages > 1): ?>
+                            <nav aria-label="Page navigation" class="pagination-container d-flex justify-content-center">
+                                <ul class="pagination">
+                                    <?php if ($currentPage > 1): ?>
+                                        <li class="page-item">
+                                            <a class="page-link" href="view_following.php?user_id=<?= $targetUserId ?>&page=<?= $currentPage - 1 ?>">Previous</a>
+                                        </li>
+                                    <?php endif; ?>
+                                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                                        <li class="page-item <?= ($i == $currentPage) ? 'active' : '' ?>">
+                                            <a class="page-link" href="view_following.php?user_id=<?= $targetUserId ?>&page=<?= $i ?>"><?= $i ?></a>
+                                        </li>
+                                    <?php endfor; ?>
+                                    <?php if ($currentPage < $totalPages): ?>
+                                        <li class="page-item">
+                                            <a class="page-link" href="view_following.php?user_id=<?= $targetUserId ?>&page=<?= $currentPage + 1 ?>">Next</a>
+                                        </li>
+                                    <?php endif; ?>
+                                </ul>
+                            </nav>
+                        <?php endif; ?>
                     <?php endif; ?>
-                <?php endif; ?>
-            </div> 
+                </div>
+            </div>
         </main>
 
         <?php
@@ -202,7 +219,7 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
     <script>
         function toggleSidebar() {
             const sidebar = document.querySelector('.left-sidebar');
-            sidebar.classList.toggle('show'); 
+            sidebar.classList.toggle('show');
         }
         document.addEventListener('click', function(event) {
             const sidebar = document.querySelector('.left-sidebar');
