@@ -18,6 +18,7 @@ This file is used to record feedback and validation of implemented features.
 *   **2025-06-08 - Update:** Addressed an issue in `view_profile.php` where the initial follow status button and follower count were displayed incorrectly due to variable overwriting. Details of the fix are in `CHANGELOG.md`.
 *   **2025-06-08 - Testing Completion:** All planned user-to-user "Follow Account" features (database, profile UI for follow/unfollow and counts, newsfeed integration) have been tested and are confirmed to be working. See `CHANGELOG.md` for details.
 *   **2025-06-10 - `view_profile.php` Fixes:** Resolved issues with the initial display of the Follow/Unfollow button, "Followers" count, and "Following" count on `view_profile.php`. These elements now accurately reflect data on page load. Details in `CHANGELOG.md`.
+*   **2025-06-10 - `view_profile.php` Styling:** Adjusted the display of Follower and Following counts to appear on a single line for an improved layout. Confirmed working by user. Details in `CHANGELOG.md`.
 
 ### Follower/Following List Pages (2025-06-08):
 *   **New Features:**
