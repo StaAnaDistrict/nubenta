@@ -327,62 +327,118 @@ try {
     $testimonial_stmt->execute();
     $testimonial_activities = $testimonial_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // The rest of your script (Combine and format all activities, usort, slice, json_encode) should follow here...
-    // Make sure the formatting loop correctly uses the new/consistent aliases like 'actor_name', 'post_id_for_activity', etc.
-    // and that it correctly populates the fields needed by the updated renderActivityItem JavaScript.
-
     // Combine and format all activities
     $all_activities = [];
+    $defaultMalePic_path = '../assets/images/MaleDefaultProfilePicture.png'; // Relative to current api folder
+    $defaultFemalePic_path = '../assets/images/FemaleDefaultProfilePicture.png'; // Relative to current api folder
 
-    // Format friend activities (post comments & reactions by friends, and on friends' posts)
-    // This now processes results from the $activity_stmt which includes all 4 post-related UNIONed queries
+    // Process $friend_activities (which now contains all 4 post-related types)
     foreach ($friend_activities as $activity) {
-        $profilePic = $defaultMalePic; // Define default before using
-        if (!empty($activity['actor_profile_pic'])) { // Use new alias
-            $profilePic = 'uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic']);
-        } elseif (isset($activity['actor_gender']) && $activity['actor_gender'] === 'Female') { // Assuming actor_gender might be available
-            $profilePic = $defaultFemalePic;
-        }
-        // Note: The original $friend_activities query might not have selected actor_gender.
-        // If actor_profile_pic is NULL and gender isn't available for the 'actor',
-        // it will default to $defaultMalePic. This might need refinement if gender of actor is consistently needed.
+        $actorProfilePic = $activity['actor_profile_pic']
+            ? '../uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic'])
+            : (isset($activity['actor_gender']) && $activity['actor_gender'] === 'Female' ? $defaultFemalePic_path : $defaultMalePic_path);
 
         $item = [
             'type' => $activity['activity_type'],
-            'actor_name' => $activity['actor_name'],
-            'actor_profile_pic' => $profilePic,
+            'actor_name' => $activity['actor_name'] ?? 'Unknown User', // Fallback
+            'actor_profile_pic' => $actorProfilePic,
             'actor_user_id' => $activity['actor_user_id'],
             'activity_time' => $activity['activity_time'],
             'timestamp' => strtotime($activity['activity_time'])
         ];
 
         // Fields specific to post-related activities
-        if (in_array($activity['activity_type'], ['comment', 'reaction_on_friend_post', 'comment_on_friend_post', 'reaction_to_friend_post'])) {
-            $item['post_id_for_activity'] = $activity['post_id_for_activity'];
-            $item['post_content_preview'] = $activity['post_content_preview'];
-            $item['post_author_name'] = $activity['post_author_name'];
-            $item['post_author_id'] = $activity['post_author_id'];
-            $item['comment_id'] = $activity['comment_id']; // Will be NULL for reactions
-            $item['reaction_type'] = $activity['reaction_type']; // Will be NULL for comments
-        }
+        // These keys should be consistently aliased in all 4 UNIONed SELECTs for $activity_stmt
+        $item['post_id_for_activity'] = $activity['post_id_for_activity'] ?? null;
+        $item['post_content_preview'] = $activity['post_content_preview'] ?? null;
+        $item['post_author_name'] = $activity['post_author_name'] ?? 'A post'; // Fallback
+        $item['post_author_id'] = $activity['post_author_id'] ?? null;
+        $item['comment_id'] = $activity['comment_id'] ?? null;
+        $item['reaction_type'] = $activity['reaction_type'] ?? null;
 
-        // Fields specific to "on friend's post" activities
+        // Fields specific to "on friend's post" or "by friend" activities, ensure JS compatibility
         if (in_array($activity['activity_type'], ['comment_on_friend_post', 'reaction_to_friend_post'])) {
-            $item['target_friend_user_id'] = $activity['target_friend_user_id'];
-            $item['target_friend_name'] = $activity['target_friend_name'];
+            $item['target_friend_user_id'] = $activity['target_friend_user_id'] ?? null;
+            $item['target_friend_name'] = $activity['target_friend_name'] ?? 'a friend'; // Fallback
+        } else if (in_array($activity['activity_type'], ['comment', 'reaction_on_friend_post'])) {
+            // For original JS compatibility if it used friend_name/friend_user_id for the actor
+            $item['friend_name'] = $activity['actor_name'] ?? 'Unknown User';
+            $item['friend_user_id'] = $activity['actor_user_id'];
+            // The JS also expects activity.post_author for these types
+            // activity.post_author was originally $activity['author_name'] from the old query for these types
+            // It's now $activity['post_author_name'] from the new SQL.
+            // The JS renderActivityItem already uses activity.post_author for these, so we need to ensure it's mapped.
+            // Let's ensure the JS uses post_author_name for consistency or map it here.
+            // The JS I provided uses activity.post_author. Let's map it:
+            $item['post_author'] = $activity['post_author_name'] ?? 'A post';
+            $item['post_id'] = $activity['post_id_for_activity'] ?? null; // For JS compatibility
         }
-        
-        // For original 'comment' and 'reaction_on_friend_post', map old expected JS keys if necessary,
-        // though the JS should ideally use actor_name, actor_user_id now.
-        // For compatibility if JS wasn't fully updated for these two specific original types:
-        if ($activity['activity_type'] === 'comment' || $activity['activity_type'] === 'reaction_on_friend_post') {
-            $item['friend_name'] = $activity['actor_name']; // Map to old key if JS expects it
-            $item['friend_user_id'] = $activity['actor_user_id']; // Map to old key
-            $item['post_id'] = $activity['post_id_for_activity']; // Map to old key
-            // 'post_author' key was already used for post_author_name in original $friend_activities processing
+        $all_activities[] = $item;
+    }
+
+    // Format social activities
+    foreach ($social_activities as $activity) {
+        $actorProfilePic = $activity['actor_profile_pic']
+            ? '../uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic'])
+            : (isset($activity['actor_gender']) && $activity['actor_gender'] === 'Female' ? $defaultFemalePic_path : $defaultMalePic_path);
+        // Note: actor_gender might not be selected in social_sql, add if needed for accurate default pic
+
+        $item = [
+            'type' => $activity['activity_type'],
+            'actor_name' => $activity['actor_name'] ?? 'Someone', // Fallback from SQL alias
+            'actor_profile_pic' => $actorProfilePic,
+            'actor_user_id' => $activity['actor_user_id'], // Fallback from SQL alias
+            'activity_time' => $activity['activity_time'],
+            'timestamp' => strtotime($activity['activity_time']),
+            'other_friend_name' => $activity['other_friend_name'] ?? null,
+            'other_friend_user_id' => $activity['other_friend_user_id'] ?? null,
+            'activity_id' => $activity['activity_id'] ?? null,
+            'extra_info' => $activity['extra_info'] ?? null
+        ];
+        // For JS compatibility for friend_request if it expects friend_name etc.
+        if($activity['activity_type'] === 'friend_request'){
+            $item['friend_name'] = $item['actor_name'];
+            $item['friend_user_id'] = $item['actor_user_id'];
         }
+        if($activity['activity_type'] === 'friend_connection'){
+             $item['friend_name'] = $item['actor_name']; // Friend 1
+             $item['friend_user_id'] = $item['actor_user_id'];
+        }
+        $all_activities[] = $item;
+    }
 
+    // Format testimonial activities
+    foreach ($testimonial_activities as $activity) {
+        $actorProfilePic = $activity['actor_profile_pic']
+            ? '../uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic'])
+            : (isset($activity['actor_gender']) && $activity['actor_gender'] === 'Female' ? $defaultFemalePic_path : $defaultMalePic_path);
+        // Note: actor_gender might not be selected in testimonial_sql
 
+        $item = [
+            'type' => $activity['activity_type'],
+            'activity_time' => $activity['activity_time'],
+            'timestamp' => strtotime($activity['activity_time']),
+            'testimonial_id' => $activity['testimonial_id'],
+            'content' => $activity['testimonial_content'], // From SQL alias
+            'rating' => $activity['testimonial_rating'],   // From SQL alias
+
+            'actor_name' => $activity['actor_name'] ?? 'Unknown', // From SQL alias
+            'actor_user_id' => $activity['actor_user_id'], // From SQL alias
+            'actor_profile_pic' => $actorProfilePic,
+        ];
+
+        // For JS compatibility and clarity
+        if ($activity['activity_type'] === 'testimonial_written') {
+            $item['writer_name'] = $activity['actor_name'] ?? 'Unknown User';
+            $item['writer_id'] = $activity['actor_user_id'];
+            $item['recipient_name'] = $activity['target_friend_name'] ?? 'Someone'; // From SQL alias
+            $item['recipient_id'] = $activity['target_friend_user_id'];
+        } elseif ($activity['activity_type'] === 'testimonial_received') {
+            $item['writer_name'] = $activity['actual_writer_name'] ?? 'Someone'; // From SQL alias
+            $item['writer_id'] = $activity['actual_writer_id']; // From SQL alias
+            $item['recipient_name'] = $activity['actor_name'] ?? 'Unknown User';
+            $item['recipient_id'] = $activity['actor_user_id'];
+        }
         $all_activities[] = $item;
     }
 
