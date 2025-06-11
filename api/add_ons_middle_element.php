@@ -30,24 +30,24 @@ try {
     -- 1. Friend comments on any public post
     SELECT DISTINCT
            p.id as post_id_for_activity,
-           LEFT(p.content, 100) as post_content_preview, 
+           LEFT(p.content, 100) as post_content_preview,
            CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
            pa.id as post_author_id,
-           'comment' as activity_type, 
+           'comment' as activity_type,
            CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
            actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
            c.created_at as activity_time,
-           c.id as event_id, 
+           c.id as event_id,
            NULL as reaction_type,
            actor.id as actor_user_id,
-           NULL as target_friend_user_id, 
+           NULL as target_friend_user_id,
            NULL as target_friend_name,
            NULL as other_friend_name, NULL as other_friend_user_id,
            NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
            NULL as actual_writer_name, NULL as actual_writer_id,
            NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id,
-           NULL as comment_content -- Added for consistency
+           NULL as media_id, NULL as media_type, NULL as album_id, -- Added media_type, album_id
+           c.content as comment_content
     FROM posts p
     JOIN users pa ON p.user_id = pa.id
     JOIN comments c ON p.id = c.post_id
@@ -68,11 +68,11 @@ UNION ALL
            LEFT(p.content, 100) as post_content_preview,
            CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
            pa.id as post_author_id,
-           'reaction_on_friend_post' as activity_type, 
+           'reaction_on_friend_post' as activity_type,
            CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
            actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
            pr.created_at as activity_time,
-           pr.id as event_id, 
+           pr.id as event_id,
            pr.reaction_type as reaction_type,
            actor.id as actor_user_id,
            NULL as target_friend_user_id,
@@ -81,8 +81,8 @@ UNION ALL
            NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
            NULL as actual_writer_name, NULL as actual_writer_id,
            NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id,
-           NULL as comment_content -- Added
+           NULL as media_id, NULL as media_type, NULL as album_id, -- Added
+           NULL as comment_content
     FROM posts p
     JOIN users pa ON p.user_id = pa.id
     JOIN post_reactions pr ON p.id = pr.post_id
@@ -101,13 +101,13 @@ UNION ALL
     SELECT DISTINCT
            p.id as post_id_for_activity,
            LEFT(p.content, 100) as post_content_preview,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
-           pa.id as post_author_id, 
-           'comment_on_friend_post' as activity_type, 
+           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
+           pa.id as post_author_id,
+           'comment_on_friend_post' as activity_type,
            CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
            actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
            c.created_at as activity_time,
-           c.id as event_id, 
+           c.id as event_id,
            NULL as reaction_type,
            actor.id as actor_user_id,
            pa.id as target_friend_user_id,
@@ -116,18 +116,18 @@ UNION ALL
            NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
            NULL as actual_writer_name, NULL as actual_writer_id,
            NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id,
-           c.content as comment_content -- Added
+           NULL as media_id, NULL as media_type, NULL as album_id, -- Added
+           c.content as comment_content
     FROM posts p
-    JOIN users pa ON p.user_id = pa.id 
+    JOIN users pa ON p.user_id = pa.id
     JOIN comments c ON p.id = c.post_id
-    JOIN users actor ON c.user_id = actor.id 
+    JOIN users actor ON c.user_id = actor.id
     WHERE p.visibility = 'public'
-      AND p.user_id IN ( 
+      AND p.user_id IN (
         SELECT CASE WHEN sender_id = :user_id9 THEN receiver_id ELSE sender_id END
         FROM friend_requests WHERE (sender_id = :user_id10 OR receiver_id = :user_id11) AND status = 'accepted'
       )
-      AND c.user_id != :user_id12 
+      AND c.user_id != :user_id12
       AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
 )
 UNION ALL
@@ -136,13 +136,13 @@ UNION ALL
     SELECT DISTINCT
            p.id as post_id_for_activity,
            LEFT(p.content, 100) as post_content_preview,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
+           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
            pa.id as post_author_id,
-           'reaction_to_friend_post' as activity_type, 
+           'reaction_to_friend_post' as activity_type,
            CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
            actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
            pr.created_at as activity_time,
-           pr.id as event_id, 
+           pr.id as event_id,
            pr.reaction_type as reaction_type,
            actor.id as actor_user_id,
            pa.id as target_friend_user_id,
@@ -151,18 +151,18 @@ UNION ALL
            NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
            NULL as actual_writer_name, NULL as actual_writer_id,
            NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id,
-           NULL as comment_content -- Added
+           NULL as media_id, NULL as media_type, NULL as album_id, -- Added
+           NULL as comment_content
     FROM posts p
-    JOIN users pa ON p.user_id = pa.id 
+    JOIN users pa ON p.user_id = pa.id
     JOIN post_reactions pr ON p.id = pr.post_id
-    JOIN users actor ON pr.user_id = actor.id 
+    JOIN users actor ON pr.user_id = actor.id
     WHERE p.visibility = 'public'
-      AND p.user_id IN ( 
+      AND p.user_id IN (
         SELECT CASE WHEN sender_id = :user_id13 THEN receiver_id ELSE sender_id END
         FROM friend_requests WHERE (sender_id = :user_id14 OR receiver_id = :user_id15) AND status = 'accepted'
       )
-      AND pr.user_id != :user_id16 
+      AND pr.user_id != :user_id16
       AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
 )
 UNION ALL
@@ -187,6 +187,8 @@ UNION ALL
            NULL as actual_writer_name, NULL as actual_writer_id,
            NULL as activity_id_social, NULL as extra_info,
            mc.media_id as media_id,
+           um.media_type as media_type, 
+           um.album_id as album_id,     -- <<< COMMA WAS MISSING AFTER THIS LINE
            mc.content as comment_content -- Media comment content
     FROM media_comments mc
     JOIN users commenter ON mc.user_id = commenter.id
@@ -199,7 +201,7 @@ UNION ALL
         FROM friend_requests WHERE (sender_id = :user_id18 OR receiver_id = :user_id19) AND status = 'accepted'
       )
       AND mc.user_id != :user_id20 
-      AND mc.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      AND mc.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY
 )
 UNION ALL
 (
@@ -207,39 +209,41 @@ UNION ALL
     SELECT DISTINCT
            p.id as post_id_for_activity,
            LEFT(p.content, 100) as post_content_preview,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
+           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
            pa.id as post_author_id,
-           'reaction_to_friend_post' as activity_type, 
-           CONCAT_WS(' ', reactor.first_name, reactor.middle_name, reactor.last_name) as actor_name, 
+           'reaction_to_friend_post' as activity_type,
+           CONCAT_WS(' ', reactor.first_name, reactor.middle_name, reactor.last_name) as actor_name,
            reactor.profile_pic as actor_profile_pic, reactor.gender as actor_gender,
            mr.created_at as activity_time,
-           mr.reaction_id as event_id, 
-           rt.name as reaction_type, 
-           reactor.id as actor_user_id, 
-           pa.id as target_friend_user_id, 
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as target_friend_name, 
+           mr.reaction_id as event_id,
+           rt.name as reaction_type,
+           reactor.id as actor_user_id,
+           pa.id as target_friend_user_id,
+           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as target_friend_name,
            NULL as other_friend_name, NULL as other_friend_user_id,
            NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
            NULL as actual_writer_name, NULL as actual_writer_id,
            NULL as activity_id_social, NULL as extra_info,
            mr.media_id as media_id,
-           NULL as comment_content -- Added
+           um.media_type as media_type, -- Fetched media_type
+           um.album_id as album_id,     -- Fetched album_id
+           NULL as comment_content
     FROM media_reactions mr
     JOIN users reactor ON mr.user_id = reactor.id
-    JOIN reaction_types rt ON mr.reaction_type_id = rt.reaction_type_id 
-    JOIN user_media um ON mr.media_id = um.id 
+    JOIN reaction_types rt ON mr.reaction_type_id = rt.reaction_type_id
+    JOIN user_media um ON mr.media_id = um.id
     JOIN posts p ON um.post_id = p.id
-    JOIN users pa ON p.user_id = pa.id 
+    JOIN users pa ON p.user_id = pa.id
     WHERE p.visibility = 'public'
-      AND p.user_id IN ( 
+      AND p.user_id IN (
         SELECT CASE WHEN sender_id = :user_id21 THEN receiver_id ELSE sender_id END
         FROM friend_requests WHERE (sender_id = :user_id22 OR receiver_id = :user_id23) AND status = 'accepted'
       )
-      AND mr.user_id != :user_id24 
+      AND mr.user_id != :user_id24
       AND mr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
 )
-ORDER BY activity_time DESC 
-LIMIT 30 
+ORDER BY activity_time DESC
+LIMIT 30
 "; // End of $activity_sql string
     $activity_stmt = $pdo->prepare($activity_sql);
 
@@ -271,6 +275,8 @@ LIMIT 30
                    NULL as target_friend_user_id, NULL as target_friend_name,
                    NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
                    NULL as actual_writer_name, NULL as actual_writer_id
+                    NULL as media_type, NULL as album_id, NULL as comment_content 
+                    
             FROM friend_requests fr
             JOIN users u ON (u.id = CASE WHEN fr.sender_id = :user_id_s1 THEN fr.receiver_id ELSE fr.sender_id END)
             WHERE (fr.sender_id = :user_id_s2 OR fr.receiver_id = :user_id_s3)
@@ -293,6 +299,7 @@ LIMIT 30
                    NULL as target_friend_user_id, NULL as target_friend_name,
                    NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
                    NULL as actual_writer_name, NULL as actual_writer_id
+                   NULL as media_type, NULL as album_id, NULL as comment_content 
             FROM friend_requests fr
             JOIN users friend1 ON friend1.id = fr.sender_id
             JOIN users friend2 ON friend2.id = fr.receiver_id
@@ -339,6 +346,8 @@ LIMIT 30
                    NULL as other_friend_name, NULL as other_friend_user_id,
                    NULL as actual_writer_name, NULL as actual_writer_id, -- Not needed here, actor is writer
                    NULL as activity_id_social, NULL as extra_info
+                   NULL as media_type, NULL as album_id, mc.content as comment_content
+                   NULL as media_type, NULL as album_id, NULL as comment_content
             FROM testimonials t
             JOIN users writer ON t.writer_user_id = writer.id
             JOIN users recipient ON t.recipient_user_id = recipient.id
@@ -366,6 +375,7 @@ LIMIT 30
                    NULL as target_friend_user_id, NULL as target_friend_name, 
                    NULL as other_friend_name, NULL as other_friend_user_id,
                    NULL as activity_id_social, NULL as extra_info
+                   NULL as media_type, NULL as album_id, NULL as comment_content
             FROM testimonials t
             JOIN users tw ON t.writer_user_id = tw.id 
             JOIN users recipient ON t.recipient_user_id = recipient.id
