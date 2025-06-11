@@ -55,28 +55,30 @@ try {
         (
             -- 2. Friend reactions on any public post
             SELECT DISTINCT posts.*,
-                   CONCAT_WS(' ', post_author.first_name, post_author.middle_name, post_author.last_name) as author_name,
-                   post_author.profile_pic,
-                   post_author.id as author_id,
-                   'reaction_on_friend_post' as activity_type,
-                   CONCAT_WS(' ', reactor.first_name, reactor.middle_name, reactor.last_name) as friend_name,
-                   reactor.profile_pic as friend_profile_pic,
-                   pr.created_at as activity_time,
-                   NULL as comment_id,
-                   NULL as media_id,
-                   pr.reaction_type as reaction_type,
-                   reactor.id as friend_user_id
+                CONCAT_WS(' ', post_author.first_name, post_author.middle_name, post_author.last_name) as author_name,
+                post_author.profile_pic,
+                post_author.id as author_id,
+                'reaction_on_friend_post' as activity_type,
+                CONCAT_WS(' ', reactor.first_name, reactor.middle_name, reactor.last_name) as friend_name,
+                reactor.profile_pic as friend_profile_pic,
+                pr.created_at as activity_time,
+                NULL as comment_id,
+                NULL as media_id,
+                rt.name as reaction_type, -- <<< CORRECTED: Joined to get reaction_types.name
+                                            -- You can use rt.emoji_code if you prefer the emoji
+                reactor.id as friend_user_id
             FROM posts
             JOIN users post_author ON posts.user_id = post_author.id
             JOIN post_reactions pr ON posts.id = pr.post_id
             JOIN users reactor ON pr.user_id = reactor.id
+            JOIN reaction_types rt ON pr.reaction_type_id = rt.reaction_type_id -- <<< ADDED JOIN
             WHERE posts.visibility = 'public'
-              AND pr.user_id IN (
+            AND pr.user_id IN (
                 SELECT CASE WHEN sender_id = :user_id6 THEN receiver_id WHEN receiver_id = :user_id7 THEN sender_id END
                 FROM friend_requests WHERE (sender_id = :user_id8 OR receiver_id = :user_id9) AND status = 'accepted'
-              )
-              AND pr.user_id != :user_id10
-              AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            )
+            AND pr.user_id != :user_id10 -- Make sure this parameter index matches your sequence
+            AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         )
 
         ORDER BY activity_time DESC
