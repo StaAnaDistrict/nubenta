@@ -237,10 +237,10 @@ LIMIT 30
 "; // End of $activity_sql string
 
 // IMPORTANT: The parameter binding loop should still be for :user_id1 through :user_id24
-// $activity_param_count = 24; // Make sure this count is correct for your final query
-// for ($i = 1; $i <= $activity_param_count; $i++) {
-//     $activity_stmt->bindParam(":user_id$i", $user_id, PDO::PARAM_INT);
-// }
+    $activity_param_count = 24; // Make sure this count is correct for your final query
+    for ($i = 1; $i <= $activity_param_count; $i++) {
+    $activity_stmt->bindParam(":user_id$i", $user_id, PDO::PARAM_INT);
+  }
 // (The existing loop `for ($i = 1; $i <= 16; $i++)` will need to be updated to $i <= 24)
     $activity_stmt->execute();
     $post_related_activities = $activity_stmt->fetchAll(PDO::FETCH_ASSOC); // Renamed for clarity
