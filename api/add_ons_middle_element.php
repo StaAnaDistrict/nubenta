@@ -53,35 +53,91 @@ try {
         UNION ALL
 
         (
-    -- 2. Friend reactions on any public post
-    SELECT DISTINCT posts.*,
-           CONCAT_WS(' ', post_author.first_name, post_author.middle_name, post_author.last_name) as author_name,
-           post_author.profile_pic,
-           post_author.id as author_id,
-           'reaction_on_friend_post' as activity_type,
-           CONCAT_WS(' ', reactor.first_name, reactor.middle_name, reactor.last_name) as friend_name,
-           reactor.profile_pic as friend_profile_pic,
-           pr.created_at as activity_time,
-           NULL as comment_id,
-           NULL as media_id,
-           pr.reaction_type as reaction_type, -- <<< CORRECTED: Select directly from post_reactions
-           reactor.id as friend_user_id
-    FROM posts
-    JOIN users post_author ON posts.user_id = post_author.id
-    JOIN post_reactions pr ON posts.id = pr.post_id
-    JOIN users reactor ON pr.user_id = reactor.id
-    -- REMOVED: JOIN reaction_types rt ON pr.reaction_type_id = rt.reaction_type_id
-    WHERE posts.visibility = 'public'
-      AND pr.user_id IN (
-        SELECT CASE WHEN sender_id = :user_id6 THEN receiver_id WHEN receiver_id = :user_id7 THEN sender_id END -- Adjust param names if needed
-        FROM friend_requests WHERE (sender_id = :user_id8 OR receiver_id = :user_id9) AND status = 'accepted'  -- Adjust param names
-      )
-      AND pr.user_id != :user_id10 -- Adjust this parameter name to match its position in your FULL query's parameter binding loop
-      AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            -- 2. Friend reactions on any public post
+            SELECT DISTINCT posts.*,
+                CONCAT_WS(' ', post_author.first_name, post_author.middle_name, post_author.last_name) as author_name,
+                post_author.profile_pic,
+                post_author.id as author_id,
+                'reaction_on_friend_post' as activity_type,
+                CONCAT_WS(' ', reactor.first_name, reactor.middle_name, reactor.last_name) as friend_name,
+                reactor.profile_pic as friend_profile_pic,
+                pr.created_at as activity_time,
+                NULL as comment_id,
+                NULL as media_id,
+                pr.reaction_type as reaction_type, -- <<< CORRECTED: Select directly from post_reactions
+                reactor.id as friend_user_id
+            FROM posts
+            JOIN users post_author ON posts.user_id = post_author.id
+            JOIN post_reactions pr ON posts.id = pr.post_id
+            JOIN users reactor ON pr.user_id = reactor.id
+            -- REMOVED: JOIN reaction_types rt ON pr.reaction_type_id = rt.reaction_type_id
+            WHERE posts.visibility = 'public'
+            AND pr.user_id IN (
+                SELECT CASE WHEN sender_id = :user_id6 THEN receiver_id WHEN receiver_id = :user_id7 THEN sender_id END -- Adjust param names if needed
+                FROM friend_requests WHERE (sender_id = :user_id8 OR receiver_id = :user_id9) AND status = 'accepted'  -- Adjust param names
+            )
+            AND pr.user_id != :user_id10 -- Adjust this parameter name to match its position in your FULL query's parameter binding loop
+            AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
 )
 
         ORDER BY activity_time DESC
         LIMIT 20
+
+        (
+            -- 3. Comment on a friend's public post (by anyone)
+            SELECT DISTINCT posts.id as post_id_for_activity, posts.content as post_content_preview, -- Select specific post columns needed
+                CONCAT_WS(' ', post_author.first_name, post_author.middle_name, post_author.last_name) as post_author_name,
+                post_author.id as post_author_id,
+                'comment_on_friend_post' as activity_type, -- New activity type
+                CONCAT_WS(' ', commenter.first_name, commenter.middle_name, commenter.last_name) as actor_name, -- The one who performed the action
+                commenter.profile_pic as actor_profile_pic,
+                comments.created_at as activity_time,
+                comments.id as comment_id,
+                NULL as reaction_type,
+                commenter.id as actor_user_id, -- The ID of the commenter
+                post_author.id as target_friend_user_id, -- The ID of the friend whose post it is
+                CONCAT_WS(' ', post_author.first_name, post_author.middle_name, post_author.last_name) as target_friend_name
+            FROM posts
+            JOIN users post_author ON posts.user_id = post_author.id
+            JOIN comments ON posts.id = comments.post_id
+            JOIN users commenter ON comments.user_id = commenter.id
+            WHERE posts.visibility = 'public'
+            AND posts.user_id IN ( -- The post owner must be a friend of the logged-in user
+                SELECT CASE WHEN sender_id = :user_id_viewer_param1 THEN receiver_id ELSE sender_id END
+                FROM friend_requests WHERE (sender_id = :user_id_viewer_param2 OR receiver_id = :user_id_viewer_param3) AND status = 'accepted'
+            )
+            AND comments.user_id != :user_id_viewer_param4 -- Commenter is not the logged-in user themselves
+            AND posts.user_id != comments.user_id -- Optionally, don't show if friend comments on their own post (can be noisy)
+            AND comments.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        )
+        
+        (
+            -- 4. Reaction to a friend's public post (by anyone)
+            SELECT DISTINCT posts.id as post_id_for_activity, posts.content as post_content_preview,
+                CONCAT_WS(' ', post_author.first_name, post_author.middle_name, post_author.last_name) as post_author_name,
+                post_author.id as post_author_id,
+                'reaction_to_friend_post' as activity_type, -- New activity type
+                CONCAT_WS(' ', reactor.first_name, reactor.middle_name, reactor.last_name) as actor_name, -- The one who performed the action
+                reactor.profile_pic as actor_profile_pic,
+                pr.created_at as activity_time,
+                NULL as comment_id,
+                pr.reaction_type as reaction_type, -- This uses your existing pr.reaction_type
+                reactor.id as actor_user_id, -- The ID of the reactor
+                post_author.id as target_friend_user_id, -- The ID of the friend whose post it is
+                CONCAT_WS(' ', post_author.first_name, post_author.middle_name, post_author.last_name) as target_friend_name
+            FROM posts
+            JOIN users post_author ON posts.user_id = post_author.id
+            JOIN post_reactions pr ON posts.id = pr.post_id
+            JOIN users reactor ON pr.user_id = reactor.id
+            WHERE posts.visibility = 'public'
+            AND posts.user_id IN ( -- The post owner must be a friend of the logged-in user
+                SELECT CASE WHEN sender_id = :user_id_viewer_param5 THEN receiver_id ELSE sender_id END
+                FROM friend_requests WHERE (sender_id = :user_id_viewer_param6 OR receiver_id = :user_id_viewer_param7) AND status = 'accepted'
+            )
+            AND pr.user_id != :user_id_viewer_param8 -- Reactor is not the logged-in user themselves
+            AND posts.user_id != pr.user_id -- Optionally, don't show if friend reacts to their own post
+            AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        )
     ");
 
     for ($i = 1; $i <= 10; $i++) {

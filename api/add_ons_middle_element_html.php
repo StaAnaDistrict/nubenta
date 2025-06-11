@@ -185,51 +185,61 @@ function renderActivityFeed(activities) {
 function renderActivityItem(activity) {
     const timeAgo = formatTimeAgo(activity.activity_time);
     let text = '';
-    let clickAction = '';
+    let clickAction = ''; // To make the whole item clickable to the relevant post or profile
+
+    // Use specific variables for clarity based on new SQL aliases for new types
+    // Fallback to existing properties for original activity types
+    let mainActorName = activity.actor_name || activity.friend_name;
+    let mainActorUserId = activity.actor_user_id || activity.friend_user_id;
 
     switch (activity.type) {
-        case 'comment':
-            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> commented on ${activity.post_author}'s post`;
+        case 'comment': // Friend (mainActor) commented on a public post
+            text = `<strong onclick="event.stopPropagation(); viewProfile(${mainActorUserId})">${mainActorName}</strong> commented on ${activity.post_author}'s post`;
             clickAction = `onclick="viewPost(${activity.post_id})"`;
             break;
 
-        case 'reaction_on_friend_post':
-            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> reacted ${activity.reaction_type} to ${activity.post_author}'s post`;
+        case 'reaction_on_friend_post': // Friend (mainActor) reacted to a public post
+            text = `<strong onclick="event.stopPropagation(); viewProfile(${mainActorUserId})">${mainActorName}</strong> reacted "${activity.reaction_type}" to ${activity.post_author}'s post`;
             clickAction = `onclick="viewPost(${activity.post_id})"`;
             break;
 
-        case 'friend_request':
-            text = `You are now connected with <strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong>`;
-            clickAction = `onclick="viewProfile(${activity.friend_user_id})"`;
+        case 'comment_on_friend_post': // Someone (activity.actor_name) commented on your friend's (activity.target_friend_name) post
+            text = `<strong onclick="event.stopPropagation(); viewProfile(${activity.actor_user_id})">${activity.actor_name}</strong> commented on <strong onclick="event.stopPropagation(); viewProfile(${activity.target_friend_user_id})">${activity.target_friend_name}</strong>'s post`;
+            clickAction = `onclick="viewPost(${activity.post_id_for_activity})"`;
             break;
 
-            case 'friend_connection':
-            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> is now friends with <strong onclick="viewProfile(${activity.other_friend_user_id})">${activity.other_friend_name}</strong>`;
-            clickAction = '';
+        case 'reaction_to_friend_post': // Someone (activity.actor_name) reacted to your friend's (activity.target_friend_name) post
+            text = `<strong onclick="event.stopPropagation(); viewProfile(${activity.actor_user_id})">${activity.actor_name}</strong> reacted "${activity.reaction_type}" to <strong onclick="event.stopPropagation(); viewProfile(${activity.target_friend_user_id})">${activity.target_friend_name}</strong>'s post`;
+            clickAction = `onclick="viewPost(${activity.post_id_for_activity})"`;
             break;
 
-        case 'testimonial_written': // Fallthrough intended
+        case 'friend_request': // You are now connected with mainActor
+            text = `You are now connected with <strong onclick="event.stopPropagation(); viewProfile(${mainActorUserId})">${mainActorName}</strong>`;
+            clickAction = `onclick="viewProfile(${mainActorUserId})"`;
+            break;
+
+        case 'friend_connection': // mainActor is now friends with other_friend_name
+            text = `<strong onclick="event.stopPropagation(); viewProfile(${mainActorUserId})">${mainActorName}</strong> is now friends with <strong onclick="event.stopPropagation(); viewProfile(${activity.other_friend_user_id})">${activity.other_friend_name}</strong>`;
+            clickAction = ''; 
+            break;
+
+        case 'testimonial_written':
         case 'testimonial_received':
             let writerDisplayName = activity.writer_name;
             let recipientDisplayName = activity.recipient_name;
-            // Assuming window.currentUserId is available and holds the logged-in user's ID.
-            // It is set in dashboard.php and other main pages.
-            const loggedInUserId = window.currentUserId; 
+            const loggedInUserId = window.currentUserId; // Ensure window.currentUserId is globally available
 
             if (activity.writer_id == loggedInUserId) {
                 writerDisplayName = 'You';
             }
-            // Only change recipient to 'you' if the writer isn't also 'You' to avoid "You wrote for you" for self-testimonials (if they were possible)
             if (activity.recipient_id == loggedInUserId && activity.writer_id != loggedInUserId) {
                 recipientDisplayName = 'you';
             } else if (activity.recipient_id == loggedInUserId && activity.writer_id == loggedInUserId) {
-                // Handling self-testimonial if it's possible, keeping recipient's name
                 recipientDisplayName = activity.recipient_name; 
             }
 
-            text = `<strong onclick="viewProfile(${activity.writer_id})">${writerDisplayName}</strong> wrote a testimonial for <strong onclick="viewProfile(${activity.recipient_id})">${recipientDisplayName}</strong>.`;
+            text = `<strong onclick="event.stopPropagation(); viewProfile(${activity.writer_id})">${writerDisplayName}</strong> wrote a testimonial for <strong onclick="event.stopPropagation(); viewProfile(${activity.recipient_id})">${recipientDisplayName}</strong>.`;
             
-            // Determine click action: if current user wrote it, link to recipient. Otherwise, link to writer.
             if (activity.writer_id == loggedInUserId) {
                 clickAction = `onclick="viewProfile(${activity.recipient_id})"`;
             } else {
@@ -237,17 +247,17 @@ function renderActivityItem(activity) {
             }
             break;
 
-        default:
-            text = `<strong onclick="viewProfile(${activity.friend_user_id})">${activity.friend_name}</strong> had an activity`;
-            clickAction = '';
+        default: // Fallback for any other activity types
+            text = `<strong onclick="event.stopPropagation(); viewProfile(${mainActorUserId})">${mainActorName}</strong> had an activity`;
+            clickAction = `onclick="viewProfile(${mainActorUserId})"`; 
     }
 
-    return `
-        <div class="activity-item" ${clickAction}>
-            <div class="activity-text">${text}</div>
-            <div class="activity-time">${timeAgo}</div>
+    return \`
+        <div class="activity-item" \${clickAction}>
+            <div class="activity-text">\${text}</div>
+            <div class="activity-time">\${timeAgo}</div>
         </div>
-    `;
+    \`;
 }
 
 // Helper function to format time ago
@@ -265,11 +275,13 @@ function formatTimeAgo(dateString) {
 
 // Helper function to view profile
 function viewProfile(userId) {
-    window.location.href = `view_profile.php?id=${userId}`;
+    window.location.href = \`view_profile.php?id=\${userId}\`;
 }
 
 // Helper function to view post
 function viewPost(postId) {
-    window.location.href = `posts.php?id=${postId}`;
+    // You might need to adjust this if your post viewing page is different
+    // For example, it could be view_post.php?id= or similar
+    window.location.href = \`posts.php?id=\${postId}\`; 
 }
 </script>
