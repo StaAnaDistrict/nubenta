@@ -334,60 +334,119 @@ try {
     // Combine and format all activities
     $all_activities = [];
 
-    // Format friend activities (post-related)
+    // Format friend activities (post comments & reactions by friends, and on friends' posts)
+    // This now processes results from the $activity_stmt which includes all 4 post-related UNIONed queries
     foreach ($friend_activities as $activity) {
-        $profilePic = !empty($activity['friend_profile_pic'])
-            ? 'uploads/profile_pics/' . $activity['friend_profile_pic']
-            : 'assets/images/MaleDefaultProfilePicture.png';
+        $profilePic = $defaultMalePic; // Define default before using
+        if (!empty($activity['actor_profile_pic'])) { // Use new alias
+            $profilePic = 'uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic']);
+        } elseif (isset($activity['actor_gender']) && $activity['actor_gender'] === 'Female') { // Assuming actor_gender might be available
+            $profilePic = $defaultFemalePic;
+        }
+        // Note: The original $friend_activities query might not have selected actor_gender.
+        // If actor_profile_pic is NULL and gender isn't available for the 'actor',
+        // it will default to $defaultMalePic. This might need refinement if gender of actor is consistently needed.
 
-        $all_activities[] = [
+        $item = [
             'type' => $activity['activity_type'],
-            'friend_name' => $activity['friend_name'],
-            'friend_profile_pic' => $profilePic,
-            'friend_user_id' => $activity['friend_user_id'],
+            'actor_name' => $activity['actor_name'],
+            'actor_profile_pic' => $profilePic,
+            'actor_user_id' => $activity['actor_user_id'],
             'activity_time' => $activity['activity_time'],
-            'post_id' => $activity['id'],
-            'post_author' => $activity['author_name'],
-            'comment_id' => $activity['comment_id'],
-            'media_id' => $activity['media_id'],
-            'reaction_type' => $activity['reaction_type'],
             'timestamp' => strtotime($activity['activity_time'])
         ];
+
+        // Fields specific to post-related activities
+        if (in_array($activity['activity_type'], ['comment', 'reaction_on_friend_post', 'comment_on_friend_post', 'reaction_to_friend_post'])) {
+            $item['post_id_for_activity'] = $activity['post_id_for_activity'];
+            $item['post_content_preview'] = $activity['post_content_preview'];
+            $item['post_author_name'] = $activity['post_author_name'];
+            $item['post_author_id'] = $activity['post_author_id'];
+            $item['comment_id'] = $activity['comment_id']; // Will be NULL for reactions
+            $item['reaction_type'] = $activity['reaction_type']; // Will be NULL for comments
+        }
+
+        // Fields specific to "on friend's post" activities
+        if (in_array($activity['activity_type'], ['comment_on_friend_post', 'reaction_to_friend_post'])) {
+            $item['target_friend_user_id'] = $activity['target_friend_user_id'];
+            $item['target_friend_name'] = $activity['target_friend_name'];
+        }
+        
+        // For original 'comment' and 'reaction_on_friend_post', map old expected JS keys if necessary,
+        // though the JS should ideally use actor_name, actor_user_id now.
+        // For compatibility if JS wasn't fully updated for these two specific original types:
+        if ($activity['activity_type'] === 'comment' || $activity['activity_type'] === 'reaction_on_friend_post') {
+            $item['friend_name'] = $activity['actor_name']; // Map to old key if JS expects it
+            $item['friend_user_id'] = $activity['actor_user_id']; // Map to old key
+            $item['post_id'] = $activity['post_id_for_activity']; // Map to old key
+            // 'post_author' key was already used for post_author_name in original $friend_activities processing
+        }
+
+
+        $all_activities[] = $item;
     }
-    
+
+    // Format social activities (friend connections)
+    foreach ($social_activities as $activity) {
+        $profilePic = $defaultMalePic;
+        if (!empty($activity['actor_profile_pic'])) {
+            $profilePic = 'uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic']);
+        } elseif (isset($activity['actor_gender']) && $activity['actor_gender'] === 'Female') { // Assuming actor_gender might be available
+             $profilePic = $defaultFemalePic;
+        }
+
+
+        $item = [
+            'type' => $activity['activity_type'],
+            'actor_name' => $activity['actor_name'], // SQL query for social was updated to use actor_name
+            'actor_profile_pic' => $profilePic,
+            'actor_user_id' => $activity['actor_user_id'], // SQL query for social was updated
+            'activity_time' => $activity['activity_time'],
+            'timestamp' => strtotime($activity['activity_time']),
+            'other_friend_name' => $activity['other_friend_name'] ?? null,
+            'other_friend_user_id' => $activity['other_friend_user_id'] ?? null,
+            'activity_id' => $activity['activity_id'],
+            'extra_info' => $activity['extra_info']
+        ];
+        $all_activities[] = $item;
+    }
+
     // Format testimonial activities
     foreach ($testimonial_activities as $activity) {
-        // Add initial error log to inspect the raw $activity array for relevant fields
-        // if ($activity['activity_type'] === 'testimonial_received') {
-            // error_log("[API DEBUG testimonial_received RAW]: " . json_encode($activity));
-        // }
+        $profilePic = $defaultMalePic;
+        if (!empty($activity['actor_profile_pic'])) { // SQL for testimonials uses actor_profile_pic for the main person
+            $profilePic = 'uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic']);
+        } elseif (isset($activity['actor_gender']) && $activity['actor_gender'] === 'Female') { // Assuming actor_gender might be available
+             $profilePic = $defaultFemalePic;
+        }
 
-        $profilePic = !empty($activity['friend_profile_pic'])
-            ? 'uploads/profile_pics/' . $activity['friend_profile_pic']
-            : 'assets/images/MaleDefaultProfilePicture.png';
-
-        // Directly use the new consistent SQL aliases:
-        $final_writer_name = !empty($activity['activity_writer_name']) ? $activity['activity_writer_name'] : 'Unknown User';
-        $final_recipient_name = !empty($activity['activity_recipient_name']) ? $activity['activity_recipient_name'] : 'Unknown User';
-
-        $all_activities[] = [
+        $item = [
             'type' => $activity['activity_type'],
-            'friend_name' => $activity['friend_name_full'], // This remains, it's the main actor of the activity
-            'friend_profile_pic' => $profilePic,
-            'friend_user_id' => $activity['friend_user_id'], 
             'activity_time' => $activity['activity_time'],
+            'timestamp' => strtotime($activity['activity_time']),
             'testimonial_id' => $activity['testimonial_id'],
+            'content' => $activity['testimonial_content'], // SQL uses testimonial_content
+            'rating' => $activity['testimonial_rating'],   // SQL uses testimonial_rating
             
-            // Use new, clear names for JS
-            'writer_name' => $final_writer_name,
-            'writer_id' => $activity['activity_writer_id'],
-            'recipient_name' => $final_recipient_name,
-            'recipient_id' => $activity['activity_recipient_id'],
-
-            'content' => $activity['content'],
-            'rating' => $activity['rating'],
-            'timestamp' => strtotime($activity['activity_time'])
+            // For 'testimonial_written': actor is the writer, target is the recipient
+            // For 'testimonial_received': actor is the recipient, actual_writer is the writer
+            'actor_name' => $activity['actor_name'],
+            'actor_user_id' => $activity['actor_user_id'],
+            'actor_profile_pic' => $profilePic, // Profile pic of the 'actor'
         ];
+
+        if ($activity['activity_type'] === 'testimonial_written') {
+            $item['writer_name'] = $activity['actor_name']; // Writer is the actor
+            $item['writer_id'] = $activity['actor_user_id'];
+            $item['recipient_name'] = $activity['target_friend_name']; // Recipient is the target_friend
+            $item['recipient_id'] = $activity['target_friend_user_id'];
+        } elseif ($activity['activity_type'] === 'testimonial_received') {
+            $item['writer_name'] = $activity['actual_writer_name']; // Actual writer
+            $item['writer_id'] = $activity['actual_writer_id'];
+            $item['recipient_name'] = $activity['actor_name']; // Recipient is the actor
+            $item['recipient_id'] = $activity['actor_user_id'];
+        }
+        $all_activities[] = $item;
     }
 
     // Format social activities (non-post related)
