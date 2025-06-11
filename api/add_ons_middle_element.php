@@ -24,15 +24,16 @@ try {
     $defaultFemalePic_path = '../assets/images/FemaleDefaultProfilePicture.png';
 
     // --- Friend Activities (Post Comments & Reactions) ---
+    // Ensure $user_id is defined from session before this block
     $activity_sql = "
     (
         -- 1. Friend comments on any public post
         SELECT DISTINCT
-               posts.id as post_id_for_activity,
-               posts.content as post_content_preview,
+               posts.id as post_id_for_activity, 
+               posts.content as post_content_preview, 
                CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
                pa.id as post_author_id,
-               'comment' as activity_type, -- activity by 'actor' (who is a friend)
+               'comment' as activity_type, 
                CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
                actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
                c.created_at as activity_time,
@@ -65,11 +66,11 @@ try {
                posts.content as post_content_preview,
                CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
                pa.id as post_author_id,
-               'reaction_on_friend_post' as activity_type, -- activity by 'actor' (who is a friend)
+               'reaction_on_friend_post' as activity_type, 
                CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
                actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
                pr.created_at as activity_time,
-               pr.reaction_id as event_id, -- Unique ID for this event (reaction_id)
+               pr.id as event_id, -- CORRECTED: Was pr.reaction_id, now pr.id
                pr.reaction_type as reaction_type,
                actor.id as actor_user_id,
                NULL as target_friend_user_id,
@@ -96,13 +97,13 @@ try {
         SELECT DISTINCT
                posts.id as post_id_for_activity,
                posts.content as post_content_preview,
-               CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, -- This is your friend
+               CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
                pa.id as post_author_id, 
-               'comment_on_friend_post' as activity_type, -- activity to 'target_friend' (post_author) by 'actor'
+               'comment_on_friend_post' as activity_type, 
                CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
                actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
                c.created_at as activity_time,
-               c.id as event_id, -- Unique ID for this event (comment_id)
+               c.id as event_id, 
                NULL as reaction_type,
                actor.id as actor_user_id,
                pa.id as target_friend_user_id,
@@ -129,13 +130,13 @@ try {
         SELECT DISTINCT
                posts.id as post_id_for_activity,
                posts.content as post_content_preview,
-               CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, -- This is your friend
+               CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
                pa.id as post_author_id,
-               'reaction_to_friend_post' as activity_type, -- activity to 'target_friend' (post_author) by 'actor'
+               'reaction_to_friend_post' as activity_type, 
                CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
                actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
                pr.created_at as activity_time,
-               pr.reaction_id as event_id, -- Unique ID for this event (reaction_id)
+               pr.id as event_id, -- CORRECTED: Was pr.reaction_id, now pr.id
                pr.reaction_type as reaction_type,
                actor.id as actor_user_id,
                pa.id as target_friend_user_id,
@@ -157,8 +158,9 @@ try {
           AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
     )
     ORDER BY activity_time DESC 
-    LIMIT 30 -- Increased limit slightly to allow for more varied activities before PHP slice
-    "; 
+    LIMIT 30 
+    "; // End of $activity_sql string
+    
     $activity_stmt = $pdo->prepare($activity_sql);
     for ($i = 1; $i <= 16; $i++) {
         $activity_stmt->bindParam(":user_id$i", $user_id, PDO::PARAM_INT);
