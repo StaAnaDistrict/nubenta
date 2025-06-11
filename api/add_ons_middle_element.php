@@ -160,6 +160,7 @@ try {
     ORDER BY activity_time DESC 
     LIMIT 30 
     "; // End of $activity_sql string
+    $activity_stmt = $pdo->prepare($activity_sql);
 
 // IMPORTANT: The parameter binding loop should still be for :user_id1 through :user_id24
     $activity_param_count = 24; // Make sure this count is correct for your final query
