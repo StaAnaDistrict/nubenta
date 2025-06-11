@@ -17,7 +17,7 @@ if (!isset($_SESSION['user'])) {
 
 $user_id = $_SESSION['user']['id'];
 
-ry {
+try {
     $user_id = $_SESSION['user']['id']; 
     
     $defaultMalePic_path = '../assets/images/MaleDefaultProfilePicture.png';
