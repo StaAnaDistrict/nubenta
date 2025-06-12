@@ -471,5 +471,3 @@ $charliePostManager = new SimplePostManager($pdo);
 $charlieNewsfeedRenderer = new NewsfeedRenderer($charliePostManager);
 $charlieNewsfeedRenderer->renderNewsfeed(3); // Charlie's view
 */
-
-
