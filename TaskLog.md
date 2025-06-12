@@ -1,3 +1,12 @@
+# PRIMARY RULE PRIOR TO IMPLEMENTATION OF MODFICIATION OR FIXES IN ORDER TO ADDRESS AND ACCOMPLISH THE TASKS ON HAND
+
+1. Make sure that you protect the existing capabilities and functionalities that are working in my current codebase. 
+2. Do not distort any functionality that does not relate to my concern.
+3. Follow these procedures when making an attempt to fix any of these issues or possible issues in the future: Review - Evaluate - Plan - Anticipate - Review Anticipations vs Plan - Revise - Replan - Execution Documentation - Implementation of Execution
+4. Documentation refers to CONSTANTLY UPDATING THE Actual_Accomplishment.md logs i.e. all the things you will execute must be documented here first, regardless of the outcome of said modification/fix, be it success or failure, it must be documented.
+5. Documentation ALSO refers to CONTSTANTLY UPDATING THE CHANGELOG.md file. All stipulations mentioned in the Actual_Accomplishment.md must be clarified here in order to have a specific tracking system of what was done to the project and what were the results of these executions: success or failure.
+6. IT IS POINTLESS TO PROCEED WITH DIFFERENT COURSES OF ACTIONS IF IT IS NOT DOCUMENTED AND TRACKED, WE WILL END UP WITH REPEATING THE SAME MISTAKES AND ISSUES OVER AND OVER WHICH WILL COST US TIME AND EFFORT.
+
 # Task Number 1: Fixing Activity Feed for User Activities which were executed inside Modals and Primary Location
 
 The Main Goal for the Activity Feed: To make your sidebar Activity Feed (driven by api/add_ons_middle_element.php and api/add_ons_middle_element_html.php) correctly display a range of user activities. This includes:
