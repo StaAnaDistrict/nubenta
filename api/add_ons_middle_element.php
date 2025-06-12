@@ -30,29 +30,29 @@ try {
     -- 1. Friend comments on any public post
     SELECT DISTINCT
            p.id as post_id_for_activity,
-           LEFT(p.content, 100) as post_content_preview,
+           LEFT(p.content, 100) as post_content_preview, 
            CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
            pa.id as post_author_id,
-           'comment' as activity_type,
+           'comment' as activity_type, 
            CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
            actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
            c.created_at as activity_time,
-           c.id as event_id,
+           c.id as event_id, 
            NULL as reaction_type,
            actor.id as actor_user_id,
-           NULL as target_friend_user_id,
+           NULL as target_friend_user_id, 
            NULL as target_friend_name,
            NULL as other_friend_name, NULL as other_friend_user_id,
            NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
            NULL as actual_writer_name, NULL as actual_writer_id,
            NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id, NULL as media_type, NULL as album_id, -- Added media_type, album_id
-           c.content as comment_content
-    FROM posts p
-    JOIN users pa ON p.user_id = pa.id
-    JOIN comments c ON p.id = c.post_id
+           NULL as media_id, NULL as media_type, NULL as album_id,
+           c.content as comment_content 
+    FROM posts p -- Alias 'p' is defined here
+    JOIN users pa ON p.user_id = pa.id -- Use 'p.user_id'
+    JOIN comments c ON p.id = c.post_id -- Use 'p.id'
     JOIN users actor ON c.user_id = actor.id
-    WHERE p.visibility = 'public'
+    WHERE p.visibility = 'public' -- Use 'p.visibility'
       AND c.user_id IN (
         SELECT CASE WHEN sender_id = :user_id1 THEN receiver_id ELSE sender_id END
         FROM friend_requests WHERE (sender_id = :user_id2 OR receiver_id = :user_id3) AND status = 'accepted'
