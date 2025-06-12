@@ -23,588 +23,365 @@ try {
     $defaultMalePic_path = '../assets/images/MaleDefaultProfilePicture.png';
     $defaultFemalePic_path = '../assets/images/FemaleDefaultProfilePicture.png';
 
-    // --- Friend Activities (Post Comments & Reactions) ---
-    // Ensure $user_id is defined from session before this block
+    // Simplified SQL query for "Friend comments on any public post"
     $activity_sql = "
-(
-    -- 1. Friend comments on any public post
-    SELECT DISTINCT
-           p.id as post_id_for_activity,
-           LEFT(p.content, 100) as post_content_preview, 
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
-           pa.id as post_author_id,
-           'comment' as activity_type, 
-           CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
-           actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
-           c.created_at as activity_time,
-           c.id as event_id, 
-           NULL as reaction_type,
-           actor.id as actor_user_id,
-           NULL as target_friend_user_id, 
-           NULL as target_friend_name,
-           NULL as other_friend_name, NULL as other_friend_user_id,
-           NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
-           NULL as actual_writer_name, NULL as actual_writer_id,
-           NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id,
-           NULL as comment_content -- Added for consistency
-    FROM posts p
-    JOIN users pa ON p.user_id = pa.id
-    JOIN comments c ON p.id = c.post_id
-    JOIN users actor ON c.user_id = actor.id
-    WHERE p.visibility = 'public'
-      AND c.user_id IN (
-        SELECT CASE WHEN sender_id = :user_id1 THEN receiver_id ELSE sender_id END
-        FROM friend_requests WHERE (sender_id = :user_id2 OR receiver_id = :user_id3) AND status = 'accepted'
-      )
-      AND c.user_id != :user_id4
-      AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-)
-UNION ALL
-(
-    -- 2. Friend reactions on any public post
-    SELECT DISTINCT
-           p.id as post_id_for_activity,
-           LEFT(p.content, 100) as post_content_preview,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name,
-           pa.id as post_author_id,
-           'reaction_on_friend_post' as activity_type, 
-           CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
-           actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
-           pr.created_at as activity_time,
-           pr.id as event_id, 
-           pr.reaction_type as reaction_type,
-           actor.id as actor_user_id,
-           NULL as target_friend_user_id,
-           NULL as target_friend_name,
-           NULL as other_friend_name, NULL as other_friend_user_id,
-           NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
-           NULL as actual_writer_name, NULL as actual_writer_id,
-           NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id,
-           NULL as comment_content -- Added
-    FROM posts p
-    JOIN users pa ON p.user_id = pa.id
-    JOIN post_reactions pr ON p.id = pr.post_id
-    JOIN users actor ON pr.user_id = actor.id
-    WHERE p.visibility = 'public'
-      AND pr.user_id IN (
-        SELECT CASE WHEN sender_id = :user_id5 THEN receiver_id ELSE sender_id END
-        FROM friend_requests WHERE (sender_id = :user_id6 OR receiver_id = :user_id7) AND status = 'accepted'
-      )
-      AND pr.user_id != :user_id8
-      AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-)
-UNION ALL
-(
-    -- 3. Comment on a friend's public post (by anyone)
-    SELECT DISTINCT
-           p.id as post_id_for_activity,
-           LEFT(p.content, 100) as post_content_preview,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
-           pa.id as post_author_id, 
-           'comment_on_friend_post' as activity_type, 
-           CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
-           actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
-           c.created_at as activity_time,
-           c.id as event_id, 
-           NULL as reaction_type,
-           actor.id as actor_user_id,
-           pa.id as target_friend_user_id,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as target_friend_name,
-           NULL as other_friend_name, NULL as other_friend_user_id,
-           NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
-           NULL as actual_writer_name, NULL as actual_writer_id,
-           NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id,
-           c.content as comment_content -- Added
-    FROM posts p
-    JOIN users pa ON p.user_id = pa.id 
-    JOIN comments c ON p.id = c.post_id
-    JOIN users actor ON c.user_id = actor.id 
-    WHERE p.visibility = 'public'
-      AND p.user_id IN ( 
-        SELECT CASE WHEN sender_id = :user_id9 THEN receiver_id ELSE sender_id END
-        FROM friend_requests WHERE (sender_id = :user_id10 OR receiver_id = :user_id11) AND status = 'accepted'
-      )
-      AND c.user_id != :user_id12 
-      AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-)
-UNION ALL
-(
-    -- 4. Reaction to a friend's public post (by anyone)
-    SELECT DISTINCT
-           p.id as post_id_for_activity,
-           LEFT(p.content, 100) as post_content_preview,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
-           pa.id as post_author_id,
-           'reaction_to_friend_post' as activity_type, 
-           CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
-           actor.profile_pic as actor_profile_pic, actor.gender as actor_gender,
-           pr.created_at as activity_time,
-           pr.id as event_id, 
-           pr.reaction_type as reaction_type,
-           actor.id as actor_user_id,
-           pa.id as target_friend_user_id,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as target_friend_name,
-           NULL as other_friend_name, NULL as other_friend_user_id,
-           NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
-           NULL as actual_writer_name, NULL as actual_writer_id,
-           NULL as activity_id_social, NULL as extra_info,
-           NULL as media_id,
-           NULL as comment_content -- Added
-    FROM posts p
-    JOIN users pa ON p.user_id = pa.id 
-    JOIN post_reactions pr ON p.id = pr.post_id
-    JOIN users actor ON pr.user_id = actor.id 
-    WHERE p.visibility = 'public'
-      AND p.user_id IN ( 
-        SELECT CASE WHEN sender_id = :user_id13 THEN receiver_id ELSE sender_id END
-        FROM friend_requests WHERE (sender_id = :user_id14 OR receiver_id = :user_id15) AND status = 'accepted'
-      )
-      AND pr.user_id != :user_id16 
-      AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-)
-UNION ALL
-(
-    -- 5. Comment on media in a friend's public post (by anyone)
-    SELECT DISTINCT
-           p.id as post_id_for_activity,
-           LEFT(p.content, 100) as post_content_preview,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
-           pa.id as post_author_id, 
-           'comment_on_friend_post' as activity_type, 
-           CONCAT_WS(' ', commenter.first_name, commenter.middle_name, commenter.last_name) as actor_name, 
-           commenter.profile_pic as actor_profile_pic, commenter.gender as actor_gender,
-           mc.created_at as activity_time,
-           mc.id as event_id, 
-           NULL as reaction_type,
-           commenter.id as actor_user_id, 
-           pa.id as target_friend_user_id, 
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as target_friend_name, 
-           NULL as other_friend_name, NULL as other_friend_user_id,
-           NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
-           NULL as actual_writer_name, NULL as actual_writer_id,
-           NULL as activity_id_social, NULL as extra_info,
-           mc.media_id as media_id,
-           mc.content as comment_content -- Media comment content
-    FROM media_comments mc
-    JOIN users commenter ON mc.user_id = commenter.id
-    JOIN user_media um ON mc.media_id = um.id 
-    JOIN posts p ON um.post_id = p.id
-    JOIN users pa ON p.user_id = pa.id 
-    WHERE p.visibility = 'public'
-      AND p.user_id IN ( 
-        SELECT CASE WHEN sender_id = :user_id17 THEN receiver_id ELSE sender_id END
-        FROM friend_requests WHERE (sender_id = :user_id18 OR receiver_id = :user_id19) AND status = 'accepted'
-      )
-      AND mc.user_id != :user_id20 
-      AND mc.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-)
-UNION ALL
-(
-    -- 6. Reaction to media in a friend's public post (by anyone)
-    SELECT DISTINCT
-           p.id as post_id_for_activity,
-           LEFT(p.content, 100) as post_content_preview,
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name, 
-           pa.id as post_author_id,
-           'reaction_to_friend_post' as activity_type, 
-           CONCAT_WS(' ', reactor.first_name, reactor.middle_name, reactor.last_name) as actor_name, 
-           reactor.profile_pic as actor_profile_pic, reactor.gender as actor_gender,
-           mr.created_at as activity_time,
-           mr.reaction_id as event_id, 
-           rt.name as reaction_type, 
-           reactor.id as actor_user_id, 
-           pa.id as target_friend_user_id, 
-           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as target_friend_name, 
-           NULL as other_friend_name, NULL as other_friend_user_id,
-           NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
-           NULL as actual_writer_name, NULL as actual_writer_id,
-           NULL as activity_id_social, NULL as extra_info,
-           mr.media_id as media_id,
-           NULL as comment_content -- Added
-    FROM media_reactions mr
-    JOIN users reactor ON mr.user_id = reactor.id
-    JOIN reaction_types rt ON mr.reaction_type_id = rt.reaction_type_id 
-    JOIN user_media um ON mr.media_id = um.id 
-    JOIN posts p ON um.post_id = p.id
-    JOIN users pa ON p.user_id = pa.id 
-    WHERE p.visibility = 'public'
-      AND p.user_id IN ( 
-        SELECT CASE WHEN sender_id = :user_id21 THEN receiver_id ELSE sender_id END
-        FROM friend_requests WHERE (sender_id = :user_id22 OR receiver_id = :user_id23) AND status = 'accepted'
-      )
-      AND mr.user_id != :user_id24 
-      AND mr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-)
-ORDER BY activity_time DESC 
-LIMIT 30 
-"; // End of $activity_sql string
-    $activity_stmt = $pdo->prepare($activity_sql);
-
-// IMPORTANT: The parameter binding loop should still be for :user_id1 through :user_id24
-    $activity_param_count = 24; // Make sure this count is correct for your final query
-    for ($i = 1; $i <= $activity_param_count; $i++) {
-    $activity_stmt->bindParam(":user_id$i", $user_id, PDO::PARAM_INT);
-  }
-// (The existing loop `for ($i = 1; $i <= 16; $i++)` will need to be updated to $i <= 24)
-    $activity_stmt->execute();
-    $post_related_activities = $activity_stmt->fetchAll(PDO::FETCH_ASSOC); // Renamed for clarity
-
-
-    // --- SOCIAL ACTIVITIES (friend connections) ---
-    $social_activities = [];
-    $social_sql = "
-        (
-            SELECT 'friend_request' as activity_type,
-                   CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as actor_name, 
-                   u.profile_pic as actor_profile_pic, u.gender as actor_gender,
-                   COALESCE(fr.accepted_at, fr.created_at) as activity_time,
-                   fr.id as activity_id_social, -- Aliased for uniqueness
-                   'accepted' as extra_info,
-                   NULL as other_friend_name,
-                   u.id as actor_user_id, 
-                   NULL as other_friend_user_id,
-                   NULL as post_id_for_activity, NULL as post_content_preview, NULL as post_author_name, NULL as post_author_id,
-                   NULL as event_id, NULL as reaction_type, 
-                   NULL as target_friend_user_id, NULL as target_friend_name,
-                   NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
-                   NULL as actual_writer_name, NULL as actual_writer_id
-            FROM friend_requests fr
-            JOIN users u ON (u.id = CASE WHEN fr.sender_id = :user_id_s1 THEN fr.receiver_id ELSE fr.sender_id END)
-            WHERE (fr.sender_id = :user_id_s2 OR fr.receiver_id = :user_id_s3)
-              AND fr.status = 'accepted'
-              AND COALESCE(fr.accepted_at, fr.created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        )
-        UNION ALL
-        (
-            SELECT 'friend_connection' as activity_type,
-                   CONCAT_WS(' ', friend1.first_name, friend1.middle_name, friend1.last_name) as actor_name, 
-                   friend1.profile_pic as actor_profile_pic, friend1.gender as actor_gender,
-                   COALESCE(fr.accepted_at, fr.created_at) as activity_time,
-                   fr.id as activity_id_social, 
-                   'connected' as extra_info,
-                   CONCAT_WS(' ', friend2.first_name, friend2.middle_name, friend2.last_name) as other_friend_name,
-                   friend1.id as actor_user_id, 
-                   friend2.id as other_friend_user_id,
-                   NULL as post_id_for_activity, NULL as post_content_preview, NULL as post_author_name, NULL as post_author_id,
-                   NULL as event_id, NULL as reaction_type,
-                   NULL as target_friend_user_id, NULL as target_friend_name,
-                   NULL as testimonial_id, NULL as testimonial_content, NULL as testimonial_rating,
-                   NULL as actual_writer_name, NULL as actual_writer_id
-            FROM friend_requests fr
-            JOIN users friend1 ON friend1.id = fr.sender_id
-            JOIN users friend2 ON friend2.id = fr.receiver_id
-            WHERE fr.status = 'accepted'
-              AND COALESCE(fr.accepted_at, fr.created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-              AND (fr.sender_id IN (
-                    SELECT CASE WHEN sender_id = :user_id_s4 THEN receiver_id ELSE sender_id END
-                    FROM friend_requests WHERE (sender_id = :user_id_s5 OR receiver_id = :user_id_s6) AND status = 'accepted'
-                  ) OR fr.receiver_id IN (
-                    SELECT CASE WHEN sender_id = :user_id_s7 THEN receiver_id ELSE sender_id END
-                    FROM friend_requests WHERE (sender_id = :user_id_s8 OR receiver_id = :user_id_s9) AND status = 'accepted'
-                  ))
-              AND fr.sender_id != :user_id_s10
-              AND fr.receiver_id != :user_id_s11
-        )
-        ORDER BY activity_time DESC
-        LIMIT 15 
+        SELECT
+            c.id AS activity_id,
+            'comment' AS activity_type,
+            c.user_id AS actor_user_id,
+            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
+            u.profile_pic AS actor_profile_pic,
+            u.gender AS actor_gender,
+            p.user_id AS target_owner_user_id,
+            p.id AS target_content_id,
+            LEFT(p.content, 50) AS target_content_summary,
+            NULL AS media_id,
+            NULL AS media_url,
+            NULL AS media_type,
+            NULL AS album_id,
+            c.content AS comment_content,
+            NULL AS reaction_type,
+            c.created_at AS activity_created_at,
+            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name,
+            p.id as post_id_for_activity -- Added for compatibility with existing processing
+        FROM comments c
+        JOIN users u ON c.user_id = u.id
+        JOIN posts p ON c.post_id = p.id
+        JOIN users orig_u ON p.user_id = orig_u.id
+        JOIN friend_requests f ON 
+            ((f.sender_id = :current_user_id1 AND f.receiver_id = c.user_id) OR (f.receiver_id = :current_user_id2 AND f.sender_id = c.user_id))
+        WHERE p.visibility = 'public' 
+          AND f.status = 'accepted' 
+          AND c.user_id != :current_user_id3 
+          AND p.user_id != :current_user_id4
+          AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) -- Keep recent activities
+    )
+    UNION ALL
+    (
+        -- Friend reactions on any public post
+        SELECT
+            pr.id AS activity_id,
+            'reaction' AS activity_type,
+            pr.user_id AS actor_user_id,
+            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
+            u.profile_pic AS actor_profile_pic,
+            u.gender AS actor_gender,
+            p.user_id AS target_owner_user_id,
+            p.id AS target_content_id,
+            LEFT(p.content, 50) AS target_content_summary,
+            NULL AS media_id,
+            NULL AS media_url,
+            NULL AS media_type,
+            NULL AS album_id,
+            NULL AS comment_content, -- No comment content for reactions
+            rt.name AS reaction_type, -- Get reaction type name
+            pr.created_at AS activity_created_at,
+            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name,
+            p.id as post_id_for_activity
+        FROM post_reactions pr
+        JOIN users u ON pr.user_id = u.id
+        JOIN posts p ON pr.post_id = p.id
+        JOIN users orig_u ON p.user_id = orig_u.id
+        JOIN reaction_types rt ON pr.reaction_type_id = rt.reaction_type_id
+        JOIN friend_requests f ON 
+            ((f.sender_id = :current_user_id5 AND f.receiver_id = pr.user_id) OR (f.receiver_id = :current_user_id6 AND f.sender_id = pr.user_id))
+        WHERE p.visibility = 'public'
+          AND f.status = 'accepted'
+          AND pr.user_id != :current_user_id7
+          AND p.user_id != :current_user_id8
+          AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    )
+    UNION ALL
+    (
+        -- Anyone comments on a friend's public post
+        SELECT
+            c.id AS activity_id,
+            'comment_on_friend_post' AS activity_type, -- Different type
+            c.user_id AS actor_user_id,
+            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
+            u.profile_pic AS actor_profile_pic,
+            u.gender AS actor_gender,
+            p.user_id AS target_owner_user_id, -- This is the friend
+            p.id AS target_content_id,
+            LEFT(p.content, 50) AS target_content_summary,
+            NULL AS media_id,
+            NULL AS media_url,
+            NULL AS media_type,
+            NULL AS album_id,
+            c.content AS comment_content,
+            NULL AS reaction_type,
+            c.created_at AS activity_created_at,
+            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name, -- Friend's name
+            p.id as post_id_for_activity
+        FROM comments c
+        JOIN users u ON c.user_id = u.id -- The commenter (anyone)
+        JOIN posts p ON c.post_id = p.id
+        JOIN users orig_u ON p.user_id = orig_u.id -- The post owner (friend)
+        JOIN friend_requests f ON
+            ((f.sender_id = :current_user_id9 AND f.receiver_id = p.user_id) OR (f.receiver_id = :current_user_id10 AND f.sender_id = p.user_id))
+        WHERE p.visibility = 'public'
+          AND f.status = 'accepted'
+          AND p.user_id != :current_user_id11 -- Post owner is not the current user (already implied by "friend's post")
+          AND c.user_id != :current_user_id12 -- Commenter is not the current user
+          AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    )
+    UNION ALL
+    (
+        -- Anyone reacts to a friend's public post
+        SELECT
+            pr.id AS activity_id,
+            'reaction_on_friend_post' AS activity_type, -- Different type
+            pr.user_id AS actor_user_id,
+            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
+            u.profile_pic AS actor_profile_pic,
+            u.gender AS actor_gender,
+            p.user_id AS target_owner_user_id, -- This is the friend
+            p.id AS target_content_id,
+            LEFT(p.content, 50) AS target_content_summary,
+            NULL AS media_id,
+            NULL AS media_url,
+            NULL AS media_type,
+            NULL AS album_id,
+            NULL AS comment_content,
+            rt.name AS reaction_type,
+            pr.created_at AS activity_created_at,
+            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name, -- Friend's name
+            p.id as post_id_for_activity
+        FROM post_reactions pr
+        JOIN users u ON pr.user_id = u.id -- The reactor (anyone)
+        JOIN posts p ON pr.post_id = p.id
+        JOIN users orig_u ON p.user_id = orig_u.id -- The post owner (friend)
+        JOIN reaction_types rt ON pr.reaction_type_id = rt.reaction_type_id
+        JOIN friend_requests f ON
+            ((f.sender_id = :current_user_id13 AND f.receiver_id = p.user_id) OR (f.receiver_id = :current_user_id14 AND f.sender_id = p.user_id))
+        WHERE p.visibility = 'public'
+          AND f.status = 'accepted'
+          AND p.user_id != :current_user_id15 -- Post owner is not the current user
+          AND pr.user_id != :current_user_id16 -- Reactor is not the current user
+          AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    )
+    UNION ALL
+    (
+        -- Friend comments on media associated with a public post
+        SELECT
+            mc.id AS activity_id,
+            'media_comment' AS activity_type,
+            mc.user_id AS actor_user_id,
+            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
+            u.profile_pic AS actor_profile_pic,
+            u.gender AS actor_gender,
+            p.user_id AS target_owner_user_id, -- Post owner
+            p.id AS target_content_id, -- Post ID
+            LEFT(p.content, 50) AS target_content_summary, -- Post summary
+            um.id AS media_id,
+            um.filename AS media_url, -- Or thumbnail_url if available and preferred
+            um.media_type AS media_type,
+            um.album_id AS album_id,
+            mc.content AS comment_content,
+            NULL AS reaction_type,
+            mc.created_at AS activity_created_at,
+            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name, -- Post owner's name
+            p.id as post_id_for_activity -- Redundant, same as target_content_id
+        FROM media_comments mc
+        JOIN users u ON mc.user_id = u.id -- Commenter (friend)
+        JOIN user_media um ON mc.media_id = um.id
+        JOIN posts p ON um.post_id = p.id -- Assuming media is always linked to a post
+        JOIN users orig_u ON p.user_id = orig_u.id -- Post owner
+        JOIN friend_requests f ON
+            ((f.sender_id = :current_user_id17 AND f.receiver_id = mc.user_id) OR (f.receiver_id = :current_user_id18 AND f.sender_id = mc.user_id))
+        WHERE p.visibility = 'public' -- Post is public
+          AND um.post_id IS NOT NULL -- Media is associated with a post
+          AND f.status = 'accepted' -- Commenter is a friend
+          AND mc.user_id != :current_user_id19 -- Commenter is not the current user
+          AND p.user_id != :current_user_id20 -- Post owner is not the current user (can be friend or self, if friend comments on own post media)
+          AND mc.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    )
+    UNION ALL
+    (
+        -- Friend reacts to media associated with a public post
+        SELECT
+            mr.reaction_id AS activity_id, -- Note: media_reactions uses reaction_id as PK
+            'media_reaction' AS activity_type,
+            mr.user_id AS actor_user_id,
+            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
+            u.profile_pic AS actor_profile_pic,
+            u.gender AS actor_gender,
+            p.user_id AS target_owner_user_id, -- Post owner
+            p.id AS target_content_id, -- Post ID
+            LEFT(p.content, 50) AS target_content_summary, -- Post summary
+            um.id AS media_id,
+            um.filename AS media_url, -- Or thumbnail_url
+            um.media_type AS media_type,
+            um.album_id AS album_id,
+            NULL AS comment_content,
+            rt.name AS reaction_type,
+            mr.created_at AS activity_created_at,
+            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name, -- Post owner's name
+            p.id as post_id_for_activity
+        FROM media_reactions mr
+        JOIN users u ON mr.user_id = u.id -- Reactor (friend)
+        JOIN reaction_types rt ON mr.reaction_type_id = rt.reaction_type_id
+        JOIN user_media um ON mr.media_id = um.id
+        JOIN posts p ON um.post_id = p.id -- Assuming media is always linked to a post
+        JOIN users orig_u ON p.user_id = orig_u.id -- Post owner
+        JOIN friend_requests f ON
+            ((f.sender_id = :current_user_id21 AND f.receiver_id = mr.user_id) OR (f.receiver_id = :current_user_id22 AND f.sender_id = mr.user_id))
+        WHERE p.visibility = 'public' -- Post is public
+          AND um.post_id IS NOT NULL -- Media is associated with a post
+          AND f.status = 'accepted' -- Reactor is a friend
+          AND mr.user_id != :current_user_id23 -- Reactor is not the current user
+          AND p.user_id != :current_user_id24 -- Post owner is not the current user
+          AND mr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    )
+    ORDER BY activity_created_at DESC
+    LIMIT 20;
     ";
-    $social_stmt = $pdo->prepare($social_sql);
-    $social_param_count = 11; // Count of :user_id_sX params
-    for ($i = 1; $i <= $social_param_count; $i++) {
-        $social_stmt->bindParam(":user_id_s$i", $user_id, PDO::PARAM_INT);
-    }
-    $social_stmt->execute();
-    $social_activities = $social_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-
-    // --- Get testimonial activities ---
-    $testimonial_activities = [];
-    $testimonial_sql = "
-        (
-            SELECT 'testimonial_written' as activity_type,
-                   CONCAT_WS(' ', writer.first_name, writer.middle_name, writer.last_name) as actor_name, 
-                   writer.profile_pic as actor_profile_pic, writer.gender as actor_gender,
-                   writer.id as actor_user_id, 
-                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as target_friend_name, 
-                   recipient.id as target_friend_user_id, 
-                   t.created_at as activity_time,
-                   t.testimonial_id as event_id, -- Use event_id for unique key
-                   t.content as testimonial_content, 
-                   t.rating as testimonial_rating,
-                   NULL as post_id_for_activity, NULL as post_content_preview, NULL as post_author_name, NULL as post_author_id,
-                   NULL as comment_id, NULL as reaction_type, -- Changed from t.id to event_id
-                   NULL as other_friend_name, NULL as other_friend_user_id,
-                   NULL as actual_writer_name, NULL as actual_writer_id, -- Not needed here, actor is writer
-                   NULL as activity_id_social, NULL as extra_info
-            FROM testimonials t
-            JOIN users writer ON t.writer_user_id = writer.id
-            JOIN users recipient ON t.recipient_user_id = recipient.id
-            WHERE t.writer_user_id IN (
-                SELECT CASE WHEN sender_id = :user_id_t1 THEN receiver_id ELSE sender_id END
-                FROM friend_requests WHERE (sender_id = :user_id_t2 OR receiver_id = :user_id_t3) AND status = 'accepted'
-            )
-            AND t.writer_user_id != :user_id_t4
-            AND t.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        )
-        UNION ALL
-        (
-            SELECT 'testimonial_received' as activity_type,
-                   CONCAT_WS(' ', recipient.first_name, recipient.middle_name, recipient.last_name) as actor_name, 
-                   recipient.profile_pic as actor_profile_pic, recipient.gender as actor_gender,
-                   recipient.id as actor_user_id, 
-                   CONCAT_WS(' ', tw.first_name, tw.middle_name, tw.last_name) as actual_writer_name, 
-                   tw.id as actual_writer_id,        
-                   t.created_at as activity_time,
-                   t.testimonial_id as event_id, 
-                   t.content as testimonial_content, 
-                   t.rating as testimonial_rating,
-                   NULL as post_id_for_activity, NULL as post_content_preview, NULL as post_author_name, NULL as post_author_id,
-                   NULL as comment_id, NULL as reaction_type, 
-                   NULL as target_friend_user_id, NULL as target_friend_name, 
-                   NULL as other_friend_name, NULL as other_friend_user_id,
-                   NULL as activity_id_social, NULL as extra_info
-            FROM testimonials t
-            JOIN users tw ON t.writer_user_id = tw.id 
-            JOIN users recipient ON t.recipient_user_id = recipient.id
-            WHERE t.recipient_user_id IN (
-                SELECT CASE WHEN sender_id = :user_id_t5 THEN receiver_id ELSE sender_id END
-                FROM friend_requests WHERE (sender_id = :user_id_t6 OR receiver_id = :user_id_t7) AND status = 'accepted'
-            )
-            AND t.recipient_user_id != :user_id_t8
-            AND t.status = 'approved'
-            AND t.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        )
-        ORDER BY activity_time DESC
-        LIMIT 15
-    ";
-    $testimonial_stmt = $pdo->prepare($testimonial_sql);
-    $testimonial_param_count = 8; // :user_id_t1 through :user_id_t8
-    for ($i = 1; $i <= $testimonial_param_count; $i++) {
-        $testimonial_stmt->bindParam(":user_id_t$i", $user_id, PDO::PARAM_INT);
-    }
-    $testimonial_stmt->execute();
-    $testimonial_activities = $testimonial_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // --- Define default profile picture paths ---
-    // Ensure these paths are correct relative to the 'api' folder
-    $defaultMalePic_path = '../assets/images/MaleDefaultProfilePicture.png';
-    $defaultFemalePic_path = '../assets/images/FemaleDefaultProfilePicture.png';
-
-    // --- Fetch Post-Related Activities (Comments & Reactions on Posts) ---
-    // This assumes $activity_sql is defined above this point and contains
-    // the 4 UNION ALL blocks for 'comment', 'reaction_on_friend_post', 
-    // 'comment_on_friend_post', and 'reaction_to_friend_post'.
-    // It should use aliases like event_id, actor_name, actor_user_id, actor_profile_pic, actor_gender,
-    // post_id_for_activity, post_author_name, post_author_id,
-    // target_friend_name, target_friend_user_id, reaction_type.
-    // And the parameter binding loop for $activity_stmt (e.g., for :user_id1 through :user_id16)
-    // should be right after $activity_stmt = $pdo->prepare($activity_sql);
-
-    // Example of how $activity_stmt should be prepared and executed (ensure this is in your file):
-    /*
-    $activity_sql = " ... your 4-block SQL for post comments/reactions ... ";
     $activity_stmt = $pdo->prepare($activity_sql);
-    $activity_param_count = 16; // Adjust if your param count for these 4 blocks is different
-    for ($i = 1; $i <= $activity_param_count; $i++) {
-        $activity_stmt->bindParam(":user_id$i", $user_id, PDO::PARAM_INT);
-    }
-    $activity_stmt->execute();
-    $post_related_activities = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
-    */
-    // Ensure $post_related_activities is correctly populated before this point.
-    // If $activity_stmt is failing, $post_related_activities might be empty or cause errors.
-
-
-    // --- Fetch Social Activities (friend connections) ---
-    // This assumes $social_sql, $social_stmt, and $social_activities are fetched
-    // as per your existing, working logic. Ensure aliases in $social_sql are:
-    // event_id (from fr.id), actor_name, actor_user_id, actor_profile_pic, actor_gender,
-    // other_friend_name, other_friend_user_id, activity_type, activity_time.
-
-    // --- Fetch Testimonial Activities ---
-    // This assumes $testimonial_sql, $testimonial_stmt, and $testimonial_activities are fetched.
-    // Ensure aliases are: event_id (from t.testimonial_id), activity_type, activity_time,
-    // actor_name (writer/recipient based on type), actor_user_id, actor_profile_pic, actor_gender,
-    // target_friend_name (recipient/writer), target_friend_user_id,
-    // actual_writer_name, actual_writer_id (for testimonial_received),
-    // testimonial_content, testimonial_rating.
-
-
-    // --- Combine and format all activities ---
-    $all_activities = [];
-    $processed_event_ids = []; // For deduplication
-
-    // Consolidate all fetched activities into one array to process
-    // Ensure $post_related_activities, $social_activities, $testimonial_activities are defined
-    // and contain the results from their respective queries.
+    // Bind the current user ID to all placeholders
+    $activity_stmt->bindParam(":current_user_id1", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id2", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id3", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id4", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id5", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id6", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id7", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id8", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id9", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id10", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id11", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id12", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id13", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id14", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id15", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id16", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id17", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id18", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id19", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id20", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id21", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id22", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id23", $user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id24", $user_id, PDO::PARAM_INT);
     
-    $raw_activities_arrays = [];
-    if (isset($post_related_activities) && is_array($post_related_activities)) {
-        $raw_activities_arrays = array_merge($raw_activities_arrays, $post_related_activities);
-    }
-    if (isset($social_activities) && is_array($social_activities)) {
-        $raw_activities_arrays = array_merge($raw_activities_arrays, $social_activities);
-    }
-    if (isset($testimonial_activities) && is_array($testimonial_activities)) {
-        $raw_activities_arrays = array_merge($raw_activities_arrays, $testimonial_activities);
-    }
+    $activity_stmt->execute();
+    $fetched_activities = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Sort all raw activities by time before processing for deduplication and formatting
-    // This helps if different sources had different LIMITs but you want overall recency
-    usort($raw_activities_arrays, function($a, $b) {
-        return strtotime($b['activity_time']) - strtotime($a['activity_time']);
-    });
+    $all_activities = [];
+    $processed_event_ids = []; 
 
-
-    foreach ($raw_activities_arrays as $activity) {
-        $unique_event_key = ($activity['activity_type'] ?? 'unknown_type') . '_';
-        
-        // Use 'event_id' if present (should be aliased for comments, reactions, testimonials)
-        // For social (friend_request, friend_connection), fr.id was aliased as 'activity_id_social' in my example.
-        // Let's ensure a consistent 'event_id' or fallback.
-        if (isset($activity['event_id'])) {
-            $unique_event_key .= $activity['event_id'];
-        } elseif (isset($activity['activity_id_social'])) { 
-            $unique_event_key .= $activity['activity_id_social'];
-        } elseif (isset($activity['testimonial_id'])) { // Fallback if event_id wasn't used for testimonials
-             $unique_event_key .= $activity['testimonial_id'];
-        } else {
-            // Fallback for types without a clear single event ID from SQL, e.g., friend_connection
-            if (($activity['activity_type'] ?? '') === 'friend_connection') {
-                $user1 = min($activity['actor_user_id'] ?? 0, $activity['other_friend_user_id'] ?? 0);
-                $user2 = max($activity['actor_user_id'] ?? 0, $activity['other_friend_user_id'] ?? 0);
-                $unique_event_key .= $user1 . '_' . $user2 . '_' . strtotime($activity['activity_time'] ?? 0);
-            } else {
-                $unique_event_key .= md5(json_encode($activity)); // Less reliable, last resort
-            }
-        }
-
+    foreach ($fetched_activities as $activity) {
+        $unique_event_key = $activity['activity_type'] . '_' . $activity['activity_id'];
         if (isset($processed_event_ids[$unique_event_key])) {
-            continue; // Skip already processed event
+            continue;
         }
         $processed_event_ids[$unique_event_key] = true;
 
-        $actorProfilePic = $activity['actor_profile_pic'] 
-            ? '../uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic']) 
-            : ((isset($activity['actor_gender']) && $activity['actor_gender'] === 'Female') ? $defaultFemalePic_path : $defaultMalePic_path);
+        $actorProfilePic = $activity['actor_profile_pic']
+            ? '../uploads/profile_pics/' . htmlspecialchars($activity['actor_profile_pic'])
+            : (($activity['actor_gender'] === 'Female') ? $defaultFemalePic_path : $defaultMalePic_path);
 
         $item = [
-            'type' => $activity['activity_type'] ?? 'unknown',
-            'actor_name' => $activity['actor_name'] ?? 'Someone',
+            'type' => $activity['activity_type'],
+            'actor_name' => $activity['actor_name'],
             'actor_profile_pic' => $actorProfilePic,
-            'actor_user_id' => $activity['actor_user_id'] ?? null,
-            'activity_time' => $activity['activity_time'] ?? '',
-            'timestamp' => isset($activity['activity_time']) ? strtotime($activity['activity_time']) : 0
+            'actor_user_id' => $activity['actor_user_id'],
+            'activity_time' => $activity['activity_created_at'],
+            'timestamp' => strtotime($activity['activity_created_at']),
+
+            'post_id_for_activity' => $activity['target_content_id'],
+            'post_id' => $activity['target_content_id'], 
+            'post_content_preview' => $activity['target_content_summary'],
+            'post_author_name' => $activity['target_owner_name'],
+            'post_author_id' => $activity['target_owner_user_id'],
+            
+            'content' => $activity['comment_content'], // Will be NULL for reactions
+            'comment_id' => ($activity['activity_type'] === 'comment') ? $activity['activity_id'] : null,
+            
+            'reaction_type' => $activity['reaction_type'], // Will be NULL for comments
+            'reaction_id' => ($activity['activity_type'] === 'reaction') ? $activity['activity_id'] : null,
+
+
+            'friend_name' => $activity['actor_name'], 
+            'friend_user_id' => $activity['actor_user_id'],
+            'target_friend_name' => null, 
+            'target_friend_user_id' => null,
+            'other_friend_name' => null,
+            'other_friend_user_id' => null,
+            'testimonial_id' => null,
+            'rating' => null,
+            'writer_name' => null,
+            'writer_id' => null,
+            'recipient_name' => null,
+            'recipient_id' => null,
+            // Media related fields, null for now
+            'media_id' => $activity['media_id'] ?? null,
+            'media_url' => $activity['media_url'] ?? null,
+            'media_type' => $activity['media_type'] ?? null,
+            'album_id' => $activity['album_id'] ?? null,
         ];
-
-        // Add type-specific fields based on standardized SQL aliases
-        $item['post_id_for_activity'] = $activity['post_id_for_activity'] ?? null;
-        $item['post_content_preview'] = $activity['post_content_preview'] ?? null;
-        $item['post_author_name'] = $activity['post_author_name'] ?? null;
-        $item['post_author_id'] = $activity['post_author_id'] ?? null;
         
-        $item['comment_id'] = $activity['comment_id'] ?? ($activity['event_id'] ?? null); // if event_id is comment_id
-        $item['reaction_type'] = $activity['reaction_type'] ?? null;
-        
-        $item['target_friend_user_id'] = $activity['target_friend_user_id'] ?? null;
-        $item['target_friend_name'] = $activity['target_friend_name'] ?? null;
-        
-        $item['other_friend_name'] = $activity['other_friend_name'] ?? null;
-        $item['other_friend_user_id'] = $activity['other_friend_user_id'] ?? null;
-        
-        $item['testimonial_id'] = $activity['testimonial_id'] ?? ($activity['event_id'] ?? null);
-        $item['content'] = $activity['testimonial_content'] ?? ($activity['comment_content'] ?? null); // Consolidate content field
-        $item['rating'] = $activity['testimonial_rating'] ?? null;
-        
-        $item['writer_name'] = $activity['actual_writer_name'] ?? ($activity['actor_name'] ?? 'Someone'); // For testimonials
-        $item['writer_id'] = $activity['actual_writer_id'] ?? ($activity['actor_user_id'] ?? null);
-        $item['recipient_name'] = $activity['target_friend_name'] ?? ($activity['actor_name'] ?? 'Someone'); // For testimonials
-        $item['recipient_id'] = $activity['target_friend_user_id'] ?? ($activity['actor_user_id'] ?? null);
-
-        // For JS compatibility with original specific types in renderActivityItem
-        if ($item['type'] === 'comment' || $item['type'] === 'reaction_on_friend_post') {
-            $item['friend_name'] = $item['actor_name']; 
-            $item['friend_user_id'] = $item['actor_user_id'];
-            $item['post_id'] = $item['post_id_for_activity'];
-            $item['post_author'] = $item['post_author_name'];
-        }
-        if ($item['type'] === 'friend_request' || $item['type'] === 'friend_connection'){
+        if ($item['type'] === 'comment') {
             $item['friend_name'] = $item['actor_name'];
             $item['friend_user_id'] = $item['actor_user_id'];
+            $item['post_author'] = $item['post_author_name'];
+        } else if ($item['type'] === 'reaction') {
+            $item['friend_name'] = $item['actor_name'];
+            $item['friend_user_id'] = $item['actor_user_id'];
+            $item['post_author'] = $item['post_author_name'];
+        } else if ($item['type'] === 'comment_on_friend_post') {
+            // For 'comment_on_friend_post', the 'actor' is the commenter (anyone)
+            // and 'target_owner_name' is the friend whose post it is.
+            // The JS might expect 'friend_name' to be the post owner in this context.
+            $item['friend_name'] = $item['post_author_name']; 
+            $item['friend_user_id'] = $item['post_author_id'];
+            // actor_name is already the commenter.
+        } else if ($item['type'] === 'reaction_on_friend_post') {
+            // Similar to 'comment_on_friend_post', actor is the reactor,
+            // and 'target_owner_name' is the friend whose post it is.
+            $item['friend_name'] = $item['post_author_name']; 
+            $item['friend_user_id'] = $item['post_author_id'];
+            // actor_name is already the reactor.
+        } else if ($item['type'] === 'media_comment'){
+            // For 'media_comment', actor is the friend commenting.
+            // Post author is 'target_owner_name'.
+            // The JS might expect 'friend_name' to be the actor (commenter).
+            $item['friend_name'] = $item['actor_name'];
+            $item['friend_user_id'] = $item['actor_user_id'];
+            if ($item['media_url'] && !filter_var($item['media_url'], FILTER_VALIDATE_URL)) {
+                $item['media_url'] = '../uploads/media/' . htmlspecialchars($item['media_url']);
+            }
+        } else if ($item['type'] === 'media_reaction'){
+            // For 'media_reaction', actor is the friend reacting.
+            // Post author is 'target_owner_name'.
+            // The JS might expect 'friend_name' to be the actor (reactor).
+            $item['friend_name'] = $item['actor_name'];
+            $item['friend_user_id'] = $item['actor_user_id'];
+            if ($item['media_url'] && !filter_var($item['media_url'], FILTER_VALIDATE_URL)) {
+                $item['media_url'] = '../uploads/media/' . htmlspecialchars($item['media_url']);
+            }
         }
-        if ($item['type'] === 'testimonial_written') {
-             $item['friend_name_full'] = $item['actor_name']; // Original key used by JS
-        }
-        if ($item['type'] === 'testimonial_received') {
-            $item['friend_name_full'] = $item['actor_name']; // Original key used by JS
-            // JS also expects activity.writer_name and activity.recipient_name for testimonials, which are now covered by item.writer_name etc.
-        }
+
 
         $all_activities[] = $item;
     }
 
-    // The usort and array_slice will be done AFTER this block on the final $all_activities array.
-    // Your existing code for usort, array_slice, and pending testimonials count should follow this block.
+    // Sort by timestamp (newest first) - already ordered by SQL's outer ORDER BY
+    // usort($all_activities, function($a, $b) {
+    //     return $b['timestamp'] - $a['timestamp'];
+    // });
 
-    // Format social activities (non-post related)
-    // NOTE: The social activities loop was duplicated in the SEARCH block. 
-    // This part of the REPLACE block assumes the social activities loop remains as is,
-    // and the changes are only within the testimonial_activities loop.
-    // If the intent was to also change social_activities, that needs clarification.
-    // For now, I am only providing the corrected testimonial_activities loop.
-    // The following is a placeholder to make the diff tool happy if it needs a matching end.
-    // THIS SECTION SHOULD BE VERIFIED AND POTENTIALLY REMOVED IF ONLY TESTIMONIAL LOOP WAS INTENDED.
-    foreach ($social_activities as $activity) {
-        $profilePic = !empty($activity['friend_profile_pic'])
-            ? 'uploads/profile_pics/' . $activity['friend_profile_pic']
-            : 'assets/images/MaleDefaultProfilePicture.png';
-        
-        // Placeholder for social activities processing - assuming no changes needed here based on subtask
-        // This part is complex and likely incorrect if the goal was to remove the duplicated block in SEARCH
+    // Limit to 20 activities (already done in SQL's outer LIMIT)
+    // $all_activities = array_slice($all_activities, 0, 20);
 
-        $current_activity_writer_name_social = null; // Different var names to avoid collision if needed
-        $current_activity_recipient_name_social = null;
-        $current_writer_id_social = null; 
-        $current_recipient_id_social = null;
-
-        // Example: if social activities also had testimonials, which they don't seem to
-        if ($activity['activity_type'] === 'some_social_testimonial_type_if_exists') {
-            // ... logic ...
-        }
-            
-        $final_display_writer_name_social = !empty($current_activity_writer_name_social) ? $current_activity_writer_name_social : 'Unknown User';
-        $final_display_recipient_name_social = !empty($current_activity_recipient_name_social) ? $current_activity_recipient_name_social : 'Unknown User';
-        
-        $all_activities[] = [
-            'type' => $activity['activity_type'],
-            'friend_name' => $activity['friend_name'],
-            'friend_profile_pic' => $profilePic,
-            'friend_user_id' => $activity['friend_user_id'],
-            'activity_time' => $activity['activity_time'],
-            'other_friend_name' => $activity['other_friend_name'] ?? null,
-            'other_friend_user_id' => $activity['other_friend_user_id'] ?? null,
-            'timestamp' => strtotime($activity['activity_time'])
-        ];
-    }
-
-    // Sort by timestamp (newest first)
-    usort($all_activities, function($a, $b) {
-        return $b['timestamp'] - $a['timestamp'];
-    });
-
-    // Limit to 25 activities
-    $all_activities = array_slice($all_activities, 0, 25);
-    
-    // Count pending testimonials for notification badge
+    // Count pending testimonials for notification badge - Keep this functionality
     $pendingTestimonialsStmt = $pdo->prepare("
         SELECT COUNT(*) as count
         FROM testimonials
-        WHERE recipient_user_id = ? AND status = 'pending'
+        WHERE recipient_user_id = :user_id AND status = 'pending'
     ");
-    $pendingTestimonialsStmt->execute([$user_id]);
+    $pendingTestimonialsStmt->bindParam(":user_id", $user_id, PDO::PARAM_INT);
+    $pendingTestimonialsStmt->execute();
     $pendingCount = $pendingTestimonialsStmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0;
 
     echo json_encode([
@@ -615,7 +392,7 @@ LIMIT 30
     ]);
 
 } catch (Exception $e) {
-    error_log("Activity feed error: " . $e->getMessage());
+    error_log("Activity feed error: " . $e->getMessage()); // Keep detailed server-side logging
     echo json_encode([
         'success' => false,
         'error' => 'Failed to load activities',

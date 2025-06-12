@@ -35,9 +35,25 @@ try {
              posts.removed_reason,
              posts.is_flagged,
              posts.flag_reason,
-             users.id as author_id
+             users.id as author_id,
+             COALESCE(MAX(c.created_at), MAX(pr.created_at), posts.created_at) as last_activity_at,
+             posts.original_post_id, -- Selected for shared post logic
+             posts.post_type,        -- Selected for shared post logic
+             orig_p.id as original_id,
+             orig_p.content as original_content,
+             orig_p.media as original_media,
+             orig_p.created_at as original_created_at,
+             orig_p.visibility as original_visibility,
+             orig_u.id as original_author_id,
+             CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) as original_author_name,
+             orig_u.profile_pic as original_author_profile_pic,
+             orig_u.gender as original_author_gender
       FROM posts
       JOIN users ON posts.user_id = users.id
+      LEFT JOIN comments c ON posts.id = c.post_id
+      LEFT JOIN post_reactions pr ON posts.id = pr.post_id
+      LEFT JOIN posts orig_p ON posts.original_post_id = orig_p.id AND posts.post_type = 'shared'
+      LEFT JOIN users orig_u ON orig_p.user_id = orig_u.id
       WHERE
         -- Posts from the current user
         posts.user_id = :user_id1
@@ -74,8 +90,13 @@ try {
             -- though FollowManager should prevent self-follow.
             -- More complex exclusions for friends are omitted for now.
         )
-
-      ORDER BY posts.created_at DESC
+      GROUP BY 
+            posts.id, 
+            users.first_name, users.middle_name, users.last_name, users.profile_pic, users.gender, users.id,
+            orig_p.id, orig_u.id, orig_u.first_name, orig_u.middle_name, orig_u.last_name, orig_u.profile_pic, orig_u.gender 
+            -- Add all selected non-aggregated columns from original post author and original post itself
+            -- posts.* columns are covered by posts.id (PK)
+      ORDER BY last_activity_at DESC, posts.created_at DESC
       LIMIT 20
     ");
 
@@ -271,14 +292,16 @@ try {
     $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
     // PHASE 2: Merge posts with friend activities and prioritize by activity
-    $all_posts = [];
-
-    // Add regular posts
-    foreach ($posts as $post) {
-        $post['is_friend_activity'] = false;
-        $post['activity_priority'] = strtotime($post['created_at']);
-        $all_posts[] = $post;
+    // $posts (from main query) is already sorted by last_activity_at DESC.
+    // Initialize $all_posts with these already sorted posts.
+    $all_posts = $posts;
+    // Set a default 'activity_priority' for these posts based on their 'last_activity_at' or 'created_at'
+    // This helps in the final sort if other activity types don't have 'last_activity_at'.
+    foreach ($all_posts as &$post_item) { // Use reference to modify array directly
+        $post_item['activity_priority'] = strtotime($post_item['last_activity_at'] ?? $post_item['created_at']);
+        $post_item['is_friend_activity'] = false; // Mark these as not being "friend_activity" type items initially
     }
+    unset($post_item); // Unset reference
 
     // Add friend activity posts (avoid duplicates)
     $existing_post_ids = array_column($posts, 'id');
@@ -344,11 +367,14 @@ try {
     }
 
     // Sort by activity priority (recent activities first)
+    // 'last_activity_at' from main query posts, 'activity_priority' from other activity types
     usort($all_posts, function($a, $b) {
-        return $b['activity_priority'] - $a['activity_priority'];
+        $time_a = $a['activity_priority'] ?? strtotime($a['created_at'] ?? 0);
+        $time_b = $b['activity_priority'] ?? strtotime($b['created_at'] ?? 0);
+        return $time_b - $time_a;
     });
 
-    // Limit to 20 posts total
+    // Limit to 20 posts total after merging all types
     $all_posts = array_slice($all_posts, 0, 20);
 
     // DEBUG: Log merged posts
@@ -418,7 +444,19 @@ try {
             'is_flagged' => (bool)($post['is_flagged'] ?? false),
             'flag_reason' => $post['flag_reason'] ?? '',
             'friend_activity' => $friendActivityData,
-            'is_system_post' => ($post['author_name'] === 'NubentaUpdates')
+            'is_system_post' => ($post['author_name'] === 'NubentaUpdates'),
+            // Add new fields for shared post data
+            'post_type' => $post['post_type'] ?? 'original', // Default to original if not set
+            'original_post_id_val' => $post['original_post_id'] ?? null, // Renamed to avoid conflict if $post['original_post_id'] is an array key from a join
+            'original_id' => $post['original_id'] ?? null,
+            'original_content' => $post['original_content'] ?? null,
+            'original_media' => $post['original_media'] ?? null,
+            'original_created_at' => $post['original_created_at'] ?? null,
+            'original_visibility' => $post['original_visibility'] ?? null,
+            'original_author_id' => $post['original_author_id'] ?? null,
+            'original_author_name' => $post['original_author_name'] ?? null,
+            'original_author_profile_pic' => $post['original_author_profile_pic'] ?? null,
+            'original_author_gender' => $post['original_author_gender'] ?? null
         ];
     }
 
@@ -748,16 +786,58 @@ if (!$json_requested) {
                   <p><?= nl2br($post['content']) ?></p>
 
                   <?php if (!empty($post['media'])): ?>
-                    <div class="media">
-                      <?php if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $post['media'])): ?>
-                        <img src="<?= htmlspecialchars($post['media']) ?>" alt="Post media" class="img-fluid <?= $post['is_flagged'] ? 'blurred-image' : '' ?>">
-                      <?php elseif (preg_match('/\.mp4$/i', $post['media'])): ?>
-                        <video controls class="img-fluid <?= $post['is_flagged'] ? 'blurred-image' : '' ?>">
-                          <source src="<?= htmlspecialchars($post['media']) ?>" type="video/mp4">
-                          Your browser does not support the video tag.
-                        </video>
-                      <?php endif; ?>
-                    </div>
+                    <?php
+                      $media_items = json_decode($post['media'], true);
+                      if (is_array($media_items) && count($media_items) > 0):
+                        $item_count = count($media_items);
+                        $display_count = min($item_count, 4); // Show max 4 items in grid preview
+                        $data_count_modifier = $item_count > 4 ? '+' : '';
+                        $more_count_text = $item_count > 4 ? '+' . ($item_count - 3) : '';
+                    ?>
+                      <div class="post-multiple-media-container" data-count="<?= $item_count <= 4 ? $item_count : $display_count ?>" data-count-modifier="<?= $data_count_modifier ?>">
+                        <?php for ($i = 0; $i < $display_count; $i++):
+                                $media_item_path = $media_items[$i];
+                                // Ensure path is correct (e.g., prefix with uploads/post_media/ if not already)
+                                if (strpos($media_item_path, 'uploads/') !== 0 && strpos($media_item_path, 'http') !== 0) {
+                                    $media_item_path = 'uploads/post_media/' . $media_item_path;
+                                }
+                                $is_last_visible_item = ($i === $display_count - 1);
+                        ?>
+                          <div class="media-grid-item" <?= ($is_last_visible_item && $data_count_modifier === '+') ? "data-more-count='{$more_count_text}'" : '' ?>>
+                            <?php if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $media_item_path)): ?>
+                              <img src="<?= htmlspecialchars($media_item_path) ?>" alt="Post media <?= $i+1 ?>" class="<?= $post['is_flagged'] ? 'blurred-image' : '' ?>">
+                            <?php elseif (preg_match('/\.mp4$/i', $media_item_path)): ?>
+                              <video controls class="<?= $post['is_flagged'] ? 'blurred-image' : '' ?>">
+                                <source src="<?= htmlspecialchars($media_item_path) ?>" type="video/mp4">
+                                Your browser does not support the video tag.
+                              </video>
+                            <?php else: ?>
+                                <!-- Fallback for unknown media types in array -->
+                                <img src="assets/images/default_media_placeholder.png" alt="Media" class="<?= $post['is_flagged'] ? 'blurred-image' : '' ?>">
+                            <?php endif; ?>
+                          </div>
+                        <?php endfor; ?>
+                      </div>
+                    <?php else: // Single media item (not JSON array or empty array) ?>
+                      <div class="media"> <?php // Existing container for single media ?>
+                        <?php
+                          // Use $post['media'] directly as it's a single path string
+                          $single_media_path = $post['media'];
+                          // Path already handled by PHP formatting logic before this loop
+                        ?>
+                        <?php if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $single_media_path)): ?>
+                          <img src="<?= htmlspecialchars($single_media_path) ?>" alt="Post media" class="img-fluid <?= $post['is_flagged'] ? 'blurred-image' : '' ?>">
+                        <?php elseif (preg_match('/\.mp4$/i', $single_media_path)): ?>
+                          <video controls class="img-fluid <?= $post['is_flagged'] ? 'blurred-image' : '' ?>">
+                            <source src="<?= htmlspecialchars($single_media_path) ?>" type="video/mp4">
+                            Your browser does not support the video tag.
+                          </video>
+                        <?php else: ?>
+                           <!-- Fallback for unknown single media type if needed, though unlikely if path is direct -->
+                           <img src="assets/images/default_media_placeholder.png" alt="Media" class="<?= $post['is_flagged'] ? 'blurred-image' : '' ?>">
+                        <?php endif; ?>
+                      </div>
+                    <?php endif; ?>
                   <?php endif; ?>
                 <?php endif; ?>
               </div>
@@ -770,8 +850,13 @@ if (!$json_requested) {
                   <i class="far fa-comment me-1"></i> Comment
                 </button>
                 <button class="btn btn-outline-secondary">
-                  <i class="far fa-share-square me-1"></i> Share
+                  <i class="far fa-comment me-1"></i> Comment
                 </button>
+                <?php if (($post['post_type'] ?? 'original') === 'original' && !($post['is_system_post'] ?? false) ): ?>
+                  <button class="btn btn-outline-secondary share-btn" data-post-id="<?= $post['id'] ?>">
+                    <i class="far fa-share-square me-1"></i> Share
+                  </button>
+                <?php endif; ?>
                 <?php if ($post['is_own_post']): ?>
                   <button class="btn btn-outline-danger ms-auto">
                     <i class="far fa-trash-alt me-1"></i> Delete
@@ -790,6 +875,30 @@ if (!$json_requested) {
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/share.js" defer></script>
+  
+  <!-- Share Post Modal -->
+  <div id="sharePostModal" class="modal" style="display:none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+      <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; position: relative;">
+          <span class="close-share-modal" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+          <h3>Share Post</h3>
+          <hr>
+          <div id="originalPostPreview" style="margin-bottom: 15px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; border-radius: 4px;">
+              <!-- Original post preview will be loaded here by JavaScript -->
+              <p>Loading post preview...</p>
+          </div>
+          <textarea id="sharerComment" placeholder="Say something about this..." style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; min-height: 80px; resize: vertical;"></textarea>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <select id="shareVisibility" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="friends">Friends</option>
+                <option value="public">Public</option>
+                <option value="only_me">Only Me</option>
+            </select>
+            <button id="confirmShareBtn" style="background-color: #1877f2; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer;">Share Now</button>
+          </div>
+      </div>
+  </div>
+
 </body>
 </html>
 <?php
