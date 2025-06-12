@@ -482,3 +482,116 @@ header {
     font-size: 18px;
   }
 }
+
+/* Newsfeed Media Display Enhancements */
+
+/* Container for media in a post */
+.post .media { /* Targeting existing .media class in .post */
+  width: 100%;
+  overflow: hidden; /* Helps contain children if max-height is used */
+  margin-top: 10px;
+  margin-bottom: 10px;
+  border-radius: 8px; /* Match existing .post-media-container */
+  background-color: #f0f0f0; /* Background for letterboxing */
+}
+
+/* Single Image Styling */
+.post .media img.img-fluid, /* Targeting existing img-fluid */
+.post .media .single-media-item img { /* New class for clarity if needed */
+  max-width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain; /* Show whole image, letterbox if needed */
+  margin-left: auto;  /* Center if letterboxed and smaller than container */
+  margin-right: auto; /* Center if letterboxed and smaller than container */
+  max-height: 600px; /* Prevent excessively tall images */
+}
+
+/* Single Video Styling */
+.post .media video.img-fluid, /* Targeting existing img-fluid */
+.post .media .single-media-item video { /* New class for clarity if needed */
+  max-width: 100%;
+  height: auto;
+  display: block;
+  max-height: 600px; /* Prevent excessively tall videos */
+}
+
+/* Multiple Images Grid Styling */
+.post-multiple-media-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px; /* Small gap between images */
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.post-multiple-media-container .media-grid-item {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.post-multiple-media-container .media-grid-item img,
+.post-multiple-media-container .media-grid-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Crop to fill, good for uniform grid */
+  display: block;
+  cursor: pointer; /* Indicate clickable for modal */
+}
+
+/* Specific layouts for 2-4 images - can be expanded */
+.post-multiple-media-container[data-count="1"] .media-grid-item {
+  flex-basis: 100%;
+  height: 300px; /* Or use aspect-ratio */
+}
+.post-multiple-media-container[data-count="1"] .media-grid-item img,
+.post-multiple-media-container[data-count="1"] .media-grid-item video {
+  object-fit: contain; /* Single image in multi-container should be contained */
+}
+
+
+.post-multiple-media-container[data-count="2"] .media-grid-item {
+  flex-basis: calc(50% - 2px);
+  height: 200px; /* Adjust as needed */
+}
+
+.post-multiple-media-container[data-count="3"] .media-grid-item {
+  flex-basis: calc(33.333% - 3px);
+  height: 150px; /* Adjust as needed */
+}
+.post-multiple-media-container[data-count="3"] .media-grid-item:first-child {
+  flex-basis: 100%; /* Example: First image larger if 3 */
+  height: 200px;
+}
+.post-multiple-media-container[data-count="3"] .media-grid-item:not(:first-child) {
+  flex-basis: calc(50% - 2px); /* Other two smaller */
+  height: 130px;
+}
+
+
+.post-multiple-media-container[data-count="4"] .media-grid-item {
+  flex-basis: calc(50% - 2px);
+  height: 180px; /* Adjust as needed */
+}
+
+/* More than 4 images - could show first 3/4 and an overlay for "+X more" */
+.post-multiple-media-container[data-count-modifier="+"] .media-grid-item:nth-child(4) { /* If showing 4 items then a +N */
+    position: relative;
+}
+.post-multiple-media-container[data-count-modifier="+"] .media-grid-item:nth-child(4)::after {
+    content: attr(data-more-count); /* e.g., "+2" */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+}

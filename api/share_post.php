@@ -9,165 +9,154 @@ if (!isset($_SESSION['user'])) {
   exit();
 }
 
-// Get JSON data
-$data = json_decode(file_get_contents('php://input'), true);
-$user = $_SESSION['user'];
-$user_id = $user['id'];
+// Use bootstrap.php for DB connection and other initial setup
+require_once '../bootstrap.php';
 
-// Validate input
-if (!isset($data['post_id']) || !isset($data['visibility'])) {
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'error' => 'Invalid input']);
-  exit();
+// Check if user is logged in using session
+if (!isset($_SESSION['user']['id'])) {
+    http_response_code(401); // Unauthorized
+    echo json_encode(['status' => 'error', 'message' => 'User not authenticated.']);
+    exit;
 }
 
-$post_id = $data['post_id'];
-$content = isset($data['content']) ? trim($data['content']) : '';
-$visibility = $data['visibility'];
+// Ensure request method is POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405); // Method Not Allowed
+    echo json_encode(['status' => 'error', 'message' => 'Invalid request method. Only POST is accepted.']);
+    exit;
+}
 
-// Validate visibility
-if (!in_array($visibility, ['public', 'friends'])) {
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'error' => 'Invalid visibility option']);
-  exit();
+$sharer_user_id = $_SESSION['user']['id'];
+$original_post_id = isset($_POST['original_post_id']) ? filter_var(trim($_POST['original_post_id']), FILTER_VALIDATE_INT) : null;
+$sharer_comment = isset($_POST['sharer_comment']) ? trim($_POST['sharer_comment']) : ''; // Default to empty string
+$visibility = isset($_POST['visibility']) ? trim($_POST['visibility']) : 'friends'; // Default visibility
+
+// Validate visibility input
+$allowed_visibilities = ['public', 'friends', 'only_me']; // Customize as per your system
+if (!in_array($visibility, $allowed_visibilities)) {
+    $visibility = 'friends'; // Default to 'friends' or another appropriate default
+}
+
+if (empty($original_post_id)) {
+    http_response_code(400); // Bad Request
+    echo json_encode(['status' => 'error', 'message' => 'Original post ID is required and must be a valid integer.']);
+    exit;
 }
 
 try {
-  // First check if the user has permission to view the original post
-  $stmt = $pdo->prepare("
-    SELECT p.*, 
-           u.id as author_id,
-           CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
-           u.profile_pic,
-           u.gender
-    FROM posts p
-    JOIN users u ON p.user_id = u.id
-    WHERE p.id = ?
-  ");
-  $stmt->execute([$post_id]);
-  $original_post = $stmt->fetch(PDO::FETCH_ASSOC);
-  
-  if (!$original_post) {
-    throw new Exception('Post not found');
-  }
-  
-  // Check visibility permissions
-  $can_view = false;
-  
-  if ($original_post['visibility'] === 'public') {
-    // Anyone can view and share public posts
-    $can_view = true;
-  } else if ($original_post['visibility'] === 'friends') {
-    // Check if user is friends with the post author
-    if ($user_id == $original_post['author_id']) {
-      // User is the author
-      $can_view = true;
-    } else {
-      // Check friendship status
-      $stmt = $pdo->prepare("
-        SELECT COUNT(*) as is_friend
-        FROM friend_requests
-        WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
-        AND status = 'accepted'
-      ");
-      $stmt->execute([$user_id, $original_post['author_id'], $original_post['author_id'], $user_id]);
-      $friendship = $stmt->fetch(PDO::FETCH_ASSOC);
-      
-      $can_view = ($friendship['is_friend'] > 0);
+    $pdo->beginTransaction();
+
+    // 1. Verify Original Post
+    $stmt_check = $pdo->prepare("SELECT id, user_id, visibility, post_type FROM posts WHERE id = ?");
+    $stmt_check->execute([$original_post_id]);
+    $original_post = $stmt_check->fetch(PDO::FETCH_ASSOC);
+
+    if (!$original_post) {
+        http_response_code(404); // Not Found
+        echo json_encode(['status' => 'error', 'message' => 'Original post not found.']);
+        $pdo->rollBack();
+        exit;
     }
-  }
-  
-  if (!$can_view) {
-    throw new Exception('You do not have permission to share this post');
-  }
-  
-  // Begin transaction
-  $pdo->beginTransaction();
-  
-  // Create a new post as a share
-  $shared_content = '';
-  
-  // If the original post is "friends only" and the share is "public"
-  // We need to handle this special case
-  $is_privacy_conflict = ($original_post['visibility'] === 'friends' && $visibility === 'public');
-  
-  // Prepare shared post data
-  $shared_data = [
-    'user_id' => $user_id,
-    'content' => $content,
-    'visibility' => $visibility,
-    'is_share' => 1,
-    'original_post_id' => $post_id
-  ];
-  
-  // If there's a privacy conflict, we don't include the original post content
-  // Instead, we'll show a message that the original content is private
-  if ($is_privacy_conflict) {
-    $shared_data['share_privacy_conflict'] = 1;
-  }
-  
-  // Insert the shared post
-  $columns = implode(', ', array_keys($shared_data));
-  $placeholders = implode(', ', array_fill(0, count($shared_data), '?'));
-  
-  $stmt = $pdo->prepare("
-    INSERT INTO posts ({$columns}, created_at)
-    VALUES ({$placeholders}, NOW())
-  ");
-  
-  $stmt->execute(array_values($shared_data));
-  $shared_post_id = $pdo->lastInsertId();
-  
-  // Commit transaction
-  $pdo->commit();
-  
-  // Get the newly created shared post with author info
-  $stmt = $pdo->prepare("
-    SELECT p.*, 
-           CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
-           u.profile_pic,
-           u.gender
-    FROM posts p
-    JOIN users u ON p.user_id = u.id
-    WHERE p.id = ?
-  ");
-  $stmt->execute([$shared_post_id]);
-  $shared_post = $stmt->fetch(PDO::FETCH_ASSOC);
-  
-  // Determine profile picture
-  $defaultMalePic = 'assets/images/MaleDefaultProfilePicture.png';
-  $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
-  $profilePic = !empty($shared_post['profile_pic']) 
-      ? 'uploads/profile_pics/' . htmlspecialchars($shared_post['profile_pic']) 
-      : ($shared_post['gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
-  
-  // Format post for response
-  $formatted_post = [
-    'id' => $shared_post['id'],
-    'content' => htmlspecialchars($shared_post['content']),
-    'media' => $shared_post['media'] ? htmlspecialchars($shared_post['media']) : null,
-    'author' => htmlspecialchars($shared_post['author_name']),
-    'profile_pic' => $profilePic,
-    'created_at' => $shared_post['created_at'],
-    'visibility' => $shared_post['visibility'],
-    'is_share' => (bool)$shared_post['is_share'],
-    'original_post_id' => $shared_post['original_post_id'],
-    'share_privacy_conflict' => (bool)($shared_post['share_privacy_conflict'] ?? false)
-  ];
-  
-  header('Content-Type: application/json');
-  echo json_encode([
-    'success' => true, 
-    'post' => $formatted_post
-  ]);
-  
+
+    // Ensure the original post is actually an 'original' post, not a share itself
+    if ($original_post['post_type'] !== 'original') {
+        http_response_code(400); // Bad Request
+        echo json_encode(['status' => 'error', 'message' => 'You can only share an original post, not an existing share.']);
+        $pdo->rollBack();
+        exit;
+    }
+
+    // Basic visibility check for sharing (can be expanded)
+    // If original post is 'only_me', only the author can "share" it (effectively a repost with new comment)
+    if ($original_post['visibility'] === 'only_me' && $original_post['user_id'] != $sharer_user_id) {
+         http_response_code(403); // Forbidden
+         echo json_encode(['status' => 'error', 'message' => 'You do not have permission to share this private post.']);
+         $pdo->rollBack();
+         exit;
+    }
+    // If original post is 'friends' only, sharer must be friends with original author
+    // This logic needs your specific friend checking mechanism. Placeholder:
+    if ($original_post['visibility'] === 'friends' && $original_post['user_id'] != $sharer_user_id) {
+        // Example check (replace with your actual friend checking logic):
+        $friend_check_stmt = $pdo->prepare("SELECT COUNT(*) FROM friend_requests WHERE status = 'accepted' AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))");
+        $friend_check_stmt->execute([$sharer_user_id, $original_post['user_id'], $original_post['user_id'], $sharer_user_id]);
+        if ($friend_check_stmt->fetchColumn() == 0) {
+            http_response_code(403); // Forbidden
+            echo json_encode(['status' => 'error', 'message' => 'You can only share a "friends-only" post if you are friends with the original author.']);
+            $pdo->rollBack();
+            exit;
+        }
+    }
+
+    // Prevent sharing own post without a comment (which is essentially just a duplicate)
+     if ($original_post['user_id'] == $sharer_user_id && empty($sharer_comment)) {
+        http_response_code(400); // Bad Request
+        echo json_encode(['status' => 'error', 'message' => 'Sharing your own post requires adding a comment or thought.']);
+        $pdo->rollBack();
+        exit;
+    }
+
+    // 2. Database Insertion for the new "shared" post
+    $stmt_insert = $pdo->prepare(
+        "INSERT INTO posts (user_id, content, original_post_id, post_type, visibility, created_at, updated_at)
+         VALUES (?, ?, ?, 'shared', ?, NOW(), NOW())"
+    );
+
+    $success = $stmt_insert->execute([
+        $sharer_user_id,
+        empty($sharer_comment) ? NULL : htmlspecialchars($sharer_comment, ENT_QUOTES, 'UTF-8'),
+        $original_post_id,
+        $visibility
+    ]);
+
+    if ($success) {
+        $shared_post_id = $pdo->lastInsertId();
+
+        // Insert notification for the original post author
+        $original_author_id = $original_post['user_id'];
+        if ($original_author_id && $original_author_id != $sharer_user_id) {
+            try {
+                // Construct a link to the new shared post.
+                // Adjust the base URL as necessary if this script is deep in /api/
+                // For example, if newsfeed items have anchors like #post-123 or posts.php?id=123
+                $notification_link = "../posts.php?id=" . $shared_post_id;
+                // Or, link to the original post that was shared, and context shows it as a share:
+                // $notification_link = "../posts.php?id=" . $original_post_id . "&focus_share=" . $shared_post_id;
+
+                $stmt_notify = $pdo->prepare(
+                    "INSERT INTO notifications (user_id, actor_id, type, target_id, link, created_at)
+                     VALUES (?, ?, 'post_share', ?, ?, NOW())"
+                );
+                $stmt_notify->execute([$original_author_id, $sharer_user_id, $shared_post_id, $notification_link]);
+            } catch (PDOException $e) {
+                // Log notification error, but don't fail the whole share transaction
+                error_log("Failed to create notification for post share: " . $e->getMessage());
+            }
+        }
+
+        $pdo->commit();
+
+        echo json_encode(['status' => 'success', 'message' => 'Post shared successfully.', 'shared_post_id' => $shared_post_id]);
+    } else {
+        $pdo->rollBack();
+        http_response_code(500); // Internal Server Error
+        $errorInfo = $stmt_insert->errorInfo();
+        error_log("Failed to share post. DB Error: " . ($errorInfo[2] ?? 'Unknown error'));
+        echo json_encode(['status' => 'error', 'message' => 'Failed to share post due to a server error.']);
+    }
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log("Share post PDOException: " . $e->getMessage() . " on line " . $e->getLine() . " in " . $e->getFile());
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Database error while sharing post. Details logged.']);
 } catch (Exception $e) {
-  // Rollback transaction on error
-  if (isset($pdo) && $pdo->inTransaction()) {
-    $pdo->rollBack();
-  }
-  
-  header('Content-Type: application/json');
-  echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log("Share post General Exception: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'An unexpected error occurred.']);
 }
 ?>

@@ -1,144 +1,166 @@
-// Share system for posts
-class ShareSystem {
-  // Initialize share system
-  static init() {
-    console.log("Initializing share system");
-    // Set up event listeners for share buttons
-    ShareSystem.setupShareButtons();
-  }
-  
-  // Set up event listeners for share buttons
-  static setupShareButtons() {
-    document.querySelectorAll('.post-share-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const postId = this.getAttribute('data-post-id');
-        console.log("Share button clicked for post:", postId);
-        ShareSystem.showShareForm(postId);
-      });
-    });
-  }
-  
-  // Show share form (alias for openShareDialog for compatibility)
-  static showShareForm(postId) {
-    console.log("Showing share form for post:", postId);
-    ShareSystem.openShareDialog(postId);
-  }
-  
-  // Open share dialog
-  static async openShareDialog(postId) {
-    try {
-      console.log("Fetching post data for ID:", postId);
-      
-      // Get post data
-      const response = await fetch(`api/get_post.php?post_id=${postId}`);
-      const responseText = await response.text();
-      
-      console.log("Raw response:", responseText);
-      
-      // Try to parse as JSON
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (e) {
-        console.error("Failed to parse JSON:", e);
-        throw new Error("Server returned invalid JSON");
-      }
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to get post data');
-      }
-      
-      const post = data.post;
-      
-      // Create modal if it doesn't exist
-      let shareModal = document.getElementById('sharePostModal');
-      if (!shareModal) {
-        const modalHTML = `
-          <div class="modal fade" id="sharePostModal" tabindex="-1" aria-labelledby="sharePostModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-              <div class="modal-content">
-                <div class="modal-header">
-                  <h5 class="modal-title" id="sharePostModalLabel">Share Post</h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                  <div id="share-original-content" class="mb-3"></div>
-                  <div class="form-group">
-                    <label for="share-text">Add a comment</label>
-                    <textarea id="share-text" class="form-control" rows="3"></textarea>
-                  </div>
-                  <div class="form-group mt-2">
-                    <label for="share-visibility">Visibility</label>
-                    <select id="share-visibility" class="form-control">
-                      <option value="public">Public</option>
-                      <option value="friends">Friends Only</option>
-                    </select>
-                  </div>
-                  <input type="hidden" id="share-post-id">
-                </div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                  <button type="button" class="btn btn-primary" id="share-submit-btn">Share</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-        
-        const modalContainer = document.createElement('div');
-        modalContainer.innerHTML = modalHTML;
-        document.body.appendChild(modalContainer.firstChild);
-        
-        shareModal = document.getElementById('sharePostModal');
-        
-        // Add event listener for share button
-        document.getElementById('share-submit-btn').addEventListener('click', function() {
-          const postId = document.getElementById('share-post-id').value;
-          const shareText = document.getElementById('share-text').value;
-          const visibility = document.getElementById('share-visibility').value;
-          
-          ShareSystem.sharePost(postId, shareText, visibility, shareModal);
-        });
-      }
-      
-      // Populate share form
-      document.getElementById('share-post-id').value = post.id;
-      document.getElementById('share-original-content').innerHTML = `
-        <div class="original-post-preview">
-          <div class="d-flex align-items-center mb-2">
-            <img src="${post.profile_pic}" class="rounded-circle me-2" width="40" height="40">
-            <div>
-              <strong>${post.author}</strong>
-              <div class="text-muted small">${ShareSystem.formatDate(post.created_at)}</div>
-            </div>
-          </div>
-          <div class="original-post-content">${post.content}</div>
-          ${post.media ? `<div class="media mt-2"><img src="${post.media}" class="img-fluid"></div>` : ''}
-        </div>
-      `;
-      
-      // Show the modal
-      const bsModal = new bootstrap.Modal(shareModal);
-      bsModal.show();
-      
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Could not load post for sharing. Please try again later.');
-    }
-  }
-  
-  // Format date for display
-  static formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  }
-}
-
-// Make it available globally
-window.ShareSystem = ShareSystem;
-
-// Initialize when the DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-  console.log("DOM loaded, initializing ShareSystem");
-  // We don't initialize here anymore, it will be initialized after posts are loaded
+    const modal = document.getElementById('sharePostModal');
+    // Ensure modal exists before trying to get children
+    if (!modal) {
+        // console.log("Share modal not found on this page.");
+        return;
+    }
+
+    const closeBtn = modal.querySelector('.close-share-modal');
+    const confirmShareBtn = modal.querySelector('#confirmShareBtn');
+    const originalPostPreview = modal.querySelector('#originalPostPreview');
+    const sharerCommentTextarea = modal.querySelector('#sharerComment');
+    const shareVisibilitySelect = modal.querySelector('#shareVisibility');
+
+    let currentOriginalPostId = null;
+
+    // Use event delegation on a stable parent if newsfeed posts are loaded dynamically
+    // Assuming a container like 'newsfeed' or document.body if posts are directly in it.
+    // If newsfeed content is loaded into a specific div, e.g., #newsfeed-content:
+    const newsfeedContainer = document.getElementById('newsfeed-content') || document.getElementById('newsfeed') || document.body;
+
+    newsfeedContainer.addEventListener('click', async function(event) {
+        let targetElement = event.target;
+        // Check if the clicked element or its parent is a share button
+        while (targetElement != null && !targetElement.classList.contains('share-btn')) {
+            targetElement = targetElement.parentElement;
+        }
+
+        if (targetElement && targetElement.classList.contains('share-btn')) {
+            currentOriginalPostId = targetElement.dataset.postId;
+            if (!currentOriginalPostId) {
+                console.error('Share button clicked without a post ID.');
+                alert('Could not initiate share: missing post ID.');
+                return;
+            }
+
+            // Reset modal fields
+            if(sharerCommentTextarea) sharerCommentTextarea.value = '';
+            if(shareVisibilitySelect) shareVisibilitySelect.value = 'friends'; // Default visibility
+            if(originalPostPreview) originalPostPreview.innerHTML = '<p>Loading post preview...</p>';
+
+            if(modal) modal.style.display = 'block';
+
+            // Fetch post preview
+            try {
+                const response = await fetch(`api/get_post_preview.php?id=${currentOriginalPostId}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => null);
+                    throw new Error(errorData?.message || `HTTP error! Status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                if (data.status === 'success' && data.post_preview) {
+                    const preview = data.post_preview;
+                    if(originalPostPreview) {
+                        originalPostPreview.innerHTML = `
+                            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                                <img src="${escapeHtml(preview.author_profile_pic)}" alt="${escapeHtml(preview.author_name)}" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 8px;">
+                                <strong>${escapeHtml(preview.author_name)}</strong>
+                            </div>
+                            <p style="font-size: 0.9em; color: #555; margin-bottom: 5px; max-height: 60px; overflow-y: auto; word-wrap: break-word;">${escapeHtml(preview.content_snippet)}</p>
+                            <div style="max-height:100px; overflow:hidden;">${preview.media_html || ''}</div>
+                        `;
+                    }
+                } else {
+                    if(originalPostPreview) originalPostPreview.innerHTML = `<p style="color: red;">Could not load post preview: ${escapeHtml(data.message || 'Unknown error')}</p>`;
+                }
+            } catch (error) {
+                console.error('Error fetching post preview:', error);
+                if(originalPostPreview) originalPostPreview.innerHTML = `<p style="color: red;">Error fetching post preview: ${escapeHtml(error.message)}</p>`;
+            }
+        }
+    });
+
+    if(closeBtn) {
+        closeBtn.onclick = function() {
+            if(modal) modal.style.display = 'none';
+            currentOriginalPostId = null;
+        }
+    }
+
+    if(confirmShareBtn) {
+        confirmShareBtn.onclick = async function() {
+            if (!currentOriginalPostId) {
+                alert('Error: No post selected to share.');
+                return;
+            }
+
+            const sharerComment = sharerCommentTextarea ? sharerCommentTextarea.value : '';
+            const visibility = shareVisibilitySelect ? shareVisibilitySelect.value : 'friends';
+
+            const formData = new FormData();
+            formData.append('original_post_id', currentOriginalPostId);
+            formData.append('sharer_comment', sharerComment);
+            formData.append('visibility', visibility);
+
+            try {
+                confirmShareBtn.disabled = true;
+                confirmShareBtn.textContent = 'Sharing...';
+
+                const response = await fetch('api/share_post.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    alert(result.message || 'Post shared successfully!');
+                    if(modal) modal.style.display = 'none';
+                    currentOriginalPostId = null;
+
+                    // Refresh the newsfeed to show the new shared post
+                    // Check for a global function or a specific one for newsfeed.php
+                    if (typeof loadNewsfeed === 'function') {
+                        loadNewsfeed();
+                    } else if (document.getElementById('activity-feed-container') && typeof loadActivityFeed === 'function') {
+                        // This is less ideal as it's for the side activity feed, but better than full reload if main one isn't found
+                        // loadActivityFeed();
+                        // Better to reload if newsfeed specific loader isn't there.
+                        window.location.reload();
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    alert('Error sharing post: ' + (result.message || 'Unknown server error.'));
+                }
+            } catch (error) {
+                console.error('Error sharing post:', error);
+                alert('An unexpected error occurred while sharing the post.');
+            } finally {
+                confirmShareBtn.disabled = false;
+                confirmShareBtn.textContent = 'Share Now';
+            }
+        }
+    }
+
+    // Close modal if user clicks outside of it
+    if(modal) {
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+                currentOriginalPostId = null;
+            }
+        }
+    }
+
+    function escapeHtml(unsafe) {
+        if (typeof unsafe !== 'string') {
+            if (unsafe === null || typeof unsafe === 'undefined') {
+                return '';
+            }
+            try {
+                unsafe = String(unsafe);
+            } catch (e) {
+                return '';
+            }
+        }
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
 });

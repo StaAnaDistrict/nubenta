@@ -180,49 +180,98 @@ function renderActivityFeed(activities) {
 
 // Function to render individual activity item
 function renderActivityItem(activity) {
-    const timeAgo = formatTimeAgo(activity.activity_time);
+    const timeAgo = formatTimeAgo(activity.activity_time || activity.activity_created_at); // activity_time is preferred
     let text = '';
-    let clickAction = '';
+    let contentPreview = '';
+    let mediaPreview = '';
+    let clickAction = `onclick="viewPost(${activity.post_id_for_activity || activity.target_content_id})"`; // Default click action
 
-    let mainActorName = activity.actor_name || activity.friend_name;
-    let mainActorUserId = activity.actor_user_id || activity.friend_user_id;
+    // Actor profile picture and name
+    const actorProfileLink = `../view_profile.php?id=${activity.actor_user_id}`;
+    const actorImage = `<img src="${activity.actor_profile_pic}" alt="${activity.actor_name}" style="width: 20px; height: 20px; border-radius: 50%; margin-right: 5px;">`;
+    const actorStrong = `<strong onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'">${activity.actor_name}</strong>`;
+
+    // Target Owner (Post Owner / Friend) profile picture and name (if applicable)
+    let targetOwnerStrong = '';
+    if (activity.post_author_name && activity.post_author_id) { // post_author_name is target_owner_name from PHP
+        const targetOwnerProfileLink = `../view_profile.php?id=${activity.post_author_id}`;
+        targetOwnerStrong = `<strong onclick="event.stopPropagation(); window.location.href='${targetOwnerProfileLink}'">${activity.post_author_name}</strong>`;
+    }
+
 
     switch (activity.type) {
-        case 'comment':
-            text = '<strong onclick="event.stopPropagation(); viewProfile(' + mainActorUserId + ')">' + mainActorName + '</strong> commented on ' + activity.post_author + "'s post";
-            clickAction = 'onclick="viewPost(' + activity.post_id + ')"';
+        case 'comment': // Friend comments on any public post
+            text = `${actorStrong} commented on ${targetOwnerStrong}'s post.`;
+            if (activity.content) { // content is comment_content from PHP
+                contentPreview = `<div style="font-size: 0.8em; color: #ccc; margin-left: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+            }
             break;
 
-        case 'reaction_on_friend_post':
-            text = '<strong onclick="event.stopPropagation(); viewProfile(' + mainActorUserId + ')">' + mainActorName + '</strong> reacted "' + activity.reaction_type + '" to ' + activity.post_author + "'s post";
-            clickAction = 'onclick="viewPost(' + activity.post_id + ')"';
+        case 'reaction': // Friend reacts on any public post
+            text = `${actorStrong} reacted ${activity.reaction_type ? '<strong>' + escapeHtml(activity.reaction_type) + '</strong>' : ''} to ${targetOwnerStrong}'s post.`;
             break;
 
-        case 'comment_on_friend_post':
-            text = '<strong onclick="event.stopPropagation(); viewProfile(' + activity.actor_user_id + ')">' + activity.actor_name + '</strong> commented on <strong onclick="event.stopPropagation(); viewProfile(' + activity.target_friend_user_id + ')">' + activity.target_friend_name + '</strong>' + "'s post";
-            clickAction = 'onclick="viewPost(' + activity.post_id_for_activity + ')"';
+        case 'comment_on_friend_post': // Anyone comments on a friend's public post
+            // PHP side sets friend_name = post_author_name for this type.
+            // So targetOwnerStrong here refers to the friend whose post it is.
+            text = `${actorStrong} commented on your friend ${targetOwnerStrong}'s post.`;
+             if (activity.content) {
+                contentPreview = `<div style="font-size: 0.8em; color: #ccc; margin-left: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+            }
             break;
 
-        case 'reaction_to_friend_post':
-            text = '<strong onclick="event.stopPropagation(); viewProfile(' + activity.actor_user_id + ')">' + activity.actor_name + '</strong> reacted "' + activity.reaction_type + '" to <strong onclick="event.stopPropagation(); viewProfile(' + activity.target_friend_user_id + ')">' + activity.target_friend_name + '</strong>' + "'s post";
-            clickAction = 'onclick="viewPost(' + activity.post_id_for_activity + ')"';
+        case 'reaction_on_friend_post': // Anyone reacts to a friend's public post
+             // PHP side sets friend_name = post_author_name for this type.
+            text = `${actorStrong} reacted ${activity.reaction_type ? '<strong>' + escapeHtml(activity.reaction_type) + '</strong>' : ''} to your friend ${targetOwnerStrong}'s post.`;
             break;
 
+        case 'media_comment': // Friend comments on media
+            text = `${actorStrong} commented on ${targetOwnerStrong}'s media.`;
+            if (activity.content) {
+                contentPreview = `<div style="font-size: 0.8em; color: #ccc; margin-left: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+            }
+            if (activity.media_url && (activity.media_type === 'image' || activity.media_type === 'photo')) { // Assuming 'photo' is a possible type
+                 mediaPreview = `<img src="${escapeHtml(activity.media_url)}" alt="media thumbnail" style="max-width: 50px; max-height: 50px; margin-left: 25px; margin-top: 5px; border-radius: 3px;">`;
+            } else if (activity.media_url && activity.media_type === 'video') {
+                 mediaPreview = `<i class="fas fa-video" style="margin-left: 25px; margin-top: 5px; font-size: 24px;"></i> <span style="font-size:0.8em;">Video</span>`;
+            }
+            // Click action might link to post or media item view if available. For now, links to post.
+            break;
+
+        case 'media_reaction': // Friend reacts to media
+            text = `${actorStrong} reacted ${activity.reaction_type ? '<strong>' + escapeHtml(activity.reaction_type) + '</strong>' : ''} to ${targetOwnerStrong}'s media.`;
+            if (activity.media_url && (activity.media_type === 'image' || activity.media_type === 'photo')) {
+                 mediaPreview = `<img src="${escapeHtml(activity.media_url)}" alt="media thumbnail" style="max-width: 50px; max-height: 50px; margin-left: 25px; margin-top: 5px; border-radius: 3px;">`;
+            } else if (activity.media_url && activity.media_type === 'video') {
+                 mediaPreview = `<i class="fas fa-video" style="margin-left: 25px; margin-top: 5px; font-size: 24px;"></i> <span style="font-size:0.8em;">Video</span>`;
+            }
+            // Click action might link to post or media item view. For now, links to post.
+            break;
+
+        // Keep existing cases for friend_request, friend_connection, testimonial_written, testimonial_received
+        // These types are not part of the current subtask's SQL changes but were in the original function.
+        // It's safer to keep them if they might be used by other parts of the system or future SQL.
         case 'friend_request':
-            text = 'You are now connected with <strong onclick="event.stopPropagation(); viewProfile(' + mainActorUserId + ')">' + mainActorName + '</strong>';
-            clickAction = 'onclick="viewProfile(' + mainActorUserId + ')"';
+            text = `You are now connected with ${actorStrong}`;
+            clickAction = `onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'"`;
             break;
 
         case 'friend_connection':
-            text = '<strong onclick="event.stopPropagation(); viewProfile(' + mainActorUserId + ')">' + mainActorName + '</strong> is now friends with <strong onclick="event.stopPropagation(); viewProfile(' + activity.other_friend_user_id + ')">' + activity.other_friend_name + '</strong>';
-            clickAction = '';
+            const otherFriendProfileLink = `../view_profile.php?id=${activity.other_friend_user_id}`;
+            const otherFriendStrong = `<strong onclick="event.stopPropagation(); window.location.href='${otherFriendProfileLink}'">${activity.other_friend_name}</strong>`;
+            text = `${actorStrong} is now friends with ${otherFriendStrong}`;
+            clickAction = ''; // Or link to one of the profiles
             break;
 
         case 'testimonial_written':
         case 'testimonial_received':
             let writerDisplayName = activity.writer_name;
             let recipientDisplayName = activity.recipient_name;
-            const loggedInUserId = window.currentUserId;
+            const loggedInUserId = window.currentUserId || <?php echo json_encode($_SESSION['user']['id'] ?? null); ?>;
+
+
+            const writerProfileLink = `../view_profile.php?id=${activity.writer_id}`;
+            const recipientProfileLink = `../view_profile.php?id=${activity.recipient_id}`;
 
             if (activity.writer_id == loggedInUserId) {
                 writerDisplayName = 'You';
@@ -230,29 +279,60 @@ function renderActivityItem(activity) {
             if (activity.recipient_id == loggedInUserId && activity.writer_id != loggedInUserId) {
                 recipientDisplayName = 'you';
             } else if (activity.recipient_id == loggedInUserId && activity.writer_id == loggedInUserId) {
-                recipientDisplayName = activity.recipient_name;
+                 // When user writes a testimonial for themselves (if allowed by system)
+                recipientDisplayName = activity.recipient_name; // or 'yourself'
             }
 
-            text = '<strong onclick="event.stopPropagation(); viewProfile(' + activity.writer_id + ')">' + writerDisplayName + '</strong> wrote a testimonial for <strong onclick="event.stopPropagation(); viewProfile(' + activity.recipient_id + ')">' + recipientDisplayName + '</strong>.';
+            text = `<strong onclick="event.stopPropagation(); window.location.href='${writerProfileLink}'">${writerDisplayName}</strong> wrote a testimonial for <strong onclick="event.stopPropagation(); window.location.href='${recipientProfileLink}'">${recipientDisplayName}</strong>.`;
+            if (activity.content) {
+                 contentPreview = `<div style="font-size: 0.8em; color: #ccc; margin-left: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+            }
 
+            // Determine click action: if current user is writer, link to recipient; else link to writer.
             if (activity.writer_id == loggedInUserId) {
-                clickAction = 'onclick="viewProfile(' + activity.recipient_id + ')"';
+                clickAction = `onclick="event.stopPropagation(); window.location.href='${recipientProfileLink}'"`;
             } else {
-                clickAction = 'onclick="viewProfile(' + activity.writer_id + ')"';
+                clickAction = `onclick="event.stopPropagation(); window.location.href='${writerProfileLink}'"`;
             }
             break;
 
         default:
-            text = '<strong onclick="event.stopPropagation(); viewProfile(' + mainActorUserId + ')">' + mainActorName + '</strong> had an activity';
-            clickAction = 'onclick="viewProfile(' + mainActorUserId + ')"';
+            text = `${actorStrong} had an activity. (Type: ${escapeHtml(activity.type)})`;
+            clickAction = `onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'"`;
+            break;
     }
 
     let htmlOutput = '';
-    htmlOutput += '<div class="activity-item" ' + clickAction + '>';
-    htmlOutput += '  <div class="activity-text">' + text + '</div>';
-    htmlOutput += '  <div class="activity-time">' + timeAgo + '</div>';
-    htmlOutput += '</div>';
+    htmlOutput += `<div class="activity-item" ${clickAction}>`;
+    htmlOutput += `  <div class="activity-text">${actorImage} ${text}</div>`; // Added actorImage here
+    if (contentPreview) {
+        htmlOutput += contentPreview;
+    }
+    if (mediaPreview) {
+        htmlOutput += mediaPreview;
+    }
+    htmlOutput += `  <div class="activity-time" style="margin-left: 25px;">${timeAgo}</div>`;
+    htmlOutput += `</div>`;
     return htmlOutput;
+}
+
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') {
+        if (unsafe === null || typeof unsafe === 'undefined') {
+            return '';
+        }
+        try {
+            unsafe = String(unsafe);
+        } catch (e) {
+            return '';
+        }
+    }
+    return unsafe
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
 }
 
 // Helper function to format time ago
