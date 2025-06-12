@@ -188,8 +188,8 @@ UNION ALL
            NULL as activity_id_social, NULL as extra_info,
            mc.media_id as media_id,
            um.media_type as media_type, 
-           um.album_id as album_id,     -- <<< COMMA WAS MISSING AFTER THIS LINE
-           mc.content as comment_content -- Media comment content
+           um.album_id as album_id,
+           mc.content as comment_content 
     FROM media_comments mc
     JOIN users commenter ON mc.user_id = commenter.id
     JOIN user_media um ON mc.media_id = um.id 
@@ -201,7 +201,7 @@ UNION ALL
         FROM friend_requests WHERE (sender_id = :user_id18 OR receiver_id = :user_id19) AND status = 'accepted'
       )
       AND mc.user_id != :user_id20 
-      AND mc.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY
+      AND mc.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) -- <<< CORRECTED: Added ')'
 )
 UNION ALL
 (
