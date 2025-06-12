@@ -24,48 +24,49 @@ try {
     $defaultFemalePic_path = '../assets/images/FemaleDefaultProfilePicture.png';
 
     // --- Friend Activities (Post Comments & Reactions) ---
-    // Ensure $user_id is defined from session before this block
-    $activity_sql = "
-    (
-        -- Simplified Block 1: Friend comments on any public post
-        SELECT DISTINCT
-               p.id as post_id_for_activity,
-               'comment' as activity_type,
-               CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
-               actor.id as actor_user_id,
-               c.created_at as activity_time,
-               c.id as event_id,
-               CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name
-               -- Other columns temporarily removed for diagnostics
-        FROM posts p
-        JOIN users pa ON p.user_id = pa.id
-        JOIN comments c ON p.id = c.post_id
-        JOIN users actor ON c.user_id = actor.id
-        WHERE p.visibility = 'public'
-          AND c.user_id IN (
-            SELECT CASE WHEN sender_id = :user_id1 THEN receiver_id ELSE sender_id END
-            FROM friend_requests WHERE (sender_id = :user_id2 OR receiver_id = :user_id3) AND status = 'accepted'
-          )
-          AND c.user_id != :user_id4
-          AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-    )
-    ORDER BY activity_time DESC
-    LIMIT 30
-    "; // End of $activity_sql string
-    
-    // IMPORTANT: Adjust the parameter binding loop for this simplified query.
-    // This simplified query (Block 1 only) uses :user_id1, :user_id2, :user_id3, :user_id4.
-    // So, the loop should be:
-    /*
-        $activity_stmt = $pdo->prepare($activity_sql);
-        $activity_param_count = 4; // Only 4 parameters in this test query
-        for ($i = 1; $i <= $activity_param_count; $i++) {
-            $activity_stmt->bindParam(":user_id$i", $user_id, PDO::PARAM_INT);
-        }
-        $activity_stmt->execute();
-        $post_related_activities = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
-    */
+// Ensure $user_id is defined from session before this block
 
+$activity_sql = "
+(
+    -- Simplified Block 1: Friend comments on any public post
+    SELECT DISTINCT
+           p.id as post_id_for_activity,
+           'comment' as activity_type, 
+           CONCAT_WS(' ', actor.first_name, actor.middle_name, actor.last_name) as actor_name,
+           actor.id as actor_user_id,
+           c.created_at as activity_time,
+           c.id as event_id, 
+           CONCAT_WS(' ', pa.first_name, pa.middle_name, pa.last_name) as post_author_name
+           -- Many columns removed for this diagnostic test
+    FROM posts p
+    JOIN users pa ON p.user_id = pa.id
+    JOIN comments c ON p.id = c.post_id
+    JOIN users actor ON c.user_id = actor.id
+    WHERE p.visibility = 'public'
+      AND c.user_id IN (
+        SELECT CASE WHEN sender_id = :user_id1 THEN receiver_id ELSE sender_id END
+        FROM friend_requests WHERE (sender_id = :user_id2 OR receiver_id = :user_id3) AND status = 'accepted'
+      )
+      AND c.user_id != :user_id4
+      AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+)
+ORDER BY activity_time DESC 
+LIMIT 30 
+"; // End of $activity_sql string
+
+$activity_stmt = $pdo->prepare($activity_sql);
+
+// Parameter binding for the SIMPLIFIED query (only 4 parameters)
+$activity_param_count = 4; 
+for ($i = 1; $i <= $activity_param_count; $i++) {
+    $activity_stmt->bindParam(":user_id$i", $user_id, PDO::PARAM_INT);
+}
+$activity_stmt->execute();
+$post_related_activities = $activity_stmt->fetchAll(PDO::FETCH_ASSOC); 
+
+// For this test, temporarily comment out the fetching of $social_activities and $testimonial_activities
+// and the processing loops for them, just so we can see if $post_related_activities works.
+/*
 
     // --- SOCIAL ACTIVITIES (friend connections) ---
     $social_activities = [];
@@ -257,19 +258,28 @@ try {
     $all_activities = [];
     $processed_event_ids = []; // For deduplication
 
-    // Consolidate all fetched activities into one array to process
-    // Ensure $post_related_activities, $social_activities, $testimonial_activities are defined
-    // and contain the results from their respective queries.
-    
-    $raw_activities_arrays = [];
     if (isset($post_related_activities) && is_array($post_related_activities)) {
-        $raw_activities_arrays = array_merge($raw_activities_arrays, $post_related_activities);
-    }
-    if (isset($social_activities) && is_array($social_activities)) {
-        $raw_activities_arrays = array_merge($raw_activities_arrays, $social_activities);
-    }
-    if (isset($testimonial_activities) && is_array($testimonial_activities)) {
-        $raw_activities_arrays = array_merge($raw_activities_arrays, $testimonial_activities);
+        foreach ($post_related_activities as $activity) {
+            // Simplified processing for this test - adapt if needed based on selected columns
+            $unique_event_key = ($activity['activity_type'] ?? 'unknown') . '_' . ($activity['event_id'] ?? md5(json_encode($activity)));
+            if (isset($processed_event_ids[$unique_event_key])) {
+                continue; 
+            }
+            $processed_event_ids[$unique_event_key] = true;
+    
+            $item = [
+                'type' => $activity['activity_type'] ?? 'unknown',
+                'actor_name' => $activity['actor_name'] ?? 'Someone',
+                // 'actor_profile_pic' => $actorProfilePic, // Not selected in simplified SQL
+                'actor_user_id' => $activity['actor_user_id'] ?? null,
+                'activity_time' => $activity['activity_time'] ?? '',
+                'timestamp' => isset($activity['activity_time']) ? strtotime($activity['activity_time']) : 0,
+                'post_author_name' => $activity['post_author_name'] ?? 'a post',
+                'post_id' => $activity['post_id_for_activity'] ?? null
+                // Other fields not selected in simplified SQL will be missing
+            ];
+            $all_activities[] = $item;
+        }
     }
 
     // Sort all raw activities by time before processing for deduplication and formatting
