@@ -28,13 +28,14 @@ try {
             p.content, 
             p.media,
             p.visibility,
+            p.is_share, -- Added is_share
             p.user_id as author_user_id,
             CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) as author_name,
             u.profile_pic as author_profile_pic,
             u.gender as author_gender
         FROM posts p
         JOIN users u ON p.user_id = u.id
-        WHERE p.id = ? AND p.post_type = 'original' -- Can only share original posts
+        WHERE p.id = ? AND (p.is_share = 0 OR p.is_share IS NULL) -- Changed from post_type
     ");
     $stmt->execute([$post_id]);
     $post = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -101,7 +102,8 @@ try {
             'author_name' => htmlspecialchars($post['author_name']),
             'author_profile_pic' => htmlspecialchars($author_profile_pic),
             'content_snippet' => htmlspecialchars(mb_substr(strip_tags($post['content'] ?? ''), 0, 100)) . (mb_strlen(strip_tags($post['content'] ?? '')) > 100 ? '...' : ''),
-            'media_html' => $media_preview_html
+            'media_html' => $media_preview_html,
+            'is_share' => $post['is_share'] // Include is_share status
         ]
     ]);
 

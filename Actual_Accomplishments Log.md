@@ -229,6 +229,54 @@ This file is used to record feedback and validation of implemented features.
                 *   `link`: A URL pointing to the shared post (e.g., `../posts.php?id=$shared_post_id`).
             *   This notification insertion is wrapped in a `try-catch (PDOException)` block to log errors related to notification creation without failing the entire share operation if the notification insert fails.
     *   **Outcome:** When a post is shared, a notification record will be generated for the original author, assuming a `notifications` table with the specified columns exists and the existing notification display system can handle the new `'post_share'` type.
+    *   **Documentation:** Updated `Actual_Accomplishments Log.md` and `CHANGELOG.md` with details of this notification logic.
+
+*   **Sub-task 4.1 (Revised): Verify Existing Schema and Handle Incorrect Migration (Documented on 2025-06-15, relates to actions on/before this date):**
+    *   **Objective:** Document the findings about the existing `posts` table schema and the status of the incorrect migration file.
+    *   **Action:**
+        *   Based on user feedback and `DESCRIBE posts` output, it was confirmed that the `posts` table already contains an `original_post_id INT(11) YES MUL NULL` column and an `is_share TINYINT(1) YES NULL DEFAULT '0'` column.
+        *   These existing columns are suitable for the share feature, with `is_share` (1 for true, 0 for false) serving the purpose of the previously planned `post_type` ENUM/VARCHAR.
+        *   The migration file `database_migrations/add_share_feature_columns_to_posts.sql` (created in the initial Sub-task 4.1) is therefore incorrect as it attempts to re-add `original_post_id` and a new `post_type` column. This file should be disregarded or deleted by the user.
+        *   No *new* database schema changes are required for the core share functionality. The existing `original_post_id` is already indexed (as indicated by `MUL`). An index on `is_share` might be beneficial if not already present, but this was not part of the immediate correction.
+    *   **Outcome:** The correct existing schema for shared posts (`original_post_id`, `is_share`) has been identified. The previously generated migration file is acknowledged as erroneous. Subsequent development for the Share Feature (Sub-tasks 4.2, 4.3, 4.4) was based on a `post_type` column; this logic will require revision in a future task to use `is_share`.
+    *   **Documentation:** This entry in `Actual_Accomplishments Log.md` and a corresponding correction note in `CHANGELOG.md` serve as documentation of this finding.
+*   **Sub-task 4.2 (Revised): Backend Logic Alignment with Existing Schema (2025-06-15):**
+    *   **Objective:** Modify `api/share_post.php` to use the existing `is_share TINYINT(1)` column instead of the incorrect `post_type` column.
+    *   **Action:** Updated `api/share_post.php`.
+    *   **Implementation Details:**
+        *   The SQL query for verifying the original post was changed from `SELECT ..., post_type FROM ... WHERE ... AND post_type = 'original'` to `SELECT ..., is_share FROM ... WHERE ... AND (is_share = 0 OR is_share IS NULL)`. This correctly identifies posts that are not already shares.
+        *   The subsequent PHP logic `if ($original_post['post_type'] !== 'original')` was effectively made redundant by the SQL change but the check `if ($original_post['is_share'] == 1)` (or similar logic based on the direct output of `is_share`) would be the conceptual equivalent if the SQL hadn't pre-filtered. The implemented SQL change is more efficient.
+        *   The `INSERT` statement for creating the shared post was changed from `INSERT INTO posts (..., post_type, ...) VALUES (..., 'shared', ...)` to `INSERT INTO posts (..., is_share, ...) VALUES (..., 1, ...)`.
+    *   **Outcome:** `api/share_post.php` now correctly interacts with the existing `is_share` column in the `posts` table, aligning the backend logic with the actual database schema for identifying original posts and creating shared posts.
+    *   **Documentation:** Updated relevant sections in `Actual_Accomplishments Log.md` and `CHANGELOG.md`.
+*   **Sub-task 4.3 (Revised): Frontend Alignment with `is_share` (2025-06-15):**
+    *   **Objective:** Modify `newsfeed.php` (SQL query and PHP rendering) and `api/get_post_preview.php` to use the existing `is_share` column instead of `post_type`. Review `assets/js/share.js` for necessary adaptations.
+    *   **Actions & Implementation Details:**
+        1.  **`newsfeed.php` - SQL Query:**
+            *   Changed `SELECT ..., posts.post_type, ...` to `SELECT ..., posts.is_share, ...`.
+            *   Updated the `LEFT JOIN posts orig_p ON ... AND posts.post_type = 'shared'` to use `AND posts.is_share = 1`.
+        2.  **`newsfeed.php` - PHP Formatting Loop:**
+            *   Changed the assignment for the formatted post data from `'post_type' => $post['post_type'] ?? 'original'` to `'is_share' => $post['is_share'] ?? 0`.
+        3.  **`newsfeed.php` - HTML Rendering:**
+            *   The `data-post-type` attribute on the `<article class="post">` tag was updated to reflect 'shared' or 'original' based on the `is_share` value: `data-post-type="<?= ($post['is_share'] ?? 0) == 1 ? 'shared' : 'original' ?>"`.
+            *   The condition for rendering a shared post's specific structure was changed from `if (($post['post_type'] ?? 'original') === 'shared' ...)` to `if (!empty($post['is_share']) && $post['is_share'] == 1 && isset($post['original_id']))`.
+            *   The condition for displaying the "Share" button was changed from `if (($post['post_type'] ?? 'original') === 'original' ...)` to `if ((!isset($post['is_share']) || $post['is_share'] == 0) ...)` to correctly identify original posts.
+        4.  **`api/get_post_preview.php`:**
+            *   Changed the SQL query to `SELECT ..., p.is_share FROM posts p ... WHERE p.id = ? AND (p.is_share = 0 OR p.is_share IS NULL)`.
+            *   Updated the JSON response to include `'is_share' => $post['is_share']` instead of `post_type`.
+        5.  **`assets/js/share.js` Review:**
+            *   Reviewed the script. No changes were necessary as it primarily uses `data-post-id` and does not rely on `post_type` from the preview data for its core logic (opening modal, submitting share). The conditional rendering of the share button itself is handled in `newsfeed.php`.
+    *   **Outcome:** Frontend components (`newsfeed.php` SQL, PHP rendering, and `api/get_post_preview.php`) are now aligned with the existing database schema using the `is_share` column. `assets/js/share.js` did not require changes for this schema alignment. The share feature should now function more consistently with the actual database structure.
+    *   **Documentation:** Updated `Actual_Accomplishments Log.md` and `CHANGELOG.md`.
+*   **Sub-task 4.4 (Revised): Notification Logic Verification with `is_share` (2025-06-15):**
+    *   **Objective:** Verify and ensure the notification logic in `api/share_post.php` correctly aligns with the use of the `is_share` column.
+    *   **Action:** Reviewed `api/share_post.php`.
+    *   **Verification Details:**
+        *   The notification logic is triggered after a new shared post is created (which is now correctly marked with `is_share = 1` as per Sub-task 4.2 Revised).
+        *   The notification `type` remains `'post_share'`, which is appropriate.
+        *   The check to ensure the original post is not itself a share (i.e., `is_share = 0` or `NULL`) is performed *before* the new shared post (and thus the notification) is created. This ensures notifications are only for shares of original content.
+    *   **Outcome:** The existing notification logic in `api/share_post.php` is compatible with the `is_share` schema modifications made in Sub-task 4.2 (Revised), as it correctly identifies the context of a share event. No code changes were required for the notification part itself in this sub-task.
+    *   **Documentation:** Updated `Actual_Accomplishments Log.md` and `CHANGELOG.md` to reflect this verification.
     
     ## Follow Account Feature
 

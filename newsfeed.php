@@ -37,8 +37,8 @@ try {
              posts.flag_reason,
              users.id as author_id,
              COALESCE(MAX(c.created_at), MAX(pr.created_at), posts.created_at) as last_activity_at,
-             posts.original_post_id, -- Selected for shared post logic
-             posts.post_type,        -- Selected for shared post logic
+             posts.original_post_id,
+             posts.is_share,        -- Changed from post_type
              orig_p.id as original_id,
              orig_p.content as original_content,
              orig_p.media as original_media,
@@ -52,7 +52,7 @@ try {
       JOIN users ON posts.user_id = users.id
       LEFT JOIN comments c ON posts.id = c.post_id
       LEFT JOIN post_reactions pr ON posts.id = pr.post_id
-      LEFT JOIN posts orig_p ON posts.original_post_id = orig_p.id AND posts.post_type = 'shared'
+      LEFT JOIN posts orig_p ON posts.original_post_id = orig_p.id AND posts.is_share = 1 -- Changed from post_type = 'shared'
       LEFT JOIN users orig_u ON orig_p.user_id = orig_u.id
       WHERE
         -- Posts from the current user
@@ -446,8 +446,8 @@ try {
             'friend_activity' => $friendActivityData,
             'is_system_post' => ($post['author_name'] === 'NubentaUpdates'),
             // Add new fields for shared post data
-            'post_type' => $post['post_type'] ?? 'original', // Default to original if not set
-            'original_post_id_val' => $post['original_post_id'] ?? null, // Renamed to avoid conflict if $post['original_post_id'] is an array key from a join
+            'is_share' => $post['is_share'] ?? 0, // Default to 0 (original) if not set
+            'original_post_id_val' => $post['original_post_id'] ?? null, 
             'original_id' => $post['original_id'] ?? null,
             'original_content' => $post['original_content'] ?? null,
             'original_media' => $post['original_media'] ?? null,
@@ -752,12 +752,84 @@ if (!$json_requested) {
         <i class="fas fa-exclamation-circle me-2"></i> <?= $error_message ?>
       </div>
     <?php else: ?>
-      <div class="newsfeed">
-        <?php if (count($posts) > 0): ?>
+      <div class="newsfeed" id="newsfeed-content"> <!-- Added id for JS share script to potentially target -->
+        <?php if (count($formatted_posts) > 0): ?>
           <?php foreach ($formatted_posts as $post): ?>
-            <article class="post">
-              <div class="post-header">
-                <img src="<?= $post['profile_pic'] ?>" alt="Profile" class="profile-pic me-3">
+            <article class="post" data-post-id="<?= $post['id'] ?>" data-post-type="<?= ($post['is_share'] ?? 0) == 1 ? 'shared' : 'original' ?>">
+              <?php if (!empty($post['is_share']) && $post['is_share'] == 1 && isset($post['original_id'])): ?>
+                <div class="shared-post-header" style="margin-bottom: 10px;">
+                    <img src="<?= $post['profile_pic'] // Sharer's profile pic ?>" alt="Profile" class="profile-pic me-2" style="width:30px; height:30px;">
+                    <small>
+                        <strong><?= htmlspecialchars($post['author']) // Sharer's name ?></strong> shared a post.
+                        <span class="text-muted ms-1"><?= date('F j, Y, g:i a', strtotime($post['created_at'])) // Share's timestamp ?></span>
+                    </small>
+                    <?php if (!empty($post['content'])): // Sharer's comment ?>
+                        <p style="margin-top: 5px; margin-bottom: 10px; font-size: 0.95em;"><?= nl2br(htmlspecialchars($post['content'])) ?></p>
+                    <?php endif; ?>
+                </div>
+                
+                <!-- Original Post Content Box -->
+                <div class="original-post-preview" style="border: 1px solid #e0e0e0; padding: 10px; border-radius: 6px; background: #f9f9f9;">
+                    <div class="post-header">
+                        <img src="<?= !empty($post['original_author_profile_pic']) ? 'uploads/profile_pics/' . htmlspecialchars($post['original_author_profile_pic']) : ($post['original_author_gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic) ?>" alt="Original Author Profile" class="profile-pic me-3">
+                        <div>
+                            <p class="author mb-0"><?= htmlspecialchars($post['original_author_name'] ?? 'Original Author') ?></p>
+                            <small class="text-muted">
+                                <i class="far fa-clock me-1"></i> <?= date('F j, Y, g:i a', strtotime($post['original_created_at'] ?? $post['created_at'])) ?>
+                                <?php if (($post['original_visibility'] ?? 'public') === 'friends'): ?>
+                                  <span class="ms-2"><i class="fas fa-user-friends"></i> Friends only</span>
+                                <?php elseif (($post['original_visibility'] ?? 'public') === 'public'): ?>
+                                  <span class="ms-2"><i class="fas fa-globe-americas"></i> Public</span>
+                                <?php endif; ?>
+                            </small>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <p><?= nl2br(htmlspecialchars($post['original_content'] ?? 'Original content not available.')) ?></p>
+                        <?php if (!empty($post['original_media'])): ?>
+                            <?php
+                              $original_media_items = json_decode($post['original_media'], true);
+                              if (is_array($original_media_items) && count($original_media_items) > 0):
+                                // Simplified display for original media in shared post - showing first item only for brevity
+                                $first_original_media = $original_media_items[0];
+                                if (strpos($first_original_media, 'uploads/') !== 0 && strpos($first_original_media, 'http') !== 0) {
+                                    $first_original_media = 'uploads/post_media/' . $first_original_media;
+                                }
+                            ?>
+                              <div class="media">
+                                <?php if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $first_original_media)): ?>
+                                  <img src="<?= htmlspecialchars($first_original_media) ?>" alt="Original post media" class="img-fluid">
+                                <?php elseif (preg_match('/\.mp4$/i', $first_original_media)): ?>
+                                  <video controls class="img-fluid">
+                                    <source src="<?= htmlspecialchars($first_original_media) ?>" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                  </video>
+                                <?php endif; ?>
+                              </div>
+                            <?php elseif (!is_array($original_media_items)): // Single media item string for original post ?>
+                              <div class="media">
+                                <?php
+                                  $single_original_media_path = $post['original_media'];
+                                   if (strpos($single_original_media_path, 'uploads/') !== 0 && strpos($single_original_media_path, 'http') !== 0) {
+                                        $single_original_media_path = 'uploads/post_media/' . $single_original_media_path;
+                                    }
+                                ?>
+                                <?php if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $single_original_media_path)): ?>
+                                  <img src="<?= htmlspecialchars($single_original_media_path) ?>" alt="Original post media" class="img-fluid">
+                                <?php elseif (preg_match('/\.mp4$/i', $single_original_media_path)): ?>
+                                  <video controls class="img-fluid">
+                                    <source src="<?= htmlspecialchars($single_original_media_path) ?>" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                  </video>
+                                <?php endif; ?>
+                              </div>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+              <?php else: // This is an original post, render as before ?>
+                <div class="post-header">
+                    <img src="<?= $post['profile_pic'] ?>" alt="Profile" class="profile-pic me-3">
                 <div>
                   <p class="author mb-0"><?= $post['author'] ?></p>
                   <small class="text-muted">
@@ -852,7 +924,7 @@ if (!$json_requested) {
                 <button class="btn btn-outline-secondary">
                   <i class="far fa-comment me-1"></i> Comment
                 </button>
-                <?php if (($post['post_type'] ?? 'original') === 'original' && !($post['is_system_post'] ?? false) ): ?>
+                <?php if ((!isset($post['is_share']) || $post['is_share'] == 0) && !($post['is_system_post'] ?? false) ): ?>
                   <button class="btn btn-outline-secondary share-btn" data-post-id="<?= $post['id'] ?>">
                     <i class="far fa-share-square me-1"></i> Share
                   </button>

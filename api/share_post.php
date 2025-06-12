@@ -47,24 +47,23 @@ try {
     $pdo->beginTransaction();
 
     // 1. Verify Original Post
-    $stmt_check = $pdo->prepare("SELECT id, user_id, visibility, post_type FROM posts WHERE id = ?");
+    // Select is_share instead of post_type. Original posts should have is_share = 0 or is_share IS NULL.
+    $stmt_check = $pdo->prepare("SELECT id, user_id, visibility, is_share FROM posts WHERE id = ? AND (is_share = 0 OR is_share IS NULL)");
     $stmt_check->execute([$original_post_id]);
     $original_post = $stmt_check->fetch(PDO::FETCH_ASSOC);
 
     if (!$original_post) {
+        // This also handles the case where the post ID exists but it's already a share (is_share = 1 was filtered by query)
+        // or if the post simply doesn't exist.
         http_response_code(404); // Not Found
-        echo json_encode(['status' => 'error', 'message' => 'Original post not found.']);
+        echo json_encode(['status' => 'error', 'message' => 'Original post not found or is not shareable (e.g., it is already a share).']);
         $pdo->rollBack();
         exit;
     }
 
-    // Ensure the original post is actually an 'original' post, not a share itself
-    if ($original_post['post_type'] !== 'original') {
-        http_response_code(400); // Bad Request
-        echo json_encode(['status' => 'error', 'message' => 'You can only share an original post, not an existing share.']);
-        $pdo->rollBack();
-        exit;
-    }
+    // The SQL query now ensures that $original_post['is_share'] is 0 or NULL.
+    // Thus, an explicit check like `if ($original_post['is_share'] == 1)` is redundant here
+    // as such posts would not be fetched by the modified $stmt_check query.
     
     // Basic visibility check for sharing (can be expanded)
     // If original post is 'only_me', only the author can "share" it (effectively a repost with new comment)
@@ -97,9 +96,10 @@ try {
     }
 
     // 2. Database Insertion for the new "shared" post
+    // Use is_share = 1 for shared posts
     $stmt_insert = $pdo->prepare(
-        "INSERT INTO posts (user_id, content, original_post_id, post_type, visibility, created_at, updated_at) 
-         VALUES (?, ?, ?, 'shared', ?, NOW(), NOW())"
+        "INSERT INTO posts (user_id, content, original_post_id, is_share, visibility, created_at, updated_at) 
+         VALUES (?, ?, ?, 1, ?, NOW(), NOW())"
     );
     
     $success = $stmt_insert->execute([

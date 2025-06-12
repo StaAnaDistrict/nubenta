@@ -1,4 +1,4 @@
-# PRIMARY RULE PRIOR TO IMPLEMENTATION OF MODFICIATION OR FIXES IN ORDER TO ADDRESS AND ACCOMPLISH THE TASKS ON HAND
+# PRIMARY RULE PRIOR TO IMPLEMENTATION OF MODFICATION OR FIXES IN ORDER TO ADDRESS AND ACCOMPLISH THE TASKS ON HAND
 
 1. Make sure that you protect the existing capabilities and functionalities that are working in my current codebase. 
 2. Do not distort any functionality that does not relate to my concern.
