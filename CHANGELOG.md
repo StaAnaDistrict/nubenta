@@ -1,3 +1,12 @@
+# [2025-06-12] - CRITICAL FIXES DIAGNOSIS: Activity Feed JSON & Newsfeed Syntax
+
+- **DIAGNOSIS (`api/add_ons_middle_element.php`):** Addressed "Unexpected end of JSON input" error from the activity feed API.
+    - **Intended Action:** The script was to be reverted to a simplified state with only its first SQL `SELECT` block (from the 6-block `UNION ALL` query) active. This provides a working baseline.
+    - **Manual Debugging Guidance:** You are advised to incrementally re-enable the subsequent 5 `UNION ALL` blocks in your local `api/add_ons_middle_element.php` to identify which specific block causes the JSON output to fail. `json_last_error()` logging was also intended to be added to the script for better error details.
+- **FIX ATTEMPT (`newsfeed.php`):** Addressed persistent "unexpected token 'endforeach'" syntax error.
+    - **Intended Fix:** A missing `<?php endif; ?>` statement within the post rendering loop (specifically for the conditional display of shared post content) was identified as the cause. The fix involves correctly placing this `endif;` before the closing `</article>` tag of each post.
+- **DB CLARIFICATION (Share Feature):** Reconfirmed that the `posts` table already contains the necessary `original_post_id` and `is_share` columns for the Share Post feature. The migration script I generated (`database_migrations/add_share_feature_columns_to_posts.sql`) that attempted to add these columns is incorrect and should be disregarded. All Share Feature logic has been (or should be) adapted to use the existing schema.
+
 ## [Current Date, e.g., 2025-06-12] - Activity Feed Debugging and Enhancements (`api/add_ons_middle_element.php`, `api/add_ons_middle_element_html.php`)
 
 **Goal:** Resolve errors and extend the sidebar Activity Feed to include activities from media modal interactions (`media_comments`, `media_reactions`) and ensure activities "done by" or "done to" friends are displayed.
