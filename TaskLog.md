@@ -1,4 +1,18 @@
-# Task Number 1: Refining Newsfeed for posts with Texts only and posts with Text and Media Types
+# Task Number 1: Fixing Activity Feed for User Activities which were executed inside Modals and Primary Location
+
+The Main Goal for the Activity Feed: To make your sidebar Activity Feed (driven by api/add_ons_middle_element.php and api/add_ons_middle_element_html.php) correctly display a range of user activities. This includes:
+
+1. Activities by your friends (e.g., your friend commented on a public post).
+2. Activities to your friends (e.g., someone commented on your friend's public post).
+3. Critically, activities (comments and reactions) that happen within the media modal (which are stored in media_comments and media_reactions tables).
+
+Current Situation / What I've Tried: Identified that activities from the media modal weren't showing because they are in separate tables (media_comments, media_reactions).
+
+In other words, items 1 and 2 are currently working. When a User comments or reacts on another User post inside the newsfeed (within the dashboard), it is recorded and displayed in the Activity Feed of those who are friends with that User or follows that User. However, when a user should click on a post in the newsfeeed that will trigger the modal to which he can comment and react on that particular media inside that modal, all these activities will not display in the Activity Feed even though this user's comments and reactions are recorded by the system. 
+
+A structural form of how the Activity Feed displays these activities are already working in some areas, but in this particular situation/case, it won't. 
+
+# Task Number 2: Refining Newsfeed for posts with Texts only and posts with Text and Media Types
 
 Inside view_profile.php, the main content (middle grid) fetches activities between the currently logged-in user (User A), and all other users connected to him through friendship (connections i.e. friends.php) and accounts he/she currently follows. This section, also known as the newsfeed, gathers all these activities accordingly. 
 
@@ -10,7 +24,7 @@ For example, User A is friends with User B and User C. User B made a post at aro
 
 Note: Posts with media are clickable and will open a modal, make sure this function is not affected.
 
-# Task Number 2: Refining of Newsfeed display for posts with Texts and Media Types
+# Task Number 3: Refining of Newsfeed display for posts with Texts and Media Types
 
 When User A (or any other user) should make a post that has media attachment, the newsfeed does not cater to these posts presentably. 
 
@@ -22,7 +36,7 @@ The same problem occurs for posts with multiple images types uploaded, it's all 
 
 Note: Posts with media are clickable and will open a modal, make sure this function is not affected.
 
-# Task Number 3: Implementing the Shared button for posts displayed in the newsfeed
+# Task Number 4: Implementing the Shared button for posts displayed in the newsfeed
 
 Facebook 'Sharing Posts' Feature: SQL, PHP & Analysis
 This document provides a comprehensive schematic and analysis of Facebook's "Sharing Posts" feature, detailing its underlying SQL structure, PHP logic for implementation, integration with other Facebook systems, and potential areas for improvement.
