@@ -1,3 +1,34 @@
+## [Current Date, e.g., 2025-06-12] - Activity Feed Debugging and Enhancements (`api/add_ons_middle_element.php`, `api/add_ons_middle_element_html.php`)
+
+**Goal:** Resolve errors and extend the sidebar Activity Feed to include activities from media modal interactions (`media_comments`, `media_reactions`) and ensure activities "done by" or "done to" friends are displayed.
+
+**Fixes and Attempts:**
+
+*   **`api/add_ons_middle_element_html.php` (JavaScript):**
+    *   Corrected syntax issues in the `renderActivityItem` JavaScript function that were causing parsing errors (related to unintended backslashes from chat delivery). I replaced a large template literal with string concatenation for robustness.
+    *   Updated `renderActivityItem` to prepare for new activity types and standardized data keys from the PHP backend.
+
+*   **`api/add_ons_middle_element.php` (PHP/SQL):**
+    *   **Initial Scope Expansion:** I attempted to integrate 6 `UNION ALL` SQL blocks to cover post comments/reactions (4 scenarios) and new media comments/reactions (2 scenarios).
+    *   **SQL Syntax Debugging (Iterative Process):**
+        *   I resolved a `Table 'post_media' doesn't exist` error by changing JOINs to use the correct `user_media` table for linking media to posts.
+        *   I resolved an `Unknown column 'pr.reaction_id'` error by changing SQL to use `pr.id` (the correct primary key for `post_reactions`).
+        *   I addressed various `1064 syntax error` messages in the combined 6-block SQL query, including:
+            *   A missing comma in the SELECT list of Block 5.
+            *   A missing closing parenthesis in the WHERE clause of Block 5.
+            *   Inconsistent table alias usage in Block 1 (changed `posts.column` to `p.column`).
+        *   I ensured all `SELECT` statements in the `UNION ALL` structure aimed for a consistent number of columns with compatible aliases by adding `NULL as ...` placeholders.
+    *   **PHP Error Resolution:**
+        *   I fixed a `PHP Parse error: syntax error, unexpected token ";"` (from a typo `ry {` instead of `try {`).
+        *   I addressed a `PHP Fatal error: Call to a member function bindParam() on null` by ensuring `$activity_stmt = $pdo->prepare($activity_sql);` is correctly placed before parameter binding and that the binding loop matches the number of parameters in the SQL.
+        *   I corrected PHP data processing loops to use updated SQL column aliases and provide fallbacks for potentially NULL name data (to fix "null/undefined" display in feed).
+        *   I added definitions for `$defaultMalePic_path` and `$defaultFemalePic_path`.
+    *   **Current Status of SQL:** Due to persistent syntax errors with the large 6-block SQL query (latest error: `1064 ... near 'NULL as media_type, NULL as album_id, NULL as comment_content ...' at line 16`), the immediate next step is to test a drastically simplified version of `$activity_sql` (containing only a minimal Block 1) to isolate the `pdo->prepare()` failure.
+
+**Relevant Files Modified:**
+*   `api/add_ons_middle_element.php`
+*   `api/add_ons_middle_element_html.php`
+
 ## 2025-06-08 - Follow Account Feature (Phase 2: Follower/Following Lists)
 
 **Goal:** Allow users to view lists of followers and who a user is following.
