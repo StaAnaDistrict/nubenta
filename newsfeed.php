@@ -910,9 +910,9 @@ if (!$json_requested) {
                         <?php endif; ?>
                       </div>
                     <?php endif; ?>
-                  <?php endif; ?>
-                <?php endif; ?>
-              </div>
+                  <?php endif; ?> <!-- closes if !empty($post['media']) -->
+                <?php endif; ?> <!-- closes if $post['is_removed'] -->
+              </div> <!-- closes post-content -->
 
               <div class="post-actions">
                 <button class="btn btn-outline-primary">

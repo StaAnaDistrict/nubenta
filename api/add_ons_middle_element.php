@@ -391,6 +391,14 @@ try {
         'pending_testimonials_count' => $pendingCount
     ]);
 
+// Debug JSON Encoding
+$jsonError = json_last_error();
+if ($jsonError !== JSON_ERROR_NONE) {
+    error_log('JSON Encoding Error: ' . json_last_error_msg() . ' (Code: ' . $jsonError . ')');
+    // Optionally, you could also modify the output to be a JSON error object if appropriate for your frontend
+    // For example: echo json_encode(['error' => 'JSON Encoding Error', 'message' => json_last_error_msg()]);
+}
+
 } catch (Exception $e) {
     error_log("Activity feed error: " . $e->getMessage()); // Keep detailed server-side logging
     echo json_encode([
