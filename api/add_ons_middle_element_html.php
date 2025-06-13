@@ -10,19 +10,27 @@ $userId = isset($currentUser) && isset($currentUser['id']) ? $currentUser['id'] 
 ?>
 
 <div class="sidebar-section">
-    <h4><?php echo $title; ?></h4>
+    <h4><?php echo htmlspecialchars($title); ?></h4>
 
     <?php
     // Check for pending testimonials
     $pendingTestimonials = 0;
     if ($userId) {
         try {
-            require_once __DIR__ . '/../db.php';
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM testimonials WHERE recipient_user_id = ? AND status = 'pending'");
-            $stmt->execute([$userId]);
-            $pendingTestimonials = $stmt->fetchColumn();
+            // Ensure db.php is included only once if already done by bootstrap or another include
+            if (!class_exists('PDO') && file_exists(__DIR__ . '/../db.php')) { // Basic check
+                require_once __DIR__ . '/../db.php';
+            } elseif (!isset($pdo) && file_exists(__DIR__ . '/../bootstrap.php')) { // Fallback for bootstrap
+                 require_once __DIR__ . '/../bootstrap.php';
+            }
+            // If $pdo is still not set, it's an issue, but proceed cautiously.
+            if (isset($pdo)) {
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM testimonials WHERE recipient_user_id = ? AND status = 'pending'");
+                $stmt->execute([$userId]);
+                $pendingTestimonials = $stmt->fetchColumn();
+            }
         } catch (PDOException $e) {
-            error_log("Error getting testimonials count: " . $e->getMessage());
+            error_log("Error getting testimonials count in add_ons_middle_element_html.php: " . $e->getMessage());
         }
     }
     ?>
@@ -30,7 +38,7 @@ $userId = isset($currentUser) && isset($currentUser['id']) ? $currentUser['id'] 
     <?php if ($pendingTestimonials > 0): ?>
     <div class="alert" style="background-color: #2c3e50; color: white; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px;">
         <a href="testimonials.php" style="color: white; text-decoration: none; display: flex; justify-content: space-between; align-items: center;">
-            <span><i class="fas fa-star me-2"></i>You have <?= $pendingTestimonials ?> pending testimonial<?= $pendingTestimonials > 1 ? 's' : '' ?></span>
+            <span><i class="fas fa-star me-2"></i>You have <?= htmlspecialchars($pendingTestimonials) ?> pending testimonial<?= $pendingTestimonials > 1 ? 's' : '' ?></span>
             <i class="fas fa-chevron-right"></i>
         </a>
     </div>
@@ -63,6 +71,8 @@ $userId = isset($currentUser) && isset($currentUser['id']) ? $currentUser['id'] 
     cursor: pointer;
     transition: background-color 0.2s;
     text-align: left;
+    display: flex; /* Use flexbox for alignment */
+    align-items: flex-start; /* Align items to the top */
 }
 
 .activity-item:hover {
@@ -71,6 +81,24 @@ $userId = isset($currentUser) && isset($currentUser['id']) ? $currentUser['id'] 
 
 .activity-item:last-child {
     border-bottom: none;
+}
+
+.activity-actor-image-container { /* Container for the image */
+    margin-right: 8px; /* Space between image and text */
+    flex-shrink: 0; /* Prevent image container from shrinking */
+    width: 20px; /* Fixed width for the container */
+    height: 20px; /* Fixed height for the container */
+}
+
+.activity-actor-image {
+    width: 100%; /* Image takes full width of its container */
+    height: 100%; /* Image takes full height of its container */
+    border-radius: 50%;
+    object-fit: cover; /* Ensures image covers the area, might crop */
+}
+
+.activity-details { /* Container for text and time */
+    flex-grow: 1; /* Allow text to take remaining space */
 }
 
 .activity-text {
@@ -98,70 +126,94 @@ $userId = isset($currentUser) && isset($currentUser['id']) ? $currentUser['id'] 
 
 #activity-feed-container {
     text-align: left;
-    /* Hide scrollbars while keeping scroll functionality */
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* Internet Explorer 10+ */
 }
 
-/* Hide scrollbar for Chrome, Safari and Opera */
 #activity-feed-container::-webkit-scrollbar {
-    display: none;
+    display: none; /* Chrome, Safari and Opera */
 }
 
 .no-activities {
     text-align: left;
     color: #adb5bd;
 }
+.content-preview-activity {
+    font-size: 0.8em;
+    color: #ccc;
+    /* margin-left adjusted by flex structure */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 3px;
+}
+.media-preview-activity img {
+    max-width: 50px;
+    max-height: 50px;
+    margin-top: 5px;
+    border-radius: 3px;
+}
+.media-preview-activity .fa-video {
+    margin-top: 5px;
+    font-size: 24px;
+}
+.media-preview-activity .video-text {
+    font-size:0.8em;
+}
+
 </style>
 
 <script>
-// Load activity feed when page loads
 document.addEventListener('DOMContentLoaded', function() {
     <?php if ($userId): ?>
     loadActivityFeed();
-    // Refresh every 30 seconds
-    setInterval(loadActivityFeed, 30000);
+    setInterval(loadActivityFeed, 30000); // Refresh every 30 seconds
     <?php endif; ?>
 });
 
-// Function to load activity feed
 async function loadActivityFeed() {
     const container = document.getElementById('activity-feed-container');
     const loading = document.getElementById('activity-loading');
-    const content = document.getElementById('activity-feed-content');
-    const error = document.getElementById('activity-feed-error');
+    const contentDiv = document.getElementById('activity-feed-content');
+    const errorDiv = document.getElementById('activity-feed-error');
 
     if (!container) return;
 
     try {
-        loading.style.display = 'block';
-        content.style.display = 'none';
-        error.style.display = 'none';
+        if(loading) loading.style.display = 'block';
+        if(contentDiv) contentDiv.style.display = 'none';
+        if(errorDiv) errorDiv.style.display = 'none';
 
         const response = await fetch('api/add_ons_middle_element.php');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
 
         if (data.success && data.activities) {
             renderActivityFeed(data.activities);
-            loading.style.display = 'none';
-            content.style.display = 'block';
+            if(loading) loading.style.display = 'none';
+            if(contentDiv) contentDiv.style.display = 'block';
         } else {
-            throw new Error(data.error || 'Failed to load activities');
+            throw new Error(data.error || 'Failed to parse activities or no activities found');
         }
     } catch (err) {
         console.error('Error loading activity feed:', err);
-        loading.style.display = 'none';
-        error.style.display = 'block';
+        if(loading) loading.style.display = 'none';
+        if(errorDiv) {
+            errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i> Error: ${escapeHtml(err.message)}. <a href="#" onclick="loadActivityFeed()" class="text-light">Try again</a>`;
+            errorDiv.style.display = 'block';
+        }
+        if(contentDiv) contentDiv.innerHTML = '';
     }
 }
 
-// Function to render activity feed
 function renderActivityFeed(activities) {
-    const content = document.getElementById('activity-feed-content');
-    if (!content) return;
+    const contentDiv = document.getElementById('activity-feed-content');
+    if (!contentDiv) return;
 
     if (activities.length === 0) {
-        content.innerHTML =
+        contentDiv.innerHTML =
             '<div class="py-4 no-activities">' +
                 '<i class="fas fa-bell-slash fa-2x mb-2" style="color: #6c757d;"></i>' +
                 '<p class="mb-0" style="color: #adb5bd;">No recent activities</p>' +
@@ -174,128 +226,103 @@ function renderActivityFeed(activities) {
     activities.forEach(activity => {
         html += renderActivityItem(activity);
     });
-
-    content.innerHTML = html;
+    contentDiv.innerHTML = html;
 }
 
-// Function to render individual activity item
 function renderActivityItem(activity) {
-    const timeAgo = formatTimeAgo(activity.activity_time || activity.activity_created_at); // activity_time is preferred
+    const timeAgo = formatTimeAgo(activity.activity_time || activity.activity_created_at);
     let text = '';
     let contentPreview = '';
-    let mediaPreview = '';
-    let clickAction = `onclick="viewPost(${activity.post_id_for_activity || activity.target_content_id})"`; // Default click action
+    let mediaPreviewHTML = '';
+    let postIdForClick = activity.post_id_for_activity || activity.target_content_id || 0;
+    let clickAction = `onclick="viewPost(${postIdForClick})"`;
 
-    // Actor profile picture and name
-    const actorProfileLink = `../view_profile.php?id=${activity.actor_user_id}`;
-    const actorImage = `<img src="${activity.actor_profile_pic}" alt="${activity.actor_name}" style="width: 20px; height: 20px; border-radius: 50%; margin-right: 5px;">`;
-    const actorStrong = `<strong onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'">${activity.actor_name}</strong>`;
-
-    // Target Owner (Post Owner / Friend) profile picture and name (if applicable)
-    let targetOwnerStrong = '';
-    if (activity.post_author_name && activity.post_author_id) { // post_author_name is target_owner_name from PHP
-        const targetOwnerProfileLink = `../view_profile.php?id=${activity.post_author_id}`;
-        targetOwnerStrong = `<strong onclick="event.stopPropagation(); window.location.href='${targetOwnerProfileLink}'">${activity.post_author_name}</strong>`;
+    let actorImageHTML = '';
+    // Conditionally create image tag and its container if actor_profile_pic is not null, not the string "null", and not empty
+    if (activity.actor_profile_pic && activity.actor_profile_pic !== "null" && String(activity.actor_profile_pic).trim() !== "") {
+        actorImageHTML = `<div class="activity-actor-image-container"><img src="${escapeHtml(activity.actor_profile_pic)}" alt="${escapeHtml(activity.actor_name)}" class="activity-actor-image"></div>`;
     }
 
+    const actorProfileLink = `../view_profile.php?id=${activity.actor_user_id}`;
+    const actorStrong = `<strong onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'">${escapeHtml(activity.actor_name)}</strong>`;
+
+    let targetOwnerStrong = '';
+    if (activity.post_author_name && activity.post_author_id) {
+        const targetOwnerProfileLink = `../view_profile.php?id=${activity.post_author_id}`;
+        targetOwnerStrong = `<strong onclick="event.stopPropagation(); window.location.href='${targetOwnerProfileLink}'">${escapeHtml(activity.post_author_name)}</strong>`;
+    }
 
     switch (activity.type) {
-        case 'comment': // Friend comments on any public post
+        case 'comment':
             text = `${actorStrong} commented on ${targetOwnerStrong}'s post.`;
-            if (activity.content) { // content is comment_content from PHP
-                contentPreview = `<div style="font-size: 0.8em; color: #ccc; margin-left: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+            if (activity.content) {
+                contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
             }
             break;
-
-        case 'reaction': // Friend reacts on any public post
+        case 'reaction':
             text = `${actorStrong} reacted ${activity.reaction_type ? '<strong>' + escapeHtml(activity.reaction_type) + '</strong>' : ''} to ${targetOwnerStrong}'s post.`;
             break;
-
-        case 'comment_on_friend_post': // Anyone comments on a friend's public post
-            // PHP side sets friend_name = post_author_name for this type.
-            // So targetOwnerStrong here refers to the friend whose post it is.
+        case 'comment_on_friend_post':
             text = `${actorStrong} commented on your friend ${targetOwnerStrong}'s post.`;
              if (activity.content) {
-                contentPreview = `<div style="font-size: 0.8em; color: #ccc; margin-left: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+                contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
             }
             break;
-
-        case 'reaction_on_friend_post': // Anyone reacts to a friend's public post
-             // PHP side sets friend_name = post_author_name for this type.
+        case 'reaction_on_friend_post':
             text = `${actorStrong} reacted ${activity.reaction_type ? '<strong>' + escapeHtml(activity.reaction_type) + '</strong>' : ''} to your friend ${targetOwnerStrong}'s post.`;
             break;
-        
-        case 'media_comment': // Friend comments on media
+        case 'media_comment':
             text = `${actorStrong} commented on ${targetOwnerStrong}'s media.`;
             if (activity.content) {
-                contentPreview = `<div style="font-size: 0.8em; color: #ccc; margin-left: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+                contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
             }
-            if (activity.media_url && (activity.media_type === 'image' || activity.media_type === 'photo')) { // Assuming 'photo' is a possible type
-                 mediaPreview = `<img src="${escapeHtml(activity.media_url)}" alt="media thumbnail" style="max-width: 50px; max-height: 50px; margin-left: 25px; margin-top: 5px; border-radius: 3px;">`;
+            if (activity.media_url && (activity.media_type === 'image' || activity.media_type === 'photo')) {
+                 mediaPreviewHTML = `<div class="media-preview-activity"><img src="${escapeHtml(activity.media_url)}" alt="media thumbnail"></div>`;
             } else if (activity.media_url && activity.media_type === 'video') {
-                 mediaPreview = `<i class="fas fa-video" style="margin-left: 25px; margin-top: 5px; font-size: 24px;"></i> <span style="font-size:0.8em;">Video</span>`;
+                 mediaPreviewHTML = `<div class="media-preview-activity"><i class="fas fa-video"></i> <span class="video-text">Video</span></div>`;
             }
-            // Click action might link to post or media item view if available. For now, links to post.
             break;
-
-        case 'media_reaction': // Friend reacts to media
+        case 'media_reaction':
             text = `${actorStrong} reacted ${activity.reaction_type ? '<strong>' + escapeHtml(activity.reaction_type) + '</strong>' : ''} to ${targetOwnerStrong}'s media.`;
             if (activity.media_url && (activity.media_type === 'image' || activity.media_type === 'photo')) {
-                 mediaPreview = `<img src="${escapeHtml(activity.media_url)}" alt="media thumbnail" style="max-width: 50px; max-height: 50px; margin-left: 25px; margin-top: 5px; border-radius: 3px;">`;
+                 mediaPreviewHTML = `<div class="media-preview-activity"><img src="${escapeHtml(activity.media_url)}" alt="media thumbnail"></div>`;
             } else if (activity.media_url && activity.media_type === 'video') {
-                 mediaPreview = `<i class="fas fa-video" style="margin-left: 25px; margin-top: 5px; font-size: 24px;"></i> <span style="font-size:0.8em;">Video</span>`;
+                 mediaPreviewHTML = `<div class="media-preview-activity"><i class="fas fa-video"></i> <span class="video-text">Video</span></div>`;
             }
-            // Click action might link to post or media item view. For now, links to post.
             break;
-
-        // Keep existing cases for friend_request, friend_connection, testimonial_written, testimonial_received
-        // These types are not part of the current subtask's SQL changes but were in the original function.
-        // It's safer to keep them if they might be used by other parts of the system or future SQL.
         case 'friend_request':
             text = `You are now connected with ${actorStrong}`;
             clickAction = `onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'"`;
             break;
-
         case 'friend_connection':
             const otherFriendProfileLink = `../view_profile.php?id=${activity.other_friend_user_id}`;
-            const otherFriendStrong = `<strong onclick="event.stopPropagation(); window.location.href='${otherFriendProfileLink}'">${activity.other_friend_name}</strong>`;
+            const otherFriendStrong = `<strong onclick="event.stopPropagation(); window.location.href='${otherFriendProfileLink}'">${escapeHtml(activity.other_friend_name)}</strong>`;
             text = `${actorStrong} is now friends with ${otherFriendStrong}`;
-            clickAction = ''; // Or link to one of the profiles
+            clickAction = '';
             break;
-
         case 'testimonial_written':
         case 'testimonial_received':
             let writerDisplayName = activity.writer_name;
             let recipientDisplayName = activity.recipient_name;
-            const loggedInUserId = window.currentUserId || <?php echo json_encode($_SESSION['user']['id'] ?? null); ?>;
-
+            const loggedInUserId = window.currentUserId || <?php echo json_encode($userId ?? null); ?>;
 
             const writerProfileLink = `../view_profile.php?id=${activity.writer_id}`;
             const recipientProfileLink = `../view_profile.php?id=${activity.recipient_id}`;
 
-            if (activity.writer_id == loggedInUserId) {
-                writerDisplayName = 'You';
-            }
-            if (activity.recipient_id == loggedInUserId && activity.writer_id != loggedInUserId) {
-                recipientDisplayName = 'you';
-            } else if (activity.recipient_id == loggedInUserId && activity.writer_id == loggedInUserId) {
-                 // When user writes a testimonial for themselves (if allowed by system)
-                recipientDisplayName = activity.recipient_name; // or 'yourself'
-            }
-            
-            text = `<strong onclick="event.stopPropagation(); window.location.href='${writerProfileLink}'">${writerDisplayName}</strong> wrote a testimonial for <strong onclick="event.stopPropagation(); window.location.href='${recipientProfileLink}'">${recipientDisplayName}</strong>.`;
-            if (activity.content) {
-                 contentPreview = `<div style="font-size: 0.8em; color: #ccc; margin-left: 25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
-            }
-            
-            // Determine click action: if current user is writer, link to recipient; else link to writer.
-            if (activity.writer_id == loggedInUserId) {
-                clickAction = `onclick="event.stopPropagation(); window.location.href='${recipientProfileLink}'"`;
+            if (String(activity.writer_id) === String(loggedInUserId)) writerDisplayName = 'You';
+
+            if (String(activity.recipient_id) === String(loggedInUserId)) {
+                recipientDisplayName = (String(activity.writer_id) === String(loggedInUserId)) ? escapeHtml(activity.recipient_name) : 'you';
             } else {
-                clickAction = `onclick="event.stopPropagation(); window.location.href='${writerProfileLink}'"`;
+                recipientDisplayName = escapeHtml(activity.recipient_name);
             }
+
+            text = `<strong onclick="event.stopPropagation(); window.location.href='${writerProfileLink}'">${escapeHtml(writerDisplayName)}</strong> wrote a testimonial for <strong onclick="event.stopPropagation(); window.location.href='${recipientProfileLink}'">${recipientDisplayName}</strong>.`;
+            if (activity.content) {
+                 contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+            }
+            clickAction = (String(activity.writer_id) === String(loggedInUserId) && String(activity.recipient_id) !== String(loggedInUserId)) ? `onclick="event.stopPropagation(); window.location.href='${recipientProfileLink}'"` : `onclick="event.stopPropagation(); window.location.href='${writerProfileLink}'"`;
             break;
-            
         default:
             text = `${actorStrong} had an activity. (Type: ${escapeHtml(activity.type)})`;
             clickAction = `onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'"`;
@@ -304,57 +331,79 @@ function renderActivityItem(activity) {
 
     let htmlOutput = '';
     htmlOutput += `<div class="activity-item" ${clickAction}>`;
-    htmlOutput += `  <div class="activity-text">${actorImage} ${text}</div>`; // Added actorImage here
+    htmlOutput += actorImageHTML;
+    htmlOutput += `  <div class="activity-details">`;
+    htmlOutput += `    <div class="activity-text">${text}</div>`;
     if (contentPreview) {
         htmlOutput += contentPreview;
     }
-    if (mediaPreview) {
-        htmlOutput += mediaPreview;
+    if (mediaPreviewHTML) {
+        htmlOutput += mediaPreviewHTML;
     }
-    htmlOutput += `  <div class="activity-time" style="margin-left: 25px;">${timeAgo}</div>`;
+    htmlOutput += `    <div class="activity-time">${timeAgo}</div>`;
+    htmlOutput += `  </div>`;
     htmlOutput += `</div>`;
     return htmlOutput;
 }
 
 function escapeHtml(unsafe) {
     if (typeof unsafe !== 'string') {
-        if (unsafe === null || typeof unsafe === 'undefined') {
-            return '';
-        }
-        try {
-            unsafe = String(unsafe);
-        } catch (e) {
-            return '';
-        }
+        if (unsafe === null || typeof unsafe === 'undefined') return '';
+        try { unsafe = String(unsafe); } catch (e) { return ''; }
     }
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
+    return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
-// Helper function to format time ago
 function formatTimeAgo(dateString) {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInSeconds = Math.floor((now - date) / 1000);
+    if (!dateString) return 'a while ago';
 
-    if (diffInSeconds < 60) return 'Just now';
+    const compliantDateString = dateString.replace(' ', 'T') + 'Z';
+    const date = new Date(compliantDateString);
+
+    if (isNaN(date.getTime())) {
+        console.warn("FormatTimeAgo: Could not parse date string:", dateString, " (used: ", compliantDateString, ")");
+        // Fallback attempt: try parsing without forcing UTC, browser might guess local or another UTC variant
+        const fallbackDate = new Date(dateString);
+        if(isNaN(fallbackDate.getTime())) {
+             console.warn("FormatTimeAgo: Fallback parsing also failed for:", dateString);
+            return dateString; // Return original if still invalid
+        }
+        // If fallbackDate is valid, use it. This means the original string was parsable but not with 'Z'.
+        // This path implies the server might not be sending UTC, or not in YYYY-MM-DD HH:MM:SS format.
+        // For this iteration, we'll log and proceed. Timezone consistency is key.
+        // date = fallbackDate; // No, stick to UTC assumption for now and log failures.
+                               // The 'Z' is important for consistent interpretation if server time IS UTC.
+                               // If server time is *local*, then 'Z' is wrong. This area needs server-side confirmation of timestamp timezone.
+                               // For now, if 'Z' parse fails, it means the input string is problematic for standard UTC interpretation.
+         return dateString; // Return original string if 'Z' version fails to parse.
+    }
+
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 5) return 'Just now';
+    if (diffInSeconds < 60) return diffInSeconds + 's ago';
     if (diffInSeconds < 3600) return Math.floor(diffInSeconds / 60) + 'm ago';
     if (diffInSeconds < 86400) return Math.floor(diffInSeconds / 3600) + 'h ago';
-    if (diffInSeconds < 604800) return Math.floor(diffInSeconds / 86400) + 'd ago';
-    return Math.floor(diffInSeconds / 604800) + 'w ago';
+    const days = Math.floor(diffInSeconds / 86400);
+    if (days < 30) return days + (days === 1 ? 'd ago' : 'd ago');
+
+    const months = Math.floor(days / 30);
+    if (months < 12) return months + (months === 1 ? 'mo ago' : 'mo ago');
+
+    const years = Math.floor(days / 365);
+    return years + (years === 1 ? 'y ago' : 'y ago');
 }
 
-// Helper function to view profile
 function viewProfile(userId) {
-    window.location.href = 'view_profile.php?id=' + userId;
+    if(userId) window.location.href = '../view_profile.php?id=' + userId;
 }
 
-// Helper function to view post
 function viewPost(postId) {
-    window.location.href = 'posts.php?id=' + postId;
+    if (postId && postId !== 0) {
+        window.location.href = '../posts.php?id=' + postId;
+    } else {
+        console.warn("viewPost called with invalid postId:", postId, "for activity item.");
+    }
 }
 </script>
