@@ -7,6 +7,130 @@
     - **Intended Fix:** A missing `<?php endif; ?>` statement within the post rendering loop (specifically for the conditional display of shared post content) was identified as the cause. The fix involves correctly placing this `endif;` before the closing `</article>` tag of each post.
 - **DB CLARIFICATION (Share Feature):** Reconfirmed that the `posts` table already contains the necessary `original_post_id` and `is_share` columns for the Share Post feature. The migration script I generated (`database_migrations/add_share_feature_columns_to_posts.sql`) that attempted to add these columns is incorrect and should be disregarded. All Share Feature logic has been (or should be) adapted to use the existing schema.
 
+Here is the first part of the intended PHP code changes. This is for newsfeed.php to address the syntax error:
+
+// newsfeed.php
+// Locate your main post rendering loop. It probably looks something like this:
+// <?php if (count($formatted_posts) > 0): ?>
+//     <?php foreach ($formatted_posts as $post): ?>
+//         <article class="post" data-post-id="<?php echo htmlspecialchars($post['id']); ?>" data-is-share="<?php echo htmlspecialchars($post['is_share'] ?? 0); ?>">
+//             <?php // ... (code to display author info, post content, media, like/comment buttons etc.) ... ?>
+
+//             <?php // THIS IS THE BLOCK RELATED TO DISPLAYING SHARED POSTS ?>
+//             <?php // Ensure this IF block is correctly structured and closed. ?>
+//             <?php if (!empty($post['is_share']) && $post['is_share'] == 1 && isset($post['original_id'])): ?>
+//                 <div class="original-post-preview">
+//                     <p>Shared from <?php echo htmlspecialchars($post['original_author_name'] ?? 'Unknown'); ?>:</p>
+//                     <p><?php echo nl2br(htmlspecialchars($post['original_content'] ?? 'Original content not available.')); ?></p>
+//                     <?php // Potentially display original media here too ?>
+//                 </div>
+//             <?php endif; ?> // <<< *** THIS IS THE INTENDED PLACEMENT OF THE ENDIF ***
+//                                  It MUST be present if the above IF statement exists.
+
+//         </article> <?php // End of a single post's display ?>
+//     <?php endforeach; ?>
+// <?php else: ?>
+//     <div class="alert alert-info">
+//         <i class="fas fa-info-circle me-2"></i> No posts to show yet. Connect with friends or create your own posts!
+//     </div>
+// <?php endif; ?>
+
+To apply the fix for newsfeed.php:
+
+1. Carefully examine the foreach loop that iterates through $formatted_posts (or a similar variable holding your posts).
+2. Within this loop, each post is likely wrapped in an <article> tag.
+3. If there's an if statement similar to if (!empty($post['is_share']) && $post['is_share'] == 1 && isset($post['original_id'])): (this is for displaying the content of an original post when viewing a shared post), ensure it has a corresponding <?php endif; ?> before the closing </article> tag for that post.
+4. The key is to ensure that every <?php if(...): ?> has a matching <?php endif; ?> and every <?php foreach(...): ?> has a matching <?php endforeach; ?>, and they are correctly nested.
+
+This is ONLY the JSON error checking PHP code block that you should add at the very end of your api/add_ons_middle_element.php script, right after echo json_encode(...) and before any exit; or final ?> tag:
+
+// Right after your line: echo json_encode($all_activities);
+
+// JSON Error Checking - Start
+\$jsonError = json_last_error();
+if (\$jsonError !== JSON_ERROR_NONE) {
+    error_log("JSON Encode Error in api/add_ons_middle_element.php: " . json_last_error_msg() . " | Error Code: " . \$jsonError);
+    // Optional: If you want to try and send a valid JSON error back to client
+    // Ensure no output has been sent before this block for this to work reliably.
+    /*
+    if (!headers_sent()) {
+        // Potentially clear output buffer if json_encode partially outputted something
+        // if (ob_get_level() > 0 && ob_get_length() > 0) { ob_clean(); }
+        echo json_encode([
+            'error' => 'Server JSON encoding issue',
+            'json_error_code' => \$jsonError,
+            'json_error_message' => json_last_error_msg()
+        ]);
+    }
+    */
+}
+// JSON Error Checking - End
+
+// It's good practice to have an exit; after sending JSON response
+if (!isset(\$for_unit_tests_dont_exit)) { // Allow unit tests to proceed
+    exit;
+}
+(Please ensure the header('Content-Type: application/json'); call is made before any echo json_encode(...) statement earlier in your script.)
+
+Here is the next piece of intended code guidance for api/add_ons_middle_element.php. This shows how to define your SQL query blocks separately and then combine them, allowing you to easily comment out blocks for testing. This is conceptual; your actual SQL for each block will be more complex as per your 6-UNION query.
+
+// api/add_ons_middle_element.php
+
+// ... (database connection, \$current_user_id setup) ...
+
+// Define each SQL block as a separate string variable
+\$activity_sql_block1 = "
+    (SELECT
+        c.id as activity_id, 'comment' as activity_type, c.user_id as actor_user_id,
+        CONCAT(u.first_name, ' ', u.last_name) as actor_name, u.profile_pic as actor_profile_pic, u.gender as actor_gender,
+        p.user_id as target_owner_user_id, p.id as target_content_id, LEFT(p.content, 50) as target_content_summary,
+        NULL as media_id, NULL as media_url, NULL as media_type, NULL as album_id,
+        c.content as comment_content, NULL as reaction_type, c.created_at as activity_created_at,
+        CONCAT(orig_u.first_name, ' ', orig_u.last_name) as target_owner_name, p.id as post_id_for_activity
+    FROM comments c /* ... rest of your first SQL block ... */ WHERE ... )";
+
+\$activity_sql_block2 = "
+    (SELECT pr.id as activity_id, 'reaction' as activity_type /* ... rest of your second SQL block, ensuring same columns and aliases ... */ WHERE ... )";
+
+// Define \$activity_sql_block3, \$activity_sql_block4, \$activity_sql_block5, \$activity_sql_block6 similarly
+
+// Combine the blocks. Start with only Block 1 active for initial testing.
+\$activity_sql = \$activity_sql_block1;
+
+/* // Incrementally uncomment these lines to add more blocks for testing:
+\$activity_sql .= " UNION ALL " . \$activity_sql_block2;
+// \$activity_sql .= " UNION ALL " . \$activity_sql_block3;
+// \$activity_sql .= " UNION ALL " . \$activity_sql_block4;
+// \$activity_sql .= " UNION ALL " . \$activity_sql_block5;
+// \$activity_sql .= " UNION ALL " . \$activity_sql_block6;
+*/
+
+// It's generally better to apply ORDER BY and LIMIT to the entire UNION ALL result set
+// Note: If subqueries had LIMIT, this outer LIMIT might behave unexpectedly without proper nesting.
+// Consider if subquery LIMITs are truly needed or if one final LIMIT is sufficient.
+\$activity_sql = "SELECT * FROM (" . \$activity_sql . ") AS combined_activities ORDER BY activity_created_at DESC LIMIT 20";
+
+// Prepare the statement
+\$activity_stmt = \$pdo->prepare(\$activity_sql);
+
+// IMPORTANT: Bind parameters ONLY for the currently active SQL blocks.
+// For Block 1 (assuming 4 placeholders like :current_user_id1 to :current_user_id4):
+\$activity_stmt->bindParam(':current_user_id1', \$current_user_id, PDO::PARAM_INT);
+\$activity_stmt->bindParam(':current_user_id2', \$current_user_id, PDO::PARAM_INT);
+\$activity_stmt->bindParam(':current_user_id3', \$current_user_id, PDO::PARAM_INT);
+\$activity_stmt->bindParam(':current_user_id4', \$current_user_id, PDO::PARAM_INT);
+
+/* // If Block 2 becomes active, add its corresponding bindParam calls, e.g.:
+\$activity_stmt->bindParam(':current_user_id5', \$current_user_id, PDO::PARAM_INT);
+// ... and so on for placeholders :current_user_id5 through :current_user_id8 (if it has 4)
+*/
+
+// ... (then execute $activity_stmt, fetch results, build $all_activities) ...
+
+// ... (then your json_encode($all_activities) and the JSON error checking block I sent earlier) ...
+
+
+
 ## [Current Date, e.g., 2025-06-12] - Activity Feed Debugging and Enhancements (`api/add_ons_middle_element.php`, `api/add_ons_middle_element_html.php`)
 
 **Goal:** Resolve errors and extend the sidebar Activity Feed to include activities from media modal interactions (`media_comments`, `media_reactions`) and ensure activities "done by" or "done to" friends are displayed.
