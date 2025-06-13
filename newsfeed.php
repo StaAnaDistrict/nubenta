@@ -935,6 +935,7 @@ if (!$json_requested) {
                   </button>
                 <?php endif; ?>
               </div>
+              <?php endif; // This closes the main if-else for shared vs. original post ?>
             </article>
           <?php endforeach; ?>
         <?php else: ?>
