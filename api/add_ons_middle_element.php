@@ -35,20 +35,27 @@ try {
     $activity_sql_block1 = "
         SELECT
             c.id AS activity_id,
-            'comment' AS activity_type,
+            CAST('comment' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type,
             c.user_id AS actor_user_id,
-            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
-            u.profile_pic AS actor_profile_pic,
-            u.gender AS actor_gender,
+            CAST(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_name,
+            CAST(u.profile_pic AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_profile_pic,
+            CAST(u.gender AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_gender,
             p.user_id AS target_owner_user_id,
             p.id AS target_content_id,
-            LEFT(p.content, 50) AS target_content_summary,
-            NULL AS media_id, NULL AS media_url, NULL AS media_type, NULL AS album_id,
-            c.content AS comment_content,
-            NULL AS reaction_type,
+            CAST(LEFT(p.content, 50) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_content_summary,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_url,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_type,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS album_id,
+            CAST(c.content AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS comment_content,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS reaction_type,
             c.created_at AS activity_created_at,
-            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name,
-            p.id as post_id_for_activity
+            CAST(CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_owner_name,
+            p.id as post_id_for_activity,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_name,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_name
         FROM comments c
         JOIN users u ON c.user_id = u.id
         JOIN posts p ON c.post_id = p.id
@@ -61,15 +68,22 @@ try {
     $activity_sql_block2 = "
     UNION ALL (
         SELECT
-            pr.id AS activity_id, 'reaction' AS activity_type, pr.user_id AS actor_user_id,
-            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
-            u.profile_pic AS actor_profile_pic, u.gender AS actor_gender,
-            p.user_id AS target_owner_user_id, p.id AS target_content_id, LEFT(p.content, 50) AS target_content_summary,
-            NULL AS media_id, NULL AS media_url, NULL AS media_type, NULL AS album_id,
-            NULL AS comment_content, pr.reaction_type AS reaction_type,
+            pr.id AS activity_id, CAST('reaction' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type, pr.user_id AS actor_user_id,
+            CAST(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_name,
+            CAST(u.profile_pic AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_profile_pic, CAST(u.gender AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_gender,
+            p.user_id AS target_owner_user_id, p.id AS target_content_id, CAST(LEFT(p.content, 50) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_content_summary,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_url,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_type,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS album_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS comment_content, CAST(pr.reaction_type AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS reaction_type,
             pr.created_at AS activity_created_at,
-            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name,
-            p.id as post_id_for_activity
+            CAST(CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_owner_name,
+            p.id as post_id_for_activity,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_name,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_name
         FROM post_reactions pr
         JOIN users u ON pr.user_id = u.id
         JOIN posts p ON pr.post_id = p.id
@@ -82,15 +96,22 @@ try {
     $activity_sql_block3 = "
     UNION ALL (
         SELECT
-            c.id AS activity_id, 'comment_on_friend_post' AS activity_type, c.user_id AS actor_user_id,
-            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
-            u.profile_pic AS actor_profile_pic, u.gender AS actor_gender,
-            p.user_id AS target_owner_user_id, p.id AS target_content_id, LEFT(p.content, 50) AS target_content_summary,
-            NULL AS media_id, NULL AS media_url, NULL AS media_type, NULL AS album_id,
-            c.content AS comment_content, NULL AS reaction_type,
+            c.id AS activity_id, CAST('comment_on_friend_post' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type, c.user_id AS actor_user_id,
+            CAST(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_name,
+            CAST(u.profile_pic AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_profile_pic, CAST(u.gender AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_gender,
+            p.user_id AS target_owner_user_id, p.id AS target_content_id, CAST(LEFT(p.content, 50) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_content_summary,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_url,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_type,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS album_id,
+            CAST(c.content AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS comment_content, CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS reaction_type,
             c.created_at AS activity_created_at,
-            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name,
-            p.id as post_id_for_activity
+            CAST(CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_owner_name,
+            p.id as post_id_for_activity,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_name,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_name
         FROM comments c
         JOIN users u ON c.user_id = u.id
         JOIN posts p ON c.post_id = p.id
@@ -103,15 +124,22 @@ try {
     $activity_sql_block4 = "
     UNION ALL (
         SELECT
-            pr.id AS activity_id, 'reaction_on_friend_post' AS activity_type, pr.user_id AS actor_user_id,
-            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
-            u.profile_pic AS actor_profile_pic, u.gender AS actor_gender,
-            p.user_id AS target_owner_user_id, p.id AS target_content_id, LEFT(p.content, 50) AS target_content_summary,
-            NULL AS media_id, NULL AS media_url, NULL AS media_type, NULL AS album_id,
-            NULL AS comment_content, pr.reaction_type AS reaction_type,
+            pr.id AS activity_id, CAST('reaction_on_friend_post' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type, pr.user_id AS actor_user_id,
+            CAST(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_name,
+            CAST(u.profile_pic AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_profile_pic, CAST(u.gender AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_gender,
+            p.user_id AS target_owner_user_id, p.id AS target_content_id, CAST(LEFT(p.content, 50) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_content_summary,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_url,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_type,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS album_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS comment_content, CAST(pr.reaction_type AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS reaction_type,
             pr.created_at AS activity_created_at,
-            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name,
-            p.id as post_id_for_activity
+            CAST(CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_owner_name,
+            p.id as post_id_for_activity,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_name,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_name
         FROM post_reactions pr
         JOIN users u ON pr.user_id = u.id
         JOIN posts p ON pr.post_id = p.id
@@ -124,15 +152,19 @@ try {
     $activity_sql_block5 = "
     UNION ALL (
         SELECT
-            mc.id AS activity_id, 'media_comment' AS activity_type, mc.user_id AS actor_user_id,
-            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
-            u.profile_pic AS actor_profile_pic, u.gender AS actor_gender,
-            p.user_id AS target_owner_user_id, p.id AS target_content_id, LEFT(p.content, 50) AS target_content_summary,
-            um.id AS media_id, um.media_url AS media_url, um.media_type AS media_type, um.album_id AS album_id,
-            mc.content AS comment_content, NULL AS reaction_type,
+            mc.id AS activity_id, CAST('media_comment' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type, mc.user_id AS actor_user_id,
+            CAST(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_name,
+            CAST(u.profile_pic AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_profile_pic, CAST(u.gender AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_gender,
+            p.user_id AS target_owner_user_id, p.id AS target_content_id, CAST(LEFT(p.content, 50) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_content_summary,
+            CAST(um.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_id, CAST(um.media_url AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_url, CAST(um.media_type AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_type, CAST(um.album_id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS album_id,
+            CAST(mc.content AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS comment_content, CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS reaction_type,
             mc.created_at AS activity_created_at,
-            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name,
-            p.id as post_id_for_activity
+            CAST(CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_owner_name,
+            p.id as post_id_for_activity,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_name,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_name
         FROM media_comments mc
         JOIN users u ON mc.user_id = u.id
         JOIN user_media um ON mc.media_id = um.id
@@ -148,23 +180,27 @@ try {
     (
         SELECT
             mr.reaction_id AS activity_id, -- Corrected: was mr.id
-            'media_reaction' AS activity_type,
+            CAST('media_reaction' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type,
             mr.user_id AS actor_user_id,
-            CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS actor_name,
-            u.profile_pic AS actor_profile_pic,
-            u.gender AS actor_gender,
+            CAST(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_name,
+            CAST(u.profile_pic AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_profile_pic,
+            CAST(u.gender AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_gender,
             p.user_id AS target_owner_user_id,
             p.id AS target_content_id,
-            LEFT(p.content, 50) AS target_content_summary,
-            um.id AS media_id,
-            um.media_url AS media_url,
-            um.media_type AS media_type,
-            um.album_id AS album_id,
-            NULL AS comment_content,
-            rt.name AS reaction_type,
+            CAST(LEFT(p.content, 50) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_content_summary,
+            CAST(um.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_id,
+            CAST(um.media_url AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_url,
+            CAST(um.media_type AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_type,
+            CAST(um.album_id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS album_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS comment_content,
+            CAST(rt.name AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS reaction_type,
             mr.created_at AS activity_created_at,
-            CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS target_owner_name,
-            p.id as post_id_for_activity
+            CAST(CONCAT_WS(' ', orig_u.first_name, orig_u.middle_name, orig_u.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_owner_name,
+            p.id as post_id_for_activity,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_name,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_name
         FROM media_reactions mr
         JOIN users u ON mr.user_id = u.id
         JOIN reaction_types rt ON mr.reaction_type_id = rt.reaction_type_id
@@ -180,8 +216,54 @@ try {
           AND p.user_id != :current_user_id24
     )
     ";
+    // Block 7: Testimonial activities (written and received)
+    $activity_sql_block7 = "
+    UNION ALL (
+        SELECT
+            t.testimonial_id AS activity_id,
+            CASE 
+                WHEN t.writer_user_id = :current_user_id25 THEN 'testimonial_written'
+                WHEN t.recipient_user_id = :current_user_id26 THEN 'testimonial_received'
+                ELSE 'testimonial_other' END AS activity_type,
+            t.writer_user_id AS actor_user_id,
+            CAST(CONCAT_WS(' ', wu.first_name, wu.middle_name, wu.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_name,
+            CAST(wu.profile_pic AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_profile_pic,
+            CAST(wu.gender AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS actor_gender,
+            t.recipient_user_id AS target_owner_user_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_content_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_content_summary,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_id,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_url,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS media_type,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS album_id,
+            CAST(t.content AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS comment_content,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS reaction_type,
+            t.created_at AS activity_created_at,
+            CAST(CONCAT_WS(' ', ru.first_name, ru.middle_name, ru.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS target_owner_name,
+            CAST(NULL AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS post_id_for_activity,
+            t.writer_user_id AS writer_id,
+            CAST(CONCAT_WS(' ', wu.first_name, wu.middle_name, wu.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS writer_name,
+            t.recipient_user_id AS recipient_id,
+            CAST(CONCAT_WS(' ', ru.first_name, ru.middle_name, ru.last_name) AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS recipient_name
+        FROM testimonials t
+        JOIN users wu ON t.writer_user_id = wu.id
+        JOIN users ru ON t.recipient_user_id = ru.id
+        LEFT JOIN friend_requests f1 ON 
+            ((f1.sender_id = :current_user_id27 AND f1.receiver_id = t.writer_user_id) OR 
+             (f1.receiver_id = :current_user_id28 AND f1.sender_id = t.writer_user_id))
+        LEFT JOIN friend_requests f2 ON 
+            ((f2.sender_id = :current_user_id29 AND f2.receiver_id = t.recipient_user_id) OR 
+             (f2.receiver_id = :current_user_id30 AND f2.sender_id = t.recipient_user_id))
+        WHERE t.status = 'approved'
+        AND (
+            t.writer_user_id = :current_user_id31 
+            OR t.recipient_user_id = :current_user_id32
+            OR (f1.status = 'accepted' AND f1.id IS NOT NULL)
+            OR (f2.status = 'accepted' AND f2.id IS NOT NULL)
+        )
+    )";
 
-    $activity_sql = $activity_sql_block1 . $activity_sql_block2 . $activity_sql_block3 . $activity_sql_block4 . $activity_sql_block5 . $activity_sql_block6 . " ORDER BY activity_created_at DESC LIMIT 20;";
+    $activity_sql = $activity_sql_block1 . $activity_sql_block2 . $activity_sql_block3 . $activity_sql_block4 . $activity_sql_block5 . $activity_sql_block6 . $activity_sql_block7 . " ORDER BY activity_created_at DESC LIMIT 20;";
 
     $log_prefix = "[ActivityFeed_OB_Test_B6_Fix1]";
     error_log($log_prefix . " Preparing SQL: (Length: " . strlen($activity_sql) . ")");
@@ -191,7 +273,7 @@ try {
         $pdo_error = $pdo->errorInfo();
         throw new PDOException("PDO::prepare() failed: " . ($pdo_error[2] ?? 'Unknown error during prepare'));
     }
-    // Bind params for all 6 blocks
+    // Bind params for all 7 blocks
     $activity_stmt->bindParam(":current_user_id1", $current_user_id, PDO::PARAM_INT);
     $activity_stmt->bindParam(":current_user_id2", $current_user_id, PDO::PARAM_INT);
     $activity_stmt->bindParam(":current_user_id3", $current_user_id, PDO::PARAM_INT);
@@ -216,6 +298,14 @@ try {
     $activity_stmt->bindParam(":current_user_id22", $current_user_id, PDO::PARAM_INT);
     $activity_stmt->bindParam(":current_user_id23", $current_user_id, PDO::PARAM_INT);
     $activity_stmt->bindParam(":current_user_id24", $current_user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id25", $current_user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id26", $current_user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id27", $current_user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id28", $current_user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id29", $current_user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id30", $current_user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id31", $current_user_id, PDO::PARAM_INT);
+    $activity_stmt->bindParam(":current_user_id32", $current_user_id, PDO::PARAM_INT);
 
     $execute_success = $activity_stmt->execute();
     if (!$execute_success) {
@@ -224,7 +314,7 @@ try {
     }
 
     $fetched_activities = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
-    error_log($log_prefix . " Fetched " . count($fetched_activities) . " raw activities (All 6 Blocks).");
+    error_log($log_prefix . " Fetched " . count($fetched_activities) . " raw activities (All 7 Blocks).");
 
     $all_activities_processed = [];
     $processed_event_ids = [];
@@ -238,9 +328,9 @@ try {
         $actorProfilePic = null;
         $item = [
             'type' => $activity_row['activity_type'],
-            'actor_name' => $activity_row['actor_name'],
-            'actor_profile_pic' => $actorProfilePic,
-            'actor_user_id' => $activity_row['actor_user_id'],
+            'actor_name' => $activity_row['actor_name'] ?? $activity_row['writer_name'] ?? '',
+            'actor_profile_pic' => $activity_row['actor_profile_pic'] ?? $activity_row['writer_profile_pic'] ?? '',
+            'actor_user_id' => $activity_row['actor_user_id'] ?? $activity_row['writer_id'] ?? '',
             'activity_time' => $activity_row['activity_created_at'],
             'timestamp' => strtotime($activity_row['activity_created_at']),
             'post_id_for_activity' => $activity_row['target_content_id'],
@@ -256,7 +346,10 @@ try {
             'friend_user_id' => $activity_row['actor_user_id'],
             'target_friend_name' => null, 'target_friend_user_id' => null, 'other_friend_name' => null,
             'other_friend_user_id' => null, 'testimonial_id' => null, 'rating' => null,
-            'writer_name' => null, 'writer_id' => null, 'recipient_name' => null, 'recipient_id' => null,
+            'writer_name' => $activity_row['writer_name'] ?? null,
+            'writer_id' => $activity_row['writer_id'] ?? null,
+            'recipient_name' => $activity_row['recipient_name'] ?? null,
+            'recipient_id' => $activity_row['recipient_id'] ?? null,
             'media_id' => $activity_row['media_id'] ?? null,
             'media_url' => $activity_row['media_url'] ?? null,
             'media_type' => $activity_row['media_type'] ?? null,
@@ -275,7 +368,7 @@ try {
         $all_activities_processed[] = $item;
     }
 
-    error_log($log_prefix . " Processed " . count($all_activities_processed) . " activities for JSON output (All 6 Blocks).");
+    error_log($log_prefix . " Processed " . count($all_activities_processed) . " activities for JSON output (All 7 Blocks).");
 
     $response['activities'] = $all_activities_processed;
     $response['count'] = count($all_activities_processed);

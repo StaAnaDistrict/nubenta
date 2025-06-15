@@ -163,4 +163,79 @@ document.addEventListener('DOMContentLoaded', function () {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
+
+  // Media Modal Functionality
+  document.addEventListener('DOMContentLoaded', function() {
+    // Create modal elements
+    const modal = document.createElement('div');
+    modal.className = 'media-modal';
+    modal.innerHTML = `
+        <span class="media-modal-close">&times;</span>
+        <img class="media-modal-content" id="modalImage">
+        <div class="media-modal-caption" id="modalCaption"></div>
+    `;
+    document.body.appendChild(modal);
+
+    // Get modal elements
+    const modalImg = document.getElementById('modalImage');
+    const captionText = document.getElementById('modalCaption');
+    const closeBtn = document.querySelector('.media-modal-close');
+
+    // Add click event to all media items
+    document.querySelectorAll('.media-grid-item img, .media-grid-item video, .media img, .media video').forEach(item => {
+        item.addEventListener('click', function() {
+            if (this.classList.contains('blurred-image')) {
+                return; // Don't open modal for blurred images
+            }
+            modal.style.display = 'block';
+            if (this.tagName === 'VIDEO') {
+                modalImg.style.display = 'none';
+                const video = document.createElement('video');
+                video.className = 'media-modal-content';
+                video.controls = true;
+                video.src = this.querySelector('source').src;
+                video.type = this.querySelector('source').type;
+                modal.appendChild(video);
+            } else {
+                modalImg.style.display = 'block';
+                modalImg.src = this.src;
+                captionText.innerHTML = this.alt;
+            }
+        });
+    });
+
+    // Close modal when clicking the close button
+    closeBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+        const video = modal.querySelector('video');
+        if (video) {
+            video.pause();
+            video.remove();
+        }
+    });
+
+    // Close modal when clicking outside the image
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+            const video = modal.querySelector('video');
+            if (video) {
+                video.pause();
+                video.remove();
+            }
+        }
+    });
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display === 'block') {
+            modal.style.display = 'none';
+            const video = modal.querySelector('video');
+            if (video) {
+                video.pause();
+                video.remove();
+            }
+        }
+    });
+  });
 });

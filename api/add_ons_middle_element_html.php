@@ -237,12 +237,6 @@ function renderActivityItem(activity) {
     let postIdForClick = activity.post_id_for_activity || activity.target_content_id || 0;
     let clickAction = `onclick="viewPost(${postIdForClick})"`;
 
-    let actorImageHTML = '';
-    // Conditionally create image tag and its container if actor_profile_pic is not null, not the string "null", and not empty
-    if (activity.actor_profile_pic && activity.actor_profile_pic !== "null" && String(activity.actor_profile_pic).trim() !== "") {
-        actorImageHTML = `<div class="activity-actor-image-container"><img src="${escapeHtml(activity.actor_profile_pic)}" alt="${escapeHtml(activity.actor_name)}" class="activity-actor-image"></div>`;
-    }
-
     const actorProfileLink = `../view_profile.php?id=${activity.actor_user_id}`;
     const actorStrong = `<strong onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'">${escapeHtml(activity.actor_name)}</strong>`;
 
@@ -264,7 +258,7 @@ function renderActivityItem(activity) {
             break;
         case 'comment_on_friend_post':
             text = `${actorStrong} commented on your friend ${targetOwnerStrong}'s post.`;
-             if (activity.content) {
+            if (activity.content) {
                 contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
             }
             break;
@@ -277,17 +271,35 @@ function renderActivityItem(activity) {
                 contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
             }
             if (activity.media_url && (activity.media_type === 'image' || activity.media_type === 'photo')) {
-                 mediaPreviewHTML = `<div class="media-preview-activity"><img src="${escapeHtml(activity.media_url)}" alt="media thumbnail"></div>`;
+                mediaPreviewHTML = `<div class="media-preview-activity"><img src="${escapeHtml(activity.media_url)}" alt="media thumbnail"></div>`;
             } else if (activity.media_url && activity.media_type === 'video') {
-                 mediaPreviewHTML = `<div class="media-preview-activity"><i class="fas fa-video"></i> <span class="video-text">Video</span></div>`;
+                mediaPreviewHTML = `<div class="media-preview-activity"><i class="fas fa-video"></i> <span class="video-text">Video</span></div>`;
             }
             break;
         case 'media_reaction':
             text = `${actorStrong} reacted ${activity.reaction_type ? '<strong>' + escapeHtml(activity.reaction_type) + '</strong>' : ''} to ${targetOwnerStrong}'s media.`;
             if (activity.media_url && (activity.media_type === 'image' || activity.media_type === 'photo')) {
-                 mediaPreviewHTML = `<div class="media-preview-activity"><img src="${escapeHtml(activity.media_url)}" alt="media thumbnail"></div>`;
+                mediaPreviewHTML = `<div class="media-preview-activity"><img src="${escapeHtml(activity.media_url)}" alt="media thumbnail"></div>`;
             } else if (activity.media_url && activity.media_type === 'video') {
-                 mediaPreviewHTML = `<div class="media-preview-activity"><i class="fas fa-video"></i> <span class="video-text">Video</span></div>`;
+                mediaPreviewHTML = `<div class="media-preview-activity"><i class="fas fa-video"></i> <span class="video-text">Video</span></div>`;
+            }
+            break;
+        case 'testimonial_written':
+            text = `You wrote a testimonial for <strong>${escapeHtml(activity.recipient_name)}</strong>.`;
+            if (activity.content) {
+                contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+            }
+            break;
+        case 'testimonial_received':
+            text = `<strong>${escapeHtml(activity.writer_name)}</strong> wrote you a testimonial.`;
+            if (activity.content) {
+                contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
+            }
+            break;
+        case 'testimonial_other':
+            text = `<strong>${escapeHtml(activity.writer_name)}</strong> wrote a testimonial for <strong>${escapeHtml(activity.recipient_name)}</strong>.`;
+            if (activity.content) {
+                contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
             }
             break;
         case 'friend_request':
@@ -300,39 +312,15 @@ function renderActivityItem(activity) {
             text = `${actorStrong} is now friends with ${otherFriendStrong}`;
             clickAction = '';
             break;
-        case 'testimonial_written':
-        case 'testimonial_received':
-            let writerDisplayName = activity.writer_name;
-            let recipientDisplayName = activity.recipient_name;
-            const loggedInUserId = window.currentUserId || <?php echo json_encode($userId ?? null); ?>;
-
-            const writerProfileLink = `../view_profile.php?id=${activity.writer_id}`;
-            const recipientProfileLink = `../view_profile.php?id=${activity.recipient_id}`;
-
-            if (String(activity.writer_id) === String(loggedInUserId)) writerDisplayName = 'You';
-
-            if (String(activity.recipient_id) === String(loggedInUserId)) {
-                recipientDisplayName = (String(activity.writer_id) === String(loggedInUserId)) ? escapeHtml(activity.recipient_name) : 'you';
-            } else {
-                recipientDisplayName = escapeHtml(activity.recipient_name);
-            }
-
-            text = `<strong onclick="event.stopPropagation(); window.location.href='${writerProfileLink}'">${escapeHtml(writerDisplayName)}</strong> wrote a testimonial for <strong onclick="event.stopPropagation(); window.location.href='${recipientProfileLink}'">${recipientDisplayName}</strong>.`;
-            if (activity.content) {
-                 contentPreview = `<div class="content-preview-activity" title="${escapeHtml(activity.content)}">&ldquo;${escapeHtml(activity.content.substring(0,50))}${activity.content.length > 50 ? '...' : ''}&rdquo;</div>`;
-            }
-            clickAction = (String(activity.writer_id) === String(loggedInUserId) && String(activity.recipient_id) !== String(loggedInUserId)) ? `onclick="event.stopPropagation(); window.location.href='${recipientProfileLink}'"` : `onclick="event.stopPropagation(); window.location.href='${writerProfileLink}'"`;
-            break;
         default:
-            text = `${actorStrong} had an activity. (Type: ${escapeHtml(activity.type)})`;
+            text = `${actorStrong} had an activity.`;
             clickAction = `onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'"`;
             break;
     }
 
     let htmlOutput = '';
     htmlOutput += `<div class="activity-item" ${clickAction}>`;
-    htmlOutput += actorImageHTML;
-    htmlOutput += `  <div class="activity-details">`;
+    htmlOutput += `  <div class="activity-item-content activity-details">`;
     htmlOutput += `    <div class="activity-text">${text}</div>`;
     if (contentPreview) {
         htmlOutput += contentPreview;
