@@ -234,8 +234,7 @@ function renderActivityItem(activity) {
     let text = '';
     let contentPreview = '';
     let mediaPreviewHTML = '';
-    let postIdForClick = activity.post_id_for_activity || activity.target_content_id || 0;
-    let clickAction = `onclick="viewPost(${postIdForClick})"`;
+    let clickAction = '';
 
     const actorProfileLink = `../view_profile.php?id=${activity.actor_user_id}`;
     const actorStrong = `<strong onclick="event.stopPropagation(); window.location.href='${actorProfileLink}'">${escapeHtml(activity.actor_name)}</strong>`;
