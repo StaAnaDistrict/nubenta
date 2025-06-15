@@ -7,33 +7,27 @@
 5. Documentation ALSO refers to CONTSTANTLY UPDATING THE CHANGELOG.md file. All stipulations mentioned in the Actual_Accomplishment.md must be clarified here in order to have a specific tracking system of what was done to the project and what were the results of these executions: success or failure.
 6. IT IS POINTLESS TO PROCEED WITH DIFFERENT COURSES OF ACTIONS IF IT IS NOT DOCUMENTED AND TRACKED, WE WILL END UP WITH REPEATING THE SAME MISTAKES AND ISSUES OVER AND OVER WHICH WILL COST US TIME AND EFFORT.
 
-# Task Number 1: Fixing Activity Feed for User Activities which were executed inside Modals and Primary Location
+# Task Number 1: Fixing Activity Feed for User Activities Specifically Testimonials
+
+This was already working previously but I must've done something to my add_ons_middle_element.php and add_ons_middle_element_html.php that rendered my fetching ability of Testimonial activities of connected users (conntected as friends or following a certain user) impaired.
+
+Originally, a user who will receive a testimonial, the user who gave the testimonial, and a user who follows either the giver/receiver of the testimonial will receive information in the activity feed that states: "<Name of user> wrote a testiominal to <Name of another user>". It was as simple as that. Until I was able to update it to "You wrote a testimonial to <Name of user>" for the one who gave it, "<Name of user> wrote you a testimonial" for the one who received it, and back to the default text for a user of either follows the giver or receiver of the testimonial.
+
 
 The Main Goal for the Activity Feed: To make your sidebar Activity Feed (driven by api/add_ons_middle_element.php and api/add_ons_middle_element_html.php) correctly display a range of user activities. This includes:
 
 1. Activities by your friends (e.g., your friend commented on a public post).
 2. Activities to your friends (e.g., someone commented on your friend's public post).
 3. Critically, activities (comments and reactions) that happen within the media modal (which are stored in media_comments and media_reactions tables).
+4. And testimonials given and received by users.
 
-Current Situation / What I've Tried: Identified that activities from the media modal weren't showing because they are in separate tables (media_comments, media_reactions).
+Current Situation / What I've Tried: Identified that any successful testimonial given or received does not reflect anymore in the activity feed.
 
-In other words, items 1 and 2 are currently working. When a User comments or reacts on another User post inside the newsfeed (within the dashboard), it is recorded and displayed in the Activity Feed of those who are friends with that User or follows that User. However, when a user should click on a post in the newsfeeed that will trigger the modal to which he can comment and react on that particular media inside that modal, all these activities will not display in the Activity Feed even though this user's comments and reactions are recorded by the system. 
+In other words, items 1 to 3 are currently working. 
 
-A structural form of how the Activity Feed displays these activities are already working in some areas, but in this particular situation/case, it won't. 
+A structural form of how the Activity Feed displays these activities are already working in some areas, but in this particular situation/case (TESTIMONIALS), it won't. 
 
-# Task Number 2: Refining Newsfeed for posts with Texts only and posts with Text and Media Types
-
-Inside view_profile.php, the main content (middle grid) fetches activities between the currently logged-in user (User A), and all other users connected to him through friendship (connections i.e. friends.php) and accounts he/she currently follows. This section, also known as the newsfeed, gathers all these activities accordingly. 
-
-Currently, the newsfeed fetches all the posts made by other users according to the latest ones down to the oldest one which is what I wanted by default.
-
-However, it does not update itself if certain posts are activated (through reactions and/or comments) made by other users.
-
-For example, User A is friends with User B and User C. User B made a post at around 10:00 AM and User C made another post at around 11:00 AM. In User A's newsfeed, the first one to be seen would be User C's post simply because it's the latest one, and it will be followed by the post of User B. This is correct. The issue comes when any other user registered in the system will make a comment or reacts to the post of User B AFTER User C made his post at 11:00 AM. Let us say, User D reacted with a "LaughLoud" on User B's post at 11:30 AM, therefore, in User A's newsfeed, it should update to have User B's post to be shown first (because of the latest reaction it received) and followed by User C's post even though User C's post is the latest one. The reaction and comment system should affect the ordinal arrangement of the newsfeed.
-
-Note: Posts with media are clickable and will open a modal, make sure this function is not affected.
-
-# Task Number 3: Refining of Newsfeed display for posts with Texts and Media Types
+# Task Number 2: Refining of Newsfeed display for posts with Texts and Media Types
 
 When User A (or any other user) should make a post that has media attachment, the newsfeed does not cater to these posts presentably. 
 
@@ -45,7 +39,7 @@ The same problem occurs for posts with multiple images types uploaded, it's all 
 
 Note: Posts with media are clickable and will open a modal, make sure this function is not affected.
 
-# Task Number 4: Implementing the Shared button for posts displayed in the newsfeed
+# Task Number 3: Implementing the Shared button for posts displayed in the newsfeed
 
 Facebook 'Sharing Posts' Feature: SQL, PHP & Analysis
 This document provides a comprehensive schematic and analysis of Facebook's "Sharing Posts" feature, detailing its underlying SQL structure, PHP logic for implementation, integration with other Facebook systems, and potential areas for improvement.
