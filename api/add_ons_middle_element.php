@@ -57,7 +57,6 @@ try {
             ((f.sender_id = :current_user_id1 AND f.receiver_id = c.user_id) OR (f.receiver_id = :current_user_id2 AND f.sender_id = c.user_id))
         WHERE p.visibility = 'public' AND f.status = 'accepted' AND c.user_id != :current_user_id3 AND p.user_id != :current_user_id4
     ";
-
     // Block 2: Friend reactions on any public post
     $activity_sql_block2 = "
     UNION ALL (
@@ -79,7 +78,6 @@ try {
             ((f.sender_id = :current_user_id5 AND f.receiver_id = pr.user_id) OR (f.receiver_id = :current_user_id6 AND f.sender_id = pr.user_id))
         WHERE p.visibility = 'public' AND f.status = 'accepted' AND pr.user_id != :current_user_id7 AND p.user_id != :current_user_id8
     )";
-
     // Block 3: Anyone comments on a friend's public post
     $activity_sql_block3 = "
     UNION ALL (
@@ -101,7 +99,6 @@ try {
             ((f.sender_id = :current_user_id9 AND f.receiver_id = p.user_id) OR (f.receiver_id = :current_user_id10 AND f.sender_id = p.user_id))
         WHERE p.visibility = 'public' AND f.status = 'accepted' AND p.user_id != :current_user_id11 AND c.user_id != :current_user_id12
     )";
-
     // Block 4: Anyone reacts to a friend's public post
     $activity_sql_block4 = "
     UNION ALL (
@@ -123,7 +120,6 @@ try {
             ((f.sender_id = :current_user_id13 AND f.receiver_id = p.user_id) OR (f.receiver_id = :current_user_id14 AND f.sender_id = p.user_id))
         WHERE p.visibility = 'public' AND f.status = 'accepted' AND p.user_id != :current_user_id15 AND pr.user_id != :current_user_id16
     )";
-
     // Block 5: Friend comments on media associated with a public post
     $activity_sql_block5 = "
     UNION ALL (
@@ -146,7 +142,6 @@ try {
             ((f.sender_id = :current_user_id17 AND f.receiver_id = mc.user_id) OR (f.receiver_id = :current_user_id18 AND f.sender_id = mc.user_id))
         WHERE p.visibility = 'public' AND um.post_id IS NOT NULL AND f.status = 'accepted' AND mc.user_id != :current_user_id19 AND p.user_id != :current_user_id20
     )";
-
     // Block 6: Friend reacts to media associated with a public post
     $activity_sql_block6 = "
     UNION ALL
@@ -196,7 +191,6 @@ try {
         $pdo_error = $pdo->errorInfo();
         throw new PDOException("PDO::prepare() failed: " . ($pdo_error[2] ?? 'Unknown error during prepare'));
     }
-
     // Bind params for all 6 blocks
     $activity_stmt->bindParam(":current_user_id1", $current_user_id, PDO::PARAM_INT);
     $activity_stmt->bindParam(":current_user_id2", $current_user_id, PDO::PARAM_INT);
