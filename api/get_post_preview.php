@@ -64,14 +64,15 @@ try {
         }
     }
     
-    $defaultMalePic = '../assets/images/MaleDefaultProfilePicture.png'; // Adjusted path relative to api folder
-    $defaultFemalePic = '../assets/images/FemaleDefaultProfilePicture.png'; // Adjusted path
+    // Determine profile picture path
+    $author_profile_pic = 'assets/images/MaleDefaultProfilePicture.png'; // Default
+    if (!empty($post['author_profile_pic'])) {
+        $author_profile_pic = 'uploads/profile_pics/' . htmlspecialchars($post['author_profile_pic']);
+    } elseif ($post['author_gender'] === 'Female') {
+        $author_profile_pic = 'assets/images/FemaleDefaultProfilePicture.png';
+    }
 
-    $author_profile_pic = !empty($post['author_profile_pic'])
-        ? '../uploads/profile_pics/' . htmlspecialchars($post['author_profile_pic'])
-        : ($post['author_gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic);
-
-    // Prepare media preview (e.g., first image or video thumbnail)
+    // Handle media preview
     $media_preview_html = '';
     if (!empty($post['media'])) {
         $media_items = json_decode($post['media'], true);
@@ -84,8 +85,9 @@ try {
         }
 
         if (!empty($first_media_item_path)) {
+            // Ensure proper path for post media
             if (strpos($first_media_item_path, 'uploads/') !== 0 && strpos($first_media_item_path, 'http') !== 0) {
-                 $first_media_item_path = '../uploads/post_media/' . $first_media_item_path; // Adjusted path
+                $first_media_item_path = 'uploads/post_media/' . $first_media_item_path;
             }
 
             if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $first_media_item_path)) {
@@ -100,7 +102,7 @@ try {
         'status' => 'success',
         'post_preview' => [
             'author_name' => htmlspecialchars($post['author_name']),
-            'author_profile_pic' => htmlspecialchars($author_profile_pic),
+            'author_profile_pic' => $author_profile_pic,
             'content_snippet' => htmlspecialchars(mb_substr(strip_tags($post['content'] ?? ''), 0, 100)) . (mb_strlen(strip_tags($post['content'] ?? '')) > 100 ? '...' : ''),
             'media_html' => $media_preview_html,
             'is_share' => $post['is_share'] // Include is_share status

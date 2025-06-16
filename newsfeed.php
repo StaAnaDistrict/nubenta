@@ -771,7 +771,7 @@ if (!$json_requested) {
                 <!-- Original Post Content Box -->
                 <div class="original-post-preview" style="border: 1px solid #e0e0e0; padding: 10px; border-radius: 6px; background: #f9f9f9;">
                     <div class="post-header">
-                        <img src="<?= !empty($post['original_author_profile_pic']) ? 'uploads/profile_pics/' . htmlspecialchars($post['original_author_profile_pic']) : ($post['original_author_gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic) ?>" alt="Original Author Profile" class="profile-pic me-3">
+                        <img src="<?= !empty($post['original_author_profile_pic']) ? (strpos($post['original_author_profile_pic'], 'uploads/') === 0 ? htmlspecialchars($post['original_author_profile_pic']) : 'uploads/profile_pics/' . htmlspecialchars($post['original_author_profile_pic'])) : ($post['original_author_gender'] === 'Female' ? $defaultFemalePic : $defaultMalePic) ?>" alt="Original Author Profile" class="profile-pic me-3">
                         <div>
                             <p class="author mb-0"><?= htmlspecialchars($post['original_author_name'] ?? 'Original Author') ?></p>
                             <small class="text-muted">
@@ -789,9 +789,15 @@ if (!$json_requested) {
                         <?php if (!empty($post['original_media'])): ?>
                             <?php
                               $original_media_items = json_decode($post['original_media'], true);
-                              if (is_array($original_media_items) && count($original_media_items) > 0):
+                              // Ensure $original_media_items is an array even if json_decode fails
+                              if (!is_array($original_media_items)) {
+                                  $original_media_items = [];
+                              }
+
+                              if (count($original_media_items) > 0):
                                 // Simplified display for original media in shared post - showing first item only for brevity
                                 $first_original_media = $original_media_items[0];
+                                // Ensure path is correct for original media (prefix with uploads/post_media/ if not already or external)
                                 if (strpos($first_original_media, 'uploads/') !== 0 && strpos($first_original_media, 'http') !== 0) {
                                     $first_original_media = 'uploads/post_media/' . $first_original_media;
                                 }
@@ -806,7 +812,7 @@ if (!$json_requested) {
                                   </video>
                                 <?php endif; ?>
                               </div>
-                            <?php elseif (!is_array($original_media_items)): // Single media item string for original post ?>
+                            <?php elseif (!is_array($original_media_items) && !empty($post['original_media'])): // Single media item string that didn't parse as JSON ?>
                               <div class="media">
                                 <?php
                                   $single_original_media_path = $post['original_media'];

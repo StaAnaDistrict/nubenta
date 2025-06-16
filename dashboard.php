@@ -75,6 +75,99 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                 return date.toLocaleDateString();
             }
         }
+
+        // Media path normalization function
+        function normalizeMediaPath(path, type = 'post_media') {
+            if (!path) return '';
+
+            // Remove any double prefixes like 'uploads/uploads/' or 'profile_pics/profile_pics/'
+            path = path.replace(/^(uploads\/uploads\/|profile_pics\/profile_pics\/)/, 'uploads/');
+            
+            // Ensure correct prefix based on type
+            if (type === 'profile_pics' && !path.startsWith('uploads/profile_pics/') && !path.startsWith('assets/images/') && !path.startsWith('http')) {
+                path = 'uploads/profile_pics/' + path.replace(/^uploads\//, ''); // Handle case where it's just a filename
+            } else if (type === 'post_media' && !path.startsWith('uploads/post_media/') && !path.startsWith('assets/images/') && !path.startsWith('http')) {
+                path = 'uploads/post_media/' + path.replace(/^uploads\//, ''); // Handle case where it's just a filename
+            }
+            return path;
+        }
+
+        // Function to render post media
+        function renderPostMedia(media, postId, isFlagged = false) {
+            if (!media) return '';
+            
+            let mediaArray = [];
+            try {
+                // Media might be a JSON string or already an array
+                mediaArray = typeof media === 'string' ? JSON.parse(media) : media;
+                // Ensure it's an array of objects/strings
+                if (!Array.isArray(mediaArray)) {
+                    mediaArray = [mediaArray]; // Wrap single item in an array
+                }
+            } catch (e) {
+                // If JSON parsing fails, assume it's a single media string
+                mediaArray = [media];
+            }
+
+            if (mediaArray.length === 0) return '';
+
+            let mediaHtml = '<div class="post-media-container">';
+            const item_count = mediaArray.length;
+            const display_count = Math.min(item_count, 4); // Show max 4 items in grid preview
+
+            if (item_count > 1) { // Multiple media items, use grid
+                mediaHtml += `<div class="post-multiple-media-container" data-count="${item_count <= 4 ? item_count : display_count}" data-count-modifier="${item_count > 4 ? '+' : ''}">`;
+                for (let i = 0; i < display_count; i++) {
+                    const mediaItem = mediaArray[i];
+                    const filename = mediaItem.filename || mediaItem.media_url || mediaItem; // Handle object or string
+                    const mediaType = mediaItem.type || mediaItem.media_type || (filename.match(/\.(mp4|mov|avi|wmv)$/i) ? 'video' : 'image');
+
+                    const mediaPath = normalizeMediaPath(filename, 'post_media');
+                    const isLastVisibleItem = (i === display_count - 1);
+                    const moreCountText = item_count > 4 ? '+' + (item_count - 3) : '';
+
+                    mediaHtml += `
+                        <div class="media-grid-item" ${isLastVisibleItem && item_count > 4 ? `data-more-count="${moreCountText}"` : ''}>
+                            ${mediaType === 'image' ? `
+                                <img src="${mediaPath}" alt="Post media ${i+1}" class="${isFlagged ? 'blurred-image' : ''} clickable-media" 
+                                     onclick="openMediaModal('${postId}', ${i});"
+                                     onerror="this.onerror=null;this.src='assets/images/default_media_placeholder.png';">
+                            ` : `
+                                <video controls class="${isFlagged ? 'blurred-image' : ''} clickable-media" 
+                                       onclick="openMediaModal('${postId}', ${i});"
+                                       onerror="this.onerror=null;this.src='assets/images/default_media_placeholder.png';">
+                                    <source src="${mediaPath}" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                            `}
+                        </div>`;
+                }
+                mediaHtml += '</div>';
+            } else if (item_count === 1) { // Single media item
+                const mediaItem = mediaArray[0];
+                const filename = mediaItem.filename || mediaItem.media_url || mediaItem; // Handle object or string
+                const mediaType = mediaItem.type || mediaItem.media_type || (filename.match(/\.(mp4|mov|avi|wmv)$/i) ? 'video' : 'image');
+                const mediaPath = normalizeMediaPath(filename, 'post_media');
+
+                mediaHtml += `
+                    <div class="media">
+                        ${mediaType === 'image' ? `
+                            <img src="${mediaPath}" alt="Post media" class="img-fluid ${isFlagged ? 'blurred-image' : ''} clickable-media"
+                                 onclick="openMediaModal('${postId}', 0);"
+                                 onerror="this.onerror=null;this.src='assets/images/default_media_placeholder.png';">
+                        ` : `
+                            <video controls class="img-fluid ${isFlagged ? 'blurred-image' : ''} clickable-media"
+                                   onclick="openMediaModal('${postId}', 0);"
+                                   onerror="this.onerror=null;this.src='assets/images/default_media_placeholder.png';">
+                                <source src="${mediaPath}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        `}
+                    </div>`;
+            }
+            mediaHtml += '</div>';
+            return mediaHtml;
+        }
     </script>
     <style>
         /* Media display styles */
@@ -398,29 +491,62 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
                     // Create post HTML with clickable profile elements
                     let postHTML = `
-                        ${activityHeader}
-                        <div class="post-header">
-                            <a href="view_profile.php?id=${post.user_id}" class="text-decoration-none">
-                                <img src="${post.profile_pic || 'assets/images/default-profile.png'}" alt="Profile" class="profile-pic me-3"
-                                     style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; cursor: pointer;"
-                                     title="View ${post.author}'s profile">
-                            </a>
-                            <div>
+                        ${post.is_share && post.original_id ? `
+                            <!-- Shared Post Header (Sharer's info and comment) -->
+                            <div class="shared-post-header" style="margin-bottom: 10px;">
                                 <a href="view_profile.php?id=${post.user_id}" class="text-decoration-none">
-                                    <p class="author mb-0" style="cursor: pointer; color: #2c3e50;" title="View ${post.author}'s profile">${post.author}</p>
+                                    <img src="${normalizeMediaPath(post.profile_pic, 'profile_pics')}" alt="Profile" class="profile-pic me-2" style="width:30px; height:30px; object-fit: cover;">
                                 </a>
-                                <small class="text-muted">
-                                    <i class="far fa-clock me-1"></i> ${new Date(post.created_at).toLocaleString()}
-                                    ${post.visibility === 'friends' ? '<span class="ms-2"><i class="fas fa-user-friends"></i> Friends only</span>' : ''}
+                                <small>
+                                    <strong><a href="view_profile.php?id=${post.user_id}" class="text-decoration-none" style="color: #2c3e50;">${post.author}</a></strong> shared a post.
+                                    <span class="text-muted ms-1"><i class="far fa-clock me-1"></i> ${formatTimeAgo(post.created_at)}</span>
                                 </small>
+                                ${post.content ? `<p style="margin-top: 5px; margin-bottom: 10px; font-size: 0.95em;">${post.content}</p>` : ''}
                             </div>
-                        </div>
-                        <div class="post-content mt-3">
-                            ${post.is_flagged ? '<div class="flagged-warning"><i class="fas fa-exclamation-triangle me-1"></i> Viewing discretion is advised.</div>' : ''}
-                            ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
-                            ${post.media && !post.is_removed ? renderPostMedia(post.media, post.id, post.is_flagged) : ''}
-
-                        </div>
+                            <!-- Original Post Content Box -->
+                            <div class="original-post-preview" style="border: 1px solid #e0e0e0; padding: 10px; border-radius: 6px; background: #f9f9f9;">
+                                <div class="post-header">
+                                    <a href="view_profile.php?id=${post.original_author_id}" class="text-decoration-none">
+                                        <img src="${normalizeMediaPath(post.original_author_profile_pic, 'profile_pics')}" alt="Original Author Profile" class="profile-pic me-3" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;">
+                                    </a>
+                                    <div>
+                                        <p class="author mb-0"><a href="view_profile.php?id=${post.original_author_id}" class="text-decoration-none" style="color: #2c3e50;">${post.original_author_name}</a></p>
+                                        <small class="text-muted">
+                                            <i class="far fa-clock me-1"></i> ${formatTimeAgo(post.original_created_at)}
+                                            ${post.original_visibility === 'friends' ? '<span class="ms-2"><i class="fas fa-user-friends"></i> Friends only</span>' : ''}
+                                            ${post.original_visibility === 'public' ? '<span class="ms-2"><i class="fas fa-globe-americas"></i> Public</span>' : ''}
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="post-content">
+                                    <p>${post.original_content}</p>
+                                    ${post.original_media ? renderPostMedia(post.original_media, post.original_id, post.is_flagged) : ''}
+                                </div>
+                            </div>
+                        ` : `
+                            <!-- Original Post (not a share) -->
+                            <div class="post-header">
+                                <a href="view_profile.php?id=${post.user_id}" class="text-decoration-none">
+                                    <img src="${normalizeMediaPath(post.profile_pic, 'profile_pics')}" alt="Profile" class="profile-pic me-3"
+                                         style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; cursor: pointer;" title="View ${post.author}'s profile">
+                                </a>
+                                <div>
+                                    <a href="view_profile.php?id=${post.user_id}" class="text-decoration-none">
+                                        <p class="author mb-0" style="cursor: pointer; color: #2c3e50;" title="View ${post.author}'s profile">${post.author}</p>
+                                    </a>
+                                    <small class="text-muted">
+                                        <i class="far fa-clock me-1"></i> ${formatTimeAgo(post.created_at)}
+                                        ${post.visibility === 'friends' ? '<span class="ms-2"><i class="fas fa-user-friends"></i> Friends only</span>' : ''}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="post-content mt-3">
+                                ${post.is_flagged ? '<div class="flagged-warning"><i class="fas fa-exclamation-triangle me-1"></i> Viewing discretion is advised.</div>' : ''}
+                                ${post.is_removed ? `<p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> ${post.content}</p>` : `<p>${post.content}</p>`}
+                                ${post.media && !post.is_removed ? renderPostMedia(post.media, post.id, post.is_flagged) : ''}
+                            </div>
+                        `}
+                        
                         ${!post.is_system_post ? `
                             <div class="post-actions d-flex mt-3">
                                 <div class="reactions-section">
@@ -431,9 +557,11 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
                                 <button class="btn btn-sm btn-outline-secondary me-2 post-comment-btn" data-post-id="${post.id}">
                                     <i class="far fa-comment me-1"></i> <span class="comment-text">Comment</span> <span class="comment-count-badge"></span>
                                 </button>
-                                <button class="btn btn-sm btn-outline-secondary me-2 post-share-btn" data-post-id="${post.id}">
-                                    <i class="far fa-share-square me-1"></i> Share
-                                </button>
+                                ${(!post.is_share || post.is_share === 0) ? `
+                                  <button class="btn btn-sm btn-outline-secondary me-2 share-btn" data-post-id="${post.id}">
+                                      <i class="far fa-share-square me-1"></i> Share
+                                  </button>
+                                ` : ''}
                                 ${post.is_own_post ? `
                                     <button class="btn btn-sm btn-outline-danger me-2 post-delete-btn" data-post-id="${post.id}">
                                         <i class="far fa-trash-alt me-1"></i> Delete
@@ -2316,6 +2444,150 @@ $defaultFemalePic = 'assets/images/FemaleDefaultProfilePicture.png';
 
       // Run once more after a delay
       setTimeout(removeDebugButtons, 1000);
+    });
+    </script>
+
+    <!-- Share Post Modal -->
+    <div id="sharePostModal" class="modal" style="display:none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; position: relative;">
+            <span class="close-share-modal" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+            <h3>Share Post</h3>
+            <hr>
+            <div id="originalPostPreview" style="margin-bottom: 15px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; border-radius: 4px;">
+                <!-- Original post preview will be loaded here by JavaScript -->
+                <p>Loading post preview...</p>
+            </div>
+            <textarea id="sharerComment" placeholder="Say something about this..." style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; min-height: 80px; resize: vertical;"></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <select id="shareVisibility" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="friends">Friends</option>
+                    <option value="public">Public</option>
+                    <option value="only_me">Only Me</option>
+                </select>
+                <button id="confirmShareBtn" style="background-color: #1877f2; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer;">Share Now</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('sharePostModal');
+        const closeBtn = modal.querySelector('.close-share-modal');
+        const confirmShareBtn = modal.querySelector('#confirmShareBtn');
+        const originalPostPreview = modal.querySelector('#originalPostPreview');
+        const sharerCommentTextarea = modal.querySelector('#sharerComment');
+        const shareVisibilitySelect = modal.querySelector('#shareVisibility');
+        let currentOriginalPostId = null;
+
+        // Close modal when clicking the X
+        closeBtn.onclick = function() {
+            modal.style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Handle share button clicks
+        document.addEventListener('click', async function(event) {
+            let targetElement = event.target;
+            while (targetElement != null && !targetElement.classList.contains('share-btn')) {
+                targetElement = targetElement.parentElement;
+            }
+
+            if (targetElement && targetElement.classList.contains('share-btn')) {
+                currentOriginalPostId = targetElement.dataset.postId;
+                if (!currentOriginalPostId) {
+                    console.error('Share button clicked without a post ID.');
+                    alert('Could not initiate share: missing post ID.');
+                    return;
+                }
+
+                // Reset modal fields
+                sharerCommentTextarea.value = '';
+                shareVisibilitySelect.value = 'friends';
+                originalPostPreview.innerHTML = '<p>Loading post preview...</p>';
+
+                // Load post preview
+                try {
+                    const response = await fetch(`api/get_post_preview.php?id=${currentOriginalPostId}`);
+                    const result = await response.json();
+
+                    if (result.status === 'success') {
+                        const preview = result.post_preview;
+                        originalPostPreview.innerHTML = `
+                            <div style="display: flex; align-items: start; margin-bottom: 10px;">
+                                <img src="${preview.author_profile_pic}" alt="Profile" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
+                                <div>
+                                    <strong>${preview.author_name}</strong>
+                                    <p style="margin: 5px 0;">${preview.content_snippet}</p>
+                                    ${preview.media_html || ''}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        originalPostPreview.innerHTML = '<p class="text-danger">Error loading post preview.</p>';
+                    }
+                } catch (error) {
+                    console.error('Error loading post preview:', error);
+                    originalPostPreview.innerHTML = '<p class="text-danger">Error loading post preview.</p>';
+                }
+
+                modal.style.display = 'block';
+            }
+        });
+
+        // Handle share confirmation
+        confirmShareBtn.onclick = async function() {
+            if (!currentOriginalPostId) {
+                alert('Error: No post selected to share.');
+                return;
+            }
+
+            const sharerComment = sharerCommentTextarea.value;
+            const visibility = shareVisibilitySelect.value;
+
+            const formData = new FormData();
+            formData.append('original_post_id', currentOriginalPostId);
+            formData.append('sharer_comment', sharerComment);
+            formData.append('visibility', visibility);
+
+            try {
+                confirmShareBtn.disabled = true;
+                confirmShareBtn.textContent = 'Sharing...';
+
+                const response = await fetch('api/share_post.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    alert(result.message || 'Post shared successfully!');
+                    modal.style.display = 'none';
+                    currentOriginalPostId = null;
+
+                    // Refresh the newsfeed
+                    if (typeof loadNewsfeed === 'function') {
+                        loadNewsfeed();
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    alert('Error sharing post: ' + (result.message || 'Unknown server error.'));
+                }
+            } catch (error) {
+                console.error('Error sharing post:', error);
+                alert('An unexpected error occurred while sharing the post.');
+            } finally {
+                confirmShareBtn.disabled = false;
+                confirmShareBtn.textContent = 'Share Now';
+            }
+        };
     });
     </script>
 </body>
