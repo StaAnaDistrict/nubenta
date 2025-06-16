@@ -39,429 +39,48 @@ The same problem occurs for posts with multiple images types uploaded, it's all 
 
 Note: Posts with media are clickable and will open a modal, make sure this function is not affected.
 
-# Task Number 3: Implementing the Shared button for posts displayed in the newsfeed
+# Task Number 3: Implementing the Shared button for posts displayed in the newsfeed (Completed)
 
-Facebook 'Sharing Posts' Feature: SQL, PHP & Analysis
-This document provides a comprehensive schematic and analysis of Facebook's "Sharing Posts" feature, detailing its underlying SQL structure, PHP logic for implementation, integration with other Facebook systems, and potential areas for improvement.
+*   **Date:** 2024-07-29
+*   **Objective:** Implement and fully integrate the "Share" button functionality for posts displayed in the newsfeed, ensuring correct UI/UX, backend processing, and accurate display of shared content (including original post details and media).
+*   **Problems Encountered & Debugging Steps:**
+    1.  **Initial Non-Responsiveness:** Clicking the "Share" button did nothing, console logs showed "Share button clicked..." but no further action.
+        *   **Diagnosis:** Identified missing/incorrect event handler for the share button in `dashboard.php` and no proper modal structure.
+        *   **Fix:**
+            *   Modified `dashboard.php` to correctly reference `share-btn` class.
+            *   Added the full share modal HTML structure directly into `dashboard.php`.
+            *   Implemented JavaScript event handlers within `dashboard.php` to manage modal display, post preview loading, and share submission.
+    2.  **404 for Post Preview & "Original post not found or cannot be shared" error:** When clicking the share button, the modal appeared but failed to load the post preview.
+        *   **Diagnosis:** `api/get_post_preview.php` was returning a 404. Initially suspected missing `is_share` column, but `DESCRIBE posts;` confirmed `is_share` was present. The root cause was `api/get_post_preview.php` correctly refusing to show a preview for posts that were *already* shared posts (`is_share = 1`), combined with the share button appearing on shared posts in the newsfeed.
+        *   **Fix:**
+            *   Modified `dashboard.php` (JavaScript) to conditionally render the "Share" button **only for original posts** (`post.is_share === 0` or `false`), preventing attempts to share already shared posts.
+            *   Adjusted `api/get_post_preview.php` to correctly handle profile picture and post media paths (`uploads/profile_pics/` and `uploads/post_media/`) and ensure `is_share` was considered.
+    3.  **"Empty Posts" for Shared Content in Newsfeed:** Shared posts appeared in the newsfeed, but the actual content (text and media) of the *original* shared post was missing.
+        *   **Diagnosis:** The backend (`newsfeed.php` PHP) was correctly fetching `original_content`, `original_media`, etc., but the frontend JavaScript rendering in `dashboard.php` was not correctly utilizing these fields for shared posts. Media paths and JSON parsing for `original_media` were also potential issues.
+        *   **Fix:**
+            *   Revised `dashboard.php`'s JavaScript (`loadNewsfeed` function) to explicitly check for `post.is_share`.
+            *   For shared posts, a dedicated HTML structure was implemented to display the sharer's information/comment and then a separate block for the original post's details (author, profile pic, `original_content`, and `original_media`).
+            *   Enhanced the `normalizeMediaPath` and `renderPostMedia` JavaScript functions in `dashboard.php` for robust handling of various media types (images, videos) and ensuring correct root-relative paths for both original post media and author profile pictures, including robust JSON parsing for media arrays.
+*   **Other Related Fixes:**
+    *   Resolved PHP syntax error in `dashboard.php` by properly separating PHP and JavaScript code with `<script>` tags.
+    *   Ensured consistent application of `normalizeMediaPath` for all image `src` attributes in `dashboard.php`.
+    *   Addressed initial `updated_at` column missing error by providing SQL command for manual user execution.
+*   **Result:** The "Share" button is now fully functional. Users can share original posts, add comments, and set visibility. Shared posts are now correctly displayed in the newsfeed, showing both the sharer's commentary and the original post's content and media.
 
-## 1. Feature Description: 'Sharing' Posts
-Sharing a post on Facebook allows users to re-distribute content created by others to their own network (friends, public, specific lists), often with an optional personal commentary. It's a fundamental mechanism for content amplification and discovery.
+## Task 3: Share Button - Functional Implementation
 
-* Key aspects of sharing:
-- Amplification: Extends the reach of original content beyond the original poster's immediate audience.
-- Contextualization: Allows the sharer to add their own thoughts or context to the shared post.
-- Attribution: Crucially, shared posts always maintain a clear link back to the original author and post.
-- Privacy Inheritance/Override: The shared post's visibility is subject to both the original post's privacy setting and the sharer's chosen privacy setting for their re-share. The most restrictive of these typically applies in terms of who can ultimately view the original content via the share.
-
-## 2. SQL Schema for 'Sharing' Functionality
-To implement sharing, we primarily need to extend the Posts table or introduce a new SharedPosts table that links back to original posts. Given that a shared post essentially is a new post (with its own comments, reactions, and privacy) that references an original, extending the Posts table is often the most efficient approach.
-
-* Posts Table (Modified/Extended)
-We will modify the existing Posts table to include columns for shared posts.
-- Purpose: Now stores both original posts and shared instances of other posts.
-- Columns (Tags):
-- - post_id (Primary Key, INT/UUID): Unique identifier for each post (original or shared).
-- - user_id (Foreign Key to Users.user_id): The ID of the user who created this specific post instance (either the original author or the sharer).
-- - content (TEXT, NULLABLE): The main text content of this specific post instance. For shared posts, this is the sharer's commentary. For original posts, it's the original text.
-- - original_post_id (Foreign Key to Posts.post_id, NULLABLE): CRITICAL for sharing. If this post is a share, this column holds the post_id of the original post being shared. If it's an original post, this is NULL.
-- - created_at (DATETIME): Timestamp when this specific post instance was created.
-- - updated_at (DATETIME): Timestamp when this specific post instance was last modified.
-- - visibility (ENUM('public', 'friends', 'only_me'), DEFAULT 'friends'): The privacy setting for this specific post instance (the share itself).
-- - post_type (ENUM('original', 'shared'), DEFAULT 'original'): A new column to easily distinguish between original posts and shared posts.
-
-* Existing Tables (and their implicit roles in sharing):
-- Users: Provides user information for both original authors and sharers.
-- Friendships: Used to determine privacy for 'Friends' visibility on shared posts.
-- PostMedia: Media attached to the original post will be implicitly linked via original_post_id lookup. The shared post itself usually doesn't have new media unless the sharer explicitly uploads it (which Facebook typically handles as a new, separate original post rather than a share).
-- Comments & CommentReplies: Comments/replies made on a shared post instance are separate from comments on the original post.
-- Reactions: Reactions on a shared post instance are separate from reactions on the original post.
-
-## 3. User Interface (UI) and User Experience (UX) Flow for Sharing
-* Clicking "Share" Button:
-- UI: On any eligible post in the News Feed or on a profile/page, a "Share" button is prominently displayed (often next to "Like" and "Comment").
-- UX: When clicked, a modal or pop-up appears.
-
-* Share Intent (UI/UX):
-- UI (Share Dialog):
-- - Original Post Preview: A preview of the original post (text, media, author, timestamp) is shown. This makes it clear what is being shared.
-- - Sharer's Commentary Input: A text area where the user can type their own comment or message to accompany the share.
-- - Audience Selector: A dropdown or button to choose the privacy/visibility for this shared post (e.g., Public, Friends, Only Me, Custom Lists). This defaults to the user's last chosen privacy or their default post privacy.
-- - "Share Now" / "Post" Button: The primary action button.
-- - Other Options:
-- - - "Share to Feed" (default)
-- - - "Share to your Story"
-- - - "Send in Messenger"
-- - - "Share to a Group"
-- - - "Share to a Page" (if the user manages pages)
-- UX: The modal provides a clear, controlled environment for the user to decide how and to whom they want to share the content, encouraging them to add their personal touch.
-
-* How the Post is Being Shared (Backend Process):
-- PHP: When the "Share" button in the modal is confirmed, an API call is made to the server (e.g., share.php or a dedicated API endpoint).
-- ShareManager::sharePost(): This function is invoked, receiving the sharerId, originalPostId, sharerComment, and visibility.
-- Database Transaction: A new entry is created in the Posts table.
-- - post_id: A new unique ID for this shared instance.
-- - user_id: The ID of the sharer.
-- - content: The sharerComment (can be NULL).
-- - original_post_id: Crucially, the post_id of the original content is stored here.
-- - post_type: Set to 'shared'.
-- - visibility: Set to the visibility chosen by the sharer.
-- No Duplication of Original Content: The original_post_id foreign key means the actual content and media of the original post are not duplicated. They are referenced.
-
-* News Feed Display for Shared Post:
-- PHP (PostManager::getNewsfeedPosts): When fetching posts for a user's News Feed, this function retrieves shared posts (where post_type = 'shared').
-- ShareManager::getSinglePostById (or similar logic): For each shared post, the News Feed retrieval logic uses the original_post_id to fetch the details of the original post (its content, author, media, etc.).
-- Privacy Check: A critical step is to check if the viewer of the shared post has permission to see the original post. If the original post's privacy (original_post_data.visibility) is more restrictive than the viewer's relationship to the original author, the original content might be hidden or replaced with a "Content Not Available" message.
-- UI: The shared post is displayed as a new entry in the News Feed. It typically shows:
-- - The sharer's profile picture and name.
-- - The sharer's commentary.
-- - Below the commentary, a visually distinct block showing the original post:
-- - - Original author's profile picture and name.
-- - - Original post's content and media.
-- - - Original post's timestamp.
-
-* Commenting, Reaction, and Resharing Buttons on a Shared Post:
-- Behavior:
-- - Commenting: Comments and replies made on a shared post belong specifically to that shared instance. They are stored in Comments and CommentReplies linked to the post_id of the shared post. They do not appear on the original post.
-- - Reactions: Reactions (likes, loves, etc.) made on a shared post belong to that shared instance. They are stored in Reactions linked to the post_id of the shared post. They do not add to the original post's reaction count.
-- - -Resharing: A "Share" button exists on the shared post itself. Clicking this allows a user to "re-share a share." This creates a new shared post, where its original_post_id would point to the first shared post's post_id, forming a chain. Facebook typically limits how many times this can be re-shared in a chain for clarity.
-- UI: Buttons for "Like," "Comment," and "Share" appear at the bottom of the shared post block, operating on that specific instance. There's often also a prominent link or clickable area that leads directly to the original post's permalink.
-* Clicking on a Shared Post:
-- UI/UX:
-- - Clicking on the sharer's commentary or profile picture, or the "Like/Comment/Share" buttons, typically interacts with the shared post instance.
-- - -Clicking on the original content block (or a dedicated "See Original Post" link) navigates the user directly to the original post's permalink, where they can see all comments and reactions on the original post, regardless of how they discovered it.
-* Notification System to Original Author:
-- Mechanism: When a user shares a post, the original author receives a notification (e.g., "Alice shared your post," or "Alice shared your photo").
-- Integration: A notification system would monitor INSERT operations on the Posts table where post_type = 'shared'. When such an insert occurs, it identifies the original_post_id and then looks up the user_id of that original_post_id in the Posts table (or Users table through a join). A notification record is then generated for the original author.
-
-## 4. Integration with Other Facebook Systems
-* News Feed Algorithm: Shared posts contribute to engagement signals and are ranked. The algorithm considers the relevance of the sharer, the original author, and the content itself. Viral content often leverages the sharing mechanism.
-* Analytics/Insights: Original authors can see insights on how many times their content has been shared and potentially the reach of those shares.
-* Search: Both original and shared posts are indexed for search.
-* Saved Posts: Users can save shared posts (which effectively saves that specific shared instance).
-* Reporting: Both the shared post (sharer's comment) and the original content within it can be reported separately.
-
-## 5. Suggestions for Improvement
-* Explicit Original Post Privacy Cues:
-- Current: If an original post is private and gets shared publicly, the original content might just disappear for viewers without direct context.
-- Improvement: Clearly indicate the original post's privacy setting or status when it's unavailable. E.g., "Original post was set to 'Friends Only' by Bob" or "Original content has been deleted by the author."
-
-* "Chain" Management/Display:
-- Current: Deeply nested re-shares can become visually cluttered or confusing.
-- Improvement: Implement smarter collapsing or a more intuitive visual representation for long chains of shares, perhaps showing only the immediate previous share and the original.
-
-* Sharer-Specific Analytics:
-- Current: Original authors get share counts. Sharers themselves don't easily see detailed reach/engagement of their own shares.
-- Improvement: Provide sharers with basic analytics on their shared posts (e.g., how many people saw their share, engaged with their commentary).
-
-* Pre-emptive Privacy Warning:
-- Current: User selects privacy for their share, but might not realize it's restricted by original post's privacy.
-- -Improvement: In the share dialog, if the original post's privacy is more restrictive than the sharer's chosen audience, provide a warning like "Note: Your audience is wider than the original post's. Some viewers may not see the original content."
-
-* Audience Targeting for Shares:
-- Current: Shares go to personal News Feed audiences.
-- Improvement: Allow sharing directly to specific "groups of friends" or custom lists within the share dialog itself, even if not a formal group.
-
-## 6. PHP Logic for 'Sharing' & Newsfeed Display
-The PHP logic needs to handle the creation of a shared post, displaying its content (including the original post's details), and managing subsequent interactions.
-
-<?php
-
-// Assume a PDO database connection ($pdo) is established and available.
-// Assume get_current_user_id() returns the ID of the logged-in user.
-// Assume generate_uuid_v4() helper function.
-// Assume User, Friendship, and PostManager classes from previous schematics exist.
-// The PostManager will be modified to handle fetching original posts for shared ones.
-
-class ShareManager {
-    private $pdo;
-    private $postManager; // Dependency injection for PostManager
-
-    public function __construct(PDO $pdo, PostManager $postManager) {
-        $this->pdo = $pdo;
-        $this->postManager = $postManager;
-    }
-
-    /**
-     * Creates a new 'shared' post.
-     * @param int $sharerId The ID of the user sharing the post.
-     * @param string $originalPostId The ID of the original post being shared.
-     * @param string|null $sharerComment Optional commentary from the sharer.
-     * @param string $visibility 'public', 'friends', or 'only_me' for the shared post.
-     * @return string|false The post_id of the new shared post if successful, false otherwise.
-     */
-    public function sharePost(int $sharerId, string $originalPostId, ?string $sharerComment = null, string $visibility = 'friends') {
-        // First, check if the original post exists and is visible to the sharer.
-        // This is a simplified check; a real system would have more robust visibility rules.
-        $originalPost = $this->postManager->getSinglePostById($originalPostId, $sharerId);
-        if (!$originalPost) {
-            error_log("Attempt to share non-existent or inaccessible post: " . $originalPostId);
-            return false;
-        }
-
-        $sharedPostId = generate_uuid_v4();
-
-        $stmt = $this->pdo->prepare("
-            INSERT INTO Posts (post_id, user_id, content, original_post_id, post_type, visibility, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 'shared', ?, NOW(), NOW())
-        ");
-        try {
-            $stmt->execute([$sharedPostId, $sharerId, $sharerComment, $originalPostId, $visibility]);
-            return $sharedPostId;
-        } catch (PDOException $e) {
-            error_log("Error sharing post: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Retrieves a single post by its ID, enriching it with original post data if it's a share.
-     * This method would ideally be part of or used by a PostManager.
-     * @param string $postId The ID of the post (can be original or shared).
-     * @param int $viewerId The ID of the user viewing the post. Crucial for privacy.
-     * @return array|false The post data including original post details for shares, false if not found/inaccessible.
-     */
-    public function getSinglePostById(string $postId, int $viewerId) {
-        $sql = "
-            SELECT p.*, u.username AS author_username, u.profile_picture_url AS author_profile_pic
-            FROM Posts p
-            JOIN Users u ON p.user_id = u.user_id
-            WHERE p.post_id = ?;
-        ";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$postId]);
-        $post = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$post) {
-            return false; // Post not found
-        }
-
-        // Add media (from PostManager's logic, adapted)
-        $mediaSql = "
-            SELECT media_id, post_id, media_url, media_type, thumbnail_url, order_index, file_size_bytes
-            FROM PostMedia
-            WHERE post_id = ?
-            ORDER BY order_index ASC;
-        ";
-        $mediaStmt = $this->pdo->prepare($mediaSql);
-        $mediaStmt->execute([$postId]);
-        $post['media'] = $mediaStmt->fetchAll(PDO::FETCH_ASSOC);
-
-
-        // If it's a shared post, fetch the original post's details
-        if ($post['post_type'] === 'shared' && !empty($post['original_post_id'])) {
-            // Recursively call PostManager's getSinglePostById to get the original post's data
-            // This is simplified. In a real system, you'd ensure circular references are handled
-            // and apply original post's privacy against the *viewer* of the shared post.
-            $originalPost = $this->postManager->getSinglePostById($post['original_post_id'], $viewerId); // Pass viewerId for privacy check
-
-            // CRITICAL PRIVACY CHECK: If the original post is not visible to the viewer of the shared post,
-            // then the shared post should *not* display the original content.
-            // This requires a more complex visibility check function in PostManager.
-            // For now, assume getSinglePostById handles this and returns false if not visible.
-            if ($originalPost) {
-                $post['original_post_data'] = $originalPost;
-            } else {
-                // Original post is not visible to the viewer of the shared post.
-                // Display a "Content not available" message, or hide the original part.
-                $post['original_post_data'] = [
-                    'content' => 'The original post is no longer available or you do not have permission to view it.',
-                    'author_username' => 'Unknown',
-                    'privacy_blocked' => true // Custom flag for rendering logic
-                ];
-            }
-        }
-
-        // Apply shared post's own visibility rules here (similar to Newsfeed logic)
-        // This is a simplified check assuming the user is the author or public.
-        // A full visibility check would involve Friendships table for 'friends' visibility.
-        if ($post['visibility'] === 'only_me' && $post['user_id'] !== $viewerId) {
-            return false; // Not visible to this viewer
-        }
-        // Additional checks for 'friends' visibility etc. based on $viewerId and relationships.
-
-        return $post;
-    }
-}
-
-// --- Modified PostManager (Newsfeed Retrieval for Shared Posts) ---
-// The getNewsfeedPosts method from the previous schematics would call getSinglePostById
-// for each post to fetch its details, including the linked original post if it's a share.
-
-/*
-// Example of how Newsfeed would iterate and display:
-class NewsfeedRenderer {
-    private $postManager; // Injected dependency
-
-    public function __construct(PostManager $postManager) {
-        $this->postManager = $postManager;
-    }
-
-    public function renderNewsfeed(int $viewerId) {
-        $posts = $this->postManager->getNewsfeedPosts($viewerId); // This now fetches media for original posts
-
-        foreach ($posts as $post) {
-            echo "--- POST ---\n";
-            echo "Author: " . $post['author_username'] . "\n";
-            echo "Time: " . $post['created_at'] . "\n";
-            echo "My comment: " . $post['content'] . "\n"; // Sharer's comment if it's a shared post
-
-            if ($post['post_type'] === 'shared' && isset($post['original_post_data'])) {
-                $originalPost = $post['original_post_data'];
-                if (isset($originalPost['privacy_blocked']) && $originalPost['privacy_blocked']) {
-                    echo "Original Content: " . $originalPost['content'] . "\n";
-                } else {
-                    echo "--- ORIGINAL POST (Shared) ---\n";
-                    echo "  Original Author: " . $originalPost['author_username'] . "\n";
-                    echo "  Original Content: " . $originalPost['content'] . "\n";
-                    if (!empty($originalPost['media'])) {
-                        echo "  Original Media:\n";
-                        foreach ($originalPost['media'] as $mediaItem) {
-                            echo "    - Type: " . $mediaItem['media_type'] . ", URL: " . $mediaItem['media_url'] . "\n";
-                        }
-                    }
-                    echo "--------------------------\n";
-                }
-            } else {
-                 if (!empty($post['media'])) {
-                    echo "  Media:\n";
-                    foreach ($post['media'] as $mediaItem) {
-                        echo "    - Type: " . $mediaItem['media_type'] . ", URL: " . $mediaItem['media_url'] . "\n";
-                    }
-                }
-            }
-
-            // Display Comment, Reaction, Reshare buttons (these refer to the SHARED post instance)
-            echo "[Like] [Comment] [Share] [Original Post Link]\n"; // Original Post Link leads to original post's permalink
-            echo "-------------------------------\n\n";
-        }
-    }
-}
-*/
-
-// --- Example Usage (Conceptual for Demonstration) ---
-/*
-// Assuming Database, User, PostManager, FollowManager (from previous schematics) exist and are initialized.
-// For this example, we'll need to define a simple PostManager for getSinglePostById.
-
-class Database {
-    private $pdo;
-    public function __construct() {
-        $this->pdo = new PDO('sqlite::memory:'); // Use in-memory SQLite for simple demo
-        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $this->pdo->exec("CREATE TABLE Users (user_id INTEGER PRIMARY KEY, username TEXT, profile_picture_url TEXT)");
-        $this->pdo->exec("INSERT INTO Users (user_id, username) VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')");
-        $this->pdo->exec("CREATE TABLE Posts (post_id TEXT PRIMARY KEY, user_id INTEGER, content TEXT, original_post_id TEXT, post_type TEXT, visibility TEXT, created_at DATETIME, updated_at DATETIME)");
-        $this->pdo->exec("CREATE TABLE PostMedia (media_id TEXT PRIMARY KEY, post_id TEXT, media_url TEXT, media_type TEXT, thumbnail_url TEXT, order_index INTEGER, file_size_bytes INTEGER, created_at DATETIME)");
-        $this->pdo->exec("CREATE TABLE Friendships (user_id_1 INTEGER, user_id_2 INTEGER, status TEXT, created_at DATETIME, PRIMARY KEY (user_id_1, user_id_2))");
-        $this->pdo->exec("INSERT INTO Friendships (user_id_1, user_id_2, status, created_at) VALUES (1, 2, 'accepted', CURRENT_TIMESTAMP)"); // Alice and Bob are friends
-    }
-    public function getConnection() { return $this->pdo; }
-}
-
-function get_current_user_id() { return 1; } // Simulate Alice logged in
-
-// Re-implement a simplified PostManager just for this example's execution
-class SimplePostManager {
-    private $pdo;
-    public function __construct(PDO $pdo) { $this->pdo = $pdo; }
-
-    public function createPost(int $userId, string $content, array $mediaItems = [], string $visibility = 'public', ?string $originalPostId = null, string $postType = 'original') {
-        $postId = generate_uuid_v4();
-        $this->pdo->beginTransaction();
-        try {
-            $stmt = $this->pdo->prepare("INSERT INTO Posts (post_id, user_id, content, original_post_id, post_type, visibility, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
-            $stmt->execute([$postId, $userId, $content, $originalPostId, $postType, $visibility]);
-
-            $mediaOrder = 0;
-            if (!empty($mediaItems)) {
-                $mediaStmt = $this->pdo->prepare("INSERT INTO PostMedia (media_id, post_id, media_url, media_type, thumbnail_url, order_index, file_size_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
-                foreach ($mediaItems as $media) {
-                    $mediaId = generate_uuid_v4();
-                    $mediaStmt->execute([$mediaId, $postId, $media['url'], $media['type'], $media['thumbnail_url'] ?? null, $mediaOrder++, $media['file_size_bytes'] ?? null]);
-                }
-            }
-            $this->pdo->commit();
-            return $postId;
-        } catch (PDOException $e) {
-            $this->pdo->rollBack();
-            error_log("Error creating post: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    // Simplified for demonstration: assumes viewer can see. Real logic needs privacy checks.
-    public function getSinglePostById(string $postId, int $viewerId) {
-        $sql = "SELECT p.*, u.username AS author_username, u.profile_picture_url AS author_profile_pic FROM Posts p JOIN Users u ON p.user_id = u.user_id WHERE p.post_id = ?";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$postId]);
-        $post = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$post) return false;
-
-        $mediaSql = "SELECT media_id, post_id, media_url, media_type, thumbnail_url, order_index, file_size_bytes FROM PostMedia WHERE post_id = ? ORDER BY order_index ASC";
-        $mediaStmt = $this->pdo->prepare($mediaSql);
-        $mediaStmt->execute([$postId]);
-        $post['media'] = $mediaStmt->fetchAll(PDO::FETCH_ASSOC);
-
-        if ($post['post_type'] === 'shared' && !empty($post['original_post_id'])) {
-            $originalPost = $this->getSinglePostById($post['original_post_id'], $viewerId); // Recursive call
-            $post['original_post_data'] = $originalPost ?: ['content' => 'Original content unavailable.', 'privacy_blocked' => true];
-        }
-        return $post;
-    }
-
-    public function getNewsfeedPosts(int $viewerId, int $limit = 10, int $offset = 0) {
-        $sql = "SELECT p.post_id FROM Posts p ORDER BY p.created_at DESC LIMIT ? OFFSET ?";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$limit, $offset]);
-        $postIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-        $posts = [];
-        foreach($postIds as $postId) {
-            $post = $this->getSinglePostById($postId, $viewerId);
-            if ($post) $posts[] = $post;
-        }
-        return $posts;
-    }
-}
-
-// Global functions for this demo
-function generate_uuid_v4() {
-    $data = random_bytes(16); $data[6] = chr(ord($data[6]) & 0x0f | 0x40); $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
-    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-}
-
-$database = new Database();
-$pdo = $database->getConnection();
-$postManager = new SimplePostManager($pdo); // Use SimplePostManager for this example
-$shareManager = new ShareManager($pdo, $postManager);
-$newsfeedRenderer = new NewsfeedRenderer($postManager); // Assuming NewsfeedRenderer exists
-
-// Create an original post by Bob (User 2)
-$bobPostId = $postManager->createPost(2, "Bob's original public post!", [['url' => 'https://example.com/bob_img.jpg', 'type' => 'image']], 'public');
-echo "Bob created original post: " . $bobPostId . "\n";
-
-// Alice (User 1) shares Bob's post with a comment
-$aliceSharedPostId = $shareManager->sharePost(1, $bobPostId, "Look at this awesome post from Bob! #sharingiscaring", 'friends');
-echo "Alice shared Bob's post: " . $aliceSharedPostId . "\n";
-
-// Charlie (User 3) tries to share Bob's post
-$charlieSharedPostId = $shareManager->sharePost(3, $bobPostId, "Charlie agrees with Bob!", 'public');
-echo "Charlie shared Bob's post: " . $charlieSharedPostId . "\n";
-
-
-echo "\n--- Alice's Newsfeed ---\n";
-$newsfeedRenderer->renderNewsfeed(get_current_user_id()); // Alice's view
-
-echo "\n--- Bob's Newsfeed ---\n";
-// Create a new PostManager instance for Bob's view
-$bobPostManager = new SimplePostManager($pdo);
-$bobNewsfeedRenderer = new NewsfeedRenderer($bobPostManager);
-$bobNewsfeedRenderer->renderNewsfeed(2); // Bob's view
-
-echo "\n--- Charlie's Newsfeed ---\n";
-// Create a new PostManager instance for Charlie's view
-$charliePostManager = new SimplePostManager($pdo);
-$charlieNewsfeedRenderer = new NewsfeedRenderer($charliePostManager);
-$charlieNewsfeedRenderer->renderNewsfeed(3); // Charlie's view
-*/
+-   **Changes Made:**
+    *   **Frontend (`dashboard.php`):**
+        *   Corrected `share-btn` class for the share button.
+        *   Integrated the complete share modal HTML.
+        *   Implemented JavaScript for modal display, post preview fetching, and share submission.
+        *   Added conditional rendering to show the share button only for original posts.
+        *   Revised shared post rendering logic to display both sharer's commentary and a detailed preview of the original post (including media and author info).
+        *   Integrated robust `normalizeMediaPath` and `renderPostMedia` JavaScript functions for correct media and profile picture path handling and resilient JSON parsing for media.
+        *   Fixed PHP syntax errors related to JavaScript embedding.
+    *   **Backend (`api/get_post_preview.php`, `api/share_post.php`):**
+        *   Ensured `api/get_post_preview.php` correctly resolves media and profile picture paths for the preview.
+        *   Verified `api/share_post.php` handles database transactions, input validation, original post shareability checks, and notification logic.
+        *   (Manual fix by user): Confirmed `updated_at` column existed in `posts` table via `DESCRIBE posts;` and user's manual SQL execution.
+-   **Outcome:** The share post feature is fully functional, allowing users to share posts with comments and privacy settings. Shared posts are displayed correctly in the newsfeed with both the sharer's context and the original post's content.
+-   **Status:** Implemented and functional.
